@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyType {
+  RESTAURANT
+  HOTEL
+  STORE
+}
+
+enum PartnershipStage {
+  WHATSAPP
+  EMAIL
+  DIRECT_VISIT
+}
+
+enum CustomerStatus {
+  NOT_INTERESTED
+  DOUBTFUL
+  INTERESTED
+  OTHERS
+}
+
+enum RelationshipLevel {
+  NEGOTIATION
+  REQUEST_SAMPLE
+  CLOSING_FIRST_ORDER
+  WILL_CONTACT
+  INITIAL_APPROACH
+}
+
+enum DiscountType {
+  PERCENTAGE
+  AMOUNT
+}
+
+enum PaymentStatus {
+  CASH
+  CONSIGNMENT
+  DELAYED_PAYMENT
+}
+
+enum InvoiceStatus {
+  CREATED
+  SENT
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ProductUnit {
+  PCS
+  GRAM
+  LITER
+}
+
+enum RevenueTargetMode {
+  MANUAL
+  SYSTEMATIC
+}
+
+enum RevenueTargetMonthSource {
+  MANUAL
+  GENERATED
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  profileName  String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  products         Product[]
+  customers        Customer[]
+  orders           Order[]
+  restocks         WarehouseRestock[]
+  revenueTargetPlans RevenueTargetPlan[]
+}
+
+model Product {
+  id           String      @id @default(uuid())
+  profileId    String
+  name         String
+  /// Human product code: {INITIALS}_{PACK}_ e.g. CB_100_
+  sku          String      @default("")
+  unit         ProductUnit @default(PCS)
+  stockQty     Decimal     @db.Decimal(18, 4)
+  /// Valuation / order base price per 1 unit (pcs, gram, liter, or qty).
+  /// For non-PCS units this is derived from pack prices when saved.
+  pricePerUnit Decimal     @db.Decimal(18, 4)
+  price50      Decimal?    @db.Decimal(18, 4)
+  price100     Decimal?    @db.Decimal(18, 4)
+  price250     Decimal?    @db.Decimal(18, 4)
+  price500     Decimal?    @db.Decimal(18, 4)
+  price1000    Decimal?    @db.Decimal(18, 4)
+  priceCustom  Decimal?    @db.Decimal(18, 4)
+  /// Optional purchase/COGS rate per 1 unit. Derived from pack costs for non-PCS.
+  costPerUnit  Decimal?    @db.Decimal(18, 4)
+  cost50       Decimal?    @db.Decimal(18, 4)
+  cost100      Decimal?    @db.Decimal(18, 4)
+  cost250      Decimal?    @db.Decimal(18, 4)
+  cost500      Decimal?    @db.Decimal(18, 4)
+  cost1000     Decimal?    @db.Decimal(18, 4)
+  costCustom   Decimal?    @db.Decimal(18, 4)
+  customSize   Decimal?    @db.Decimal(18, 4)
+  details      String      @default("")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// Denormalized primary line (first product) for list display / legacy indexes.
+  orders  Order[]
+  orderLines OrderLine[]
+  restocks WarehouseRestock[]
+
+  @@unique([profileId, sku])
+  @@index([profileId])
+  @@index([profileId, name])
+  @@index([profileId, unit])
+}
+
+model Customer {
+  id                    String             @id @default(uuid())
+  profileId             String
+  name                  String
+  /// Human + system Customer ID: {NameSegments}{CompanyType}_{uuid} e.g. BuSaR_<uuid>
+  sku                   String             @default("")
+  title                 String
+  companyName           String
+  companyType           CompanyType
+  email                 String             @default("")
+  phone                 String             @default("")
+  address               String             @default("")
+  additionalAddress     String             @default("")
+  postalCode            String             @default("")
+  city                  String             @default("")
+  province              String             @default("")
+  country               String             @default("")
+  partnershipStage      PartnershipStage?
+  status                CustomerStatus?
+  customerNeeds         String             @default("")
+  desiredStandards      String             @default("")
+  promiseAnnualBonus    Boolean            @default(false)
+  promiseOnTimeDelivery Boolean            @default(false)
+  promisePackagingBox   Boolean            @default(false)
+  relationshipLevel     RelationshipLevel?
+  approvalPercentage    Int                @default(0)
+  remarks               String             @default("")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@unique([profileId, sku])
+  @@index([profileId])
+  @@index([profileId, status])
+  @@index([profileId, companyType])
+  @@index([profileId, relationshipLevel])
+  @@index([profileId, city])
+  @@index([profileId, province])
+  @@index([profileId, country])
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  profileId         String
+  /// Human + system Order ID: YYYY_MM_DD_{uuid} e.g. 2026_07_25_<uuid>
+  sku               String        @default("")
+  /// Optional CRM customer for this order (analytics + delivery context).
+  customerId        String?
+  /// Primary / first line product (denormalized for list + legacy queries).
+  productId         String
+  orderDate         DateTime      @db.Date
+  shipmentDate      DateTime?     @db.Date
+  /// Stock units from primary line (packSize × packCount). Prefer lines[].
+  productQty        Decimal       @db.Decimal(18, 4)
+  /// Selected pack size on primary line (1 for PCS).
+  packSizeSnapshot  Decimal       @db.Decimal(18, 4) @default(1)
+  /// Selling price for one pack on primary line.
+  packPriceSnapshot Decimal       @db.Decimal(18, 4)
+  /// Number of packs on primary line.
+  packCount         Decimal       @db.Decimal(18, 4) @default(1)
+  unitSnapshot      ProductUnit   @default(PCS)
+  unitPriceSnapshot Decimal       @db.Decimal(18, 4)
+  stockQtySnapshot  Decimal       @db.Decimal(18, 4)
+  /// Sum of line totals before order-level discount.
+  lineTotal         Decimal       @db.Decimal(18, 4)
+  discountType      DiscountType
+  discountValue     Decimal       @db.Decimal(18, 4)
+  totalOrderValue   Decimal       @db.Decimal(18, 4)
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus
+  invoiceStatus     InvoiceStatus @default(CREATED)
+  invoiceDate       DateTime?     @db.Date
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  profile      Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  customer     Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lines        OrderLine[]
+  installments OrderInstallment[]
+
+  @@unique([profileId, sku])
+  @@index([profileId])
+  @@index([profileId, productId])
+  @@index([profileId, customerId])
+  @@index([profileId, paymentStatus])
+  @@index([profileId, status])
+  @@index([profileId, orderDate])
+  @@index([profileId, invoiceStatus])
+}
+
+/// One product/pack row on an order. Orders may have multiple lines.
+model OrderLine {
+  id                String      @id @default(uuid())
+  orderId           String
+  productId         String
+  sortOrder         Int         @default(0)
+  /// Stock units ordered (packSize × packCount).
+  productQty        Decimal     @db.Decimal(18, 4)
+  packSizeSnapshot  Decimal     @db.Decimal(18, 4) @default(1)
+  packPriceSnapshot Decimal     @db.Decimal(18, 4)
+  packCount         Decimal     @db.Decimal(18, 4) @default(1)
+  unitSnapshot      ProductUnit @default(PCS)
+  unitPriceSnapshot Decimal     @db.Decimal(18, 4)
+  stockQtySnapshot  Decimal     @db.Decimal(18, 4)
+  lineTotal         Decimal     @db.Decimal(18, 4)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([orderId, sortOrder])
+}
+
+model OrderInstallment {
+  id              String   @id @default(uuid())
+  orderId         String
+  amount          Decimal  @db.Decimal(18, 4)
+  installmentDate DateTime @db.Date
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([orderId, installmentDate])
+}
+
+model WarehouseRestock {
+  id            String      @id @default(uuid())
+  profileId     String
+  productId     String
+  qtyAdded      Decimal     @db.Decimal(18, 4)
+  restockDate   DateTime    @db.Date
+  notes         String      @default("")
+  unitSnapshot  ProductUnit @default(PCS)
+  stockBefore   Decimal     @db.Decimal(18, 4)
+  stockAfter    Decimal     @db.Decimal(18, 4)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([profileId, productId])
+  @@index([profileId, restockDate])
+}
+
+/// One revenue-target configuration per profile + calendar year.
+model RevenueTargetPlan {
+  id                    String            @id @default(uuid())
+  profileId             String
+  year                  Int
+  monthlyMode           RevenueTargetMode @default(MANUAL)
+  annualMode            RevenueTargetMode @default(MANUAL)
+  /// January (month 1) target when monthlyMode = SYSTEMATIC.
+  baseMonthAmount       Decimal?          @db.Decimal(18, 4)
+  /// Month-over-month growth percent (e.g. 5 = +5% each month).
+  monthlyGrowthPercent  Decimal?          @db.Decimal(18, 4)
+  /// Annual target when annualMode = MANUAL.
+  annualAmount          Decimal?          @db.Decimal(18, 4)
+  /// This year's annual target when annualMode = SYSTEMATIC.
+  baseAnnualAmount      Decimal?          @db.Decimal(18, 4)
+  /// Year-over-year growth percent for systematic annual planning.
+  annualGrowthPercent   Decimal?          @db.Decimal(18, 4)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  profile Profile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  months  RevenueTargetMonth[]
+
+  @@unique([profileId, year])
+  @@index([profileId])
+}
+
+model RevenueTargetMonth {
+  id        String                   @id @default(uuid())
+  planId    String
+  month     Int
+  amount    Decimal                  @db.Decimal(18, 4)
+  source    RevenueTargetMonthSource @default(MANUAL)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  plan RevenueTargetPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, month])
+  @@index([planId])
+}

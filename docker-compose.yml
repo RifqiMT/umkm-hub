@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: umkm-hub-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: umkm
+      POSTGRES_PASSWORD: umkm_secret
+      POSTGRES_DB: umkm_hub
+    volumes:
+      - umkm_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umkm -d umkm_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  umkm_pg_data:

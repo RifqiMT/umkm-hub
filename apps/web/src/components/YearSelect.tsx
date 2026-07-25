@@ -1,0 +1,64 @@
+'use client';
+
+type YearSelectProps = {
+  value: number;
+  onChange: (year: number) => void;
+  years: number[];
+  id?: string;
+  label?: string;
+  'aria-label'?: string;
+  disabled?: boolean;
+  className?: string;
+  /** Hide the visible label when an external label is already present. */
+  hideLabel?: boolean;
+};
+
+export function YearSelect({
+  value,
+  onChange,
+  years,
+  id = 'year-select',
+  label = 'Year',
+  'aria-label': ariaLabel,
+  disabled = false,
+  className = '',
+  hideLabel = false,
+}: YearSelectProps) {
+  const rootClass = ['umkm-year-select', className].filter(Boolean).join(' ');
+
+  return (
+    <div className={rootClass}>
+      {hideLabel ? null : (
+        <label className="umkm-year-select-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
+      <div className="umkm-year-select-control">
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          aria-label={ariaLabel ?? label}
+          onChange={(e) => onChange(Number(e.target.value))}
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <span className="umkm-year-select-chevron" aria-hidden>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M4 6.2 8 10l4-3.8"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </div>
+    </div>
+  );
+}

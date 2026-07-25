@@ -1,0 +1,19 @@
+{
+  "name": "umkm-hub",
+  "private": true,
+  "version": "1.0.0",
+  "description": "UMKM Hub monorepo",
+  "scripts": {
+    "setup": "bash scripts/sync-env.sh setup",
+    "sync": "bash scripts/sync-env.sh sync",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm --prefix apps/api run prisma:deploy",
+    "db:generate": "npm --prefix apps/api run prisma:generate",
+    "db:seed": "npm --prefix apps/api run prisma:seed",
+    "api:dev": "npm --prefix apps/api run start:dev",
+    "api:test": "npm --prefix apps/api test",
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build"
+  }
+}

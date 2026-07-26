@@ -20,7 +20,10 @@ type RequestOptions = {
   method?: string;
   body?: unknown;
   auth?: boolean;
-  searchParams?: Record<string, string | number | undefined>;
+  searchParams?: Record<
+    string,
+    string | number | string[] | undefined | null
+  >;
 };
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -54,9 +57,13 @@ export async function api<T>(
   const url = new URL(`${API_URL}${path}`);
   if (searchParams) {
     Object.entries(searchParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        url.searchParams.set(key, String(value));
+      if (value === undefined || value === null || value === '') return;
+      if (Array.isArray(value)) {
+        if (value.length === 0) return;
+        url.searchParams.set(key, value.join(','));
+        return;
       }
+      url.searchParams.set(key, String(value));
     });
   }
 

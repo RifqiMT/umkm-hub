@@ -12,6 +12,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
 import { RevenueTargetsModule } from './revenue-targets/revenue-targets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { GeoModule } from './geo/geo.module';
+import { EmailModule } from './email/email.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -19,6 +20,7 @@ import { HealthController } from './health.controller';
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    EmailModule,
     AuthModule,
     ProfilesModule,
     ProductsModule,

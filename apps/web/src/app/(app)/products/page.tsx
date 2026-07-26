@@ -5,19 +5,31 @@ import { api, ApiError } from '@/lib/api';
 import { confirmDelete } from '@/lib/confirm';
 import { ContentSection, EmptyState, FormSection, PageHeader } from '@/components/PageHeader';
 import { OptionChips } from '@/components/OptionChips';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import { FeatureStage } from '@/components/FeatureStage';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
   LABELS,
   PRODUCT_UNITS,
 } from '@/lib/enums';
-import type { Paginated, Product } from '@/lib/types';
-import { formatMoney, formatQty } from '@/lib/format-money';
+import type { Paginated, Product, ProductSummary } from '@/lib/types';
+import {
+  formatCompactQtyParts,
+  formatMoney,
+  formatMoneyParts,
+  formatQty,
+  formatMoneyExact,
+} from '@/lib/format-money';
+import {
+  COST_SET_FILTER_OPTIONS,
+  PACK_READY_FILTER_OPTIONS,
+} from '@/lib/product-readiness';
 
 type PackField = 'price50' | 'price100' | 'price250' | 'price500' | 'price1000';
 type CostField = 'cost50' | 'cost100' | 'cost250' | 'cost500' | 'cost1000';
 type PackSizeOption = '50' | '100' | '250' | '500' | '1000' | 'CUSTOM';
-type UnitFilter = 'ALL' | (typeof PRODUCT_UNITS)[number];
 type SortKey = 'name' | 'pack' | 'sell' | 'cost' | 'profit' | 'margin';
 type SortDir = 'asc' | 'desc';
 
@@ -329,19 +341,30 @@ function ProductEconStrip({
 
 export default function ProductsPage() {
   const [items, setItems] = useState<Product[]>([]);
+  const [summary, setSummary] = useState<ProductSummary | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
-  const [unitFilter, setUnitFilter] = useState<UnitFilter>('ALL');
+  const [unitFilters, setUnitFilters] = useState<string[]>([]);
+  const [costSetFilters, setCostSetFilters] = useState<string[]>([]);
+  const [packReadyFilters, setPackReadyFilters] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listMeta, setListMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 0,
+  });
   const [packSize, setPackSize] = useState<PackSizeOption>('100');
   const [customSizeDraft, setCustomSizeDraft] = useState('');
-  const searchReady = useRef(false);
+  const loadSeq = useRef(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const isPcs = form.unit === 'PCS';
 
@@ -410,41 +433,50 @@ export default function ProductsPage() {
     };
   }, [form, savedPacks]);
 
-  async function load(q = search) {
+  async function load(q = debouncedSearch) {
+    const seq = ++loadSeq.current;
+    setListLoading(true);
+    const filterParams = {
+      search: q.trim() || undefined,
+      unit: unitFilters.length > 0 ? unitFilters : undefined,
+      costSet: costSetFilters.length > 0 ? costSetFilters : undefined,
+      packReady: packReadyFilters.length > 0 ? packReadyFilters : undefined,
+    };
     try {
-      const data = await api<Paginated<Product>>('/products', {
-        searchParams: { search: q, limit: 50 },
-      });
+      const [data, productSummary] = await Promise.all([
+        api<Paginated<Product>>('/products', {
+          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
+        }),
+        api<ProductSummary>('/products/summary', {
+          searchParams: filterParams,
+        }),
+      ]);
+      if (seq !== loadSeq.current) return;
       setItems(data.items);
+      setListMeta(data.meta);
+      setSummary(productSummary);
+      setError('');
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load products');
+    } finally {
+      if (seq === loadSeq.current) setListLoading(false);
     }
   }
 
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!searchReady.current) {
-      searchReady.current = true;
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void load(search);
-    }, 280);
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 280);
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  const catalog = useMemo(() => {
-    const filtered =
-      unitFilter === 'ALL'
-        ? items
-        : items.filter((p) => p.unit === unitFilter);
+  useEffect(() => {
+    void load(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, unitFilters, costSetFilters, packReadyFilters]);
 
-    const ranked = [...filtered].sort((a, b) => {
+  const catalog = useMemo(() => {
+    // List is already filter-scoped by the API; only sort locally.
+    const ranked = [...items].sort((a, b) => {
       const pa = getActivePack(a);
       const pb = getActivePack(b);
       const ea = packEconomics(pa);
@@ -477,7 +509,7 @@ export default function ProductsPage() {
     });
 
     return ranked;
-  }, [items, unitFilter, sortKey, sortDir]);
+  }, [items, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -809,20 +841,133 @@ export default function ProductsPage() {
   }
 
   const viewingPack = viewing ? getActivePack(viewing) : null;
+  const chipFiltersActive =
+    unitFilters.length > 0 ||
+    costSetFilters.length > 0 ||
+    packReadyFilters.length > 0;
+  const filtersActive =
+    debouncedSearch.trim().length > 0 || chipFiltersActive;
+  const stageSummary = summary;
+  const searchPending = search.trim() !== debouncedSearch;
+  const stageLoading = listLoading || searchPending;
+  const pulseSell = stageSummary
+    ? formatMoneyParts(stageSummary.inventorySellValue)
+    : null;
+  const pulseStock = stageSummary
+    ? formatCompactQtyParts(stageSummary.totalStockQty)
+    : null;
 
   return (
     <section>
-      <PageHeader
-        title="Products"
-        description="Define catalog items with selling price and optional cost per piece or pack. Stock lives in Warehouse."
-        actions={
-          !formOpen && !viewing ? (
+      {!formOpen && !viewing ? (
+        <FeatureStage
+          title="Products"
+          loading={stageLoading && !stageSummary}
+          subtitle={
+            stageSummary
+              ? `${stageSummary.productCount.toLocaleString('en-US')} SKU${stageSummary.productCount === 1 ? '' : 's'}${filtersActive ? ' in view' : ''} · Catalog value and stock health`
+              : 'Define catalog items with selling price and optional cost.'
+          }
+          action={
             <button type="button" className="umkm-btn" onClick={startCreate}>
               Add product
             </button>
-          ) : null
-        }
-      />
+          }
+          stats={[
+            {
+              label: 'Inventory value',
+              hero: true,
+              tip: {
+                value: stageSummary
+                  ? formatMoneyExact(stageSummary.inventorySellValue)
+                  : undefined,
+                description:
+                  'Sell value of stock on hand for products in view.',
+              },
+              value: pulseSell ? (
+                <>
+                  <b>{pulseSell.figure}</b>
+                  {pulseSell.unit ? <small>{pulseSell.unit}</small> : null}
+                </>
+              ) : (
+                <b>···</b>
+              ),
+            },
+            {
+              label: 'Products',
+              tip: {
+                description: 'Number of catalog SKUs in the current view.',
+              },
+              value: stageSummary
+                ? stageSummary.productCount.toLocaleString('en-US')
+                : '···',
+            },
+            {
+              label: 'Stock on hand',
+              tip: {
+                value: stageSummary
+                  ? formatQty(stageSummary.totalStockQty)
+                  : undefined,
+                description: 'Total pack quantity available across these SKUs.',
+              },
+              value: pulseStock ? (
+                <>
+                  <b>{pulseStock.figure}</b>
+                  {pulseStock.unit ? <small>{pulseStock.unit}</small> : null}
+                </>
+              ) : (
+                <b>···</b>
+              ),
+            },
+          ]}
+          ratesLabel="Product rates"
+          rates={[
+            {
+              tone: 'tone-cancel',
+              label: 'Out of stock',
+              tip: {
+                description: 'Share of products with zero stock left.',
+                detail: 'Out-of-stock SKUs ÷ products in view',
+              },
+              value: stageSummary?.outOfStockRate,
+            },
+            {
+              tone: 'tone-margin',
+              label: 'Margin',
+              tip: {
+                description:
+                  'Estimated inventory profit when unit cost is set.',
+                detail: 'Profit ÷ sell value on SKUs with cost',
+              },
+              value: stageSummary?.profitMarginRate,
+            },
+            {
+              tone: 'tone-discount',
+              label: 'Cost set',
+              tip: {
+                description: 'Share of products that have a unit cost filled in.',
+                detail: 'SKUs with cost ÷ products in view',
+              },
+              value: stageSummary?.costCoverageRate,
+            },
+            {
+              tone: 'tone-paid',
+              label: 'Pack ready',
+              tip: {
+                description:
+                  'Share of products that already have at least one pack price.',
+                detail: 'Pack-ready SKUs ÷ products in view',
+              },
+              value: stageSummary?.packReadyRate,
+            },
+          ]}
+        />
+      ) : (
+        <PageHeader
+          title="Products"
+          description="Define catalog items with selling price and optional cost per piece or pack. Stock lives in Warehouse."
+        />
+      )}
       {error ? <div className="umkm-error">{error}</div> : null}
 
       {viewing ? (
@@ -1117,41 +1262,68 @@ export default function ProductsPage() {
               autoComplete="off"
             />
           </div>
-          <div className="umkm-catalog-filters" role="group" aria-label="Filter by unit">
-            {(
-              [
-                ['ALL', 'All'],
-                ['PCS', 'Pcs'],
-                ['GRAM', 'Gram'],
-                ['LITER', 'Liter'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className={`umkm-filter-chip${unitFilter === value ? ' is-active' : ''}`}
-                onClick={() => setUnitFilter(value)}
-                aria-pressed={unitFilter === value}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <CollapsibleFilters
+            activeCount={
+              (unitFilters.length > 0 ? 1 : 0) +
+              (costSetFilters.length > 0 ? 1 : 0) +
+              (packReadyFilters.length > 0 ? 1 : 0)
+            }
+          >
+            <MultiSelectFilter
+              id="product-unit-filter"
+              label="Unit"
+              allLabel="All units"
+              value={unitFilters}
+              onChange={setUnitFilters}
+              options={PRODUCT_UNITS.map((unit) => ({
+                value: unit,
+                label: unitLabel(unit),
+              }))}
+            />
+            <MultiSelectFilter
+              id="product-cost-set-filter"
+              label="Cost set"
+              allLabel="Any cost"
+              value={costSetFilters}
+              onChange={setCostSetFilters}
+              options={COST_SET_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+            <MultiSelectFilter
+              id="product-pack-ready-filter"
+              label="Pack ready"
+              allLabel="Any pack status"
+              value={packReadyFilters}
+              onChange={setPackReadyFilters}
+              options={PACK_READY_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+          </CollapsibleFilters>
           <p className="umkm-catalog-count">
-            {catalog.length} product{catalog.length === 1 ? '' : 's'}
-            {unitFilter !== 'ALL' ? ` · ${unitLabel(unitFilter)}` : ''}
+            {listLoading
+              ? 'Loading…'
+              : listMeta.total === 0
+                ? filtersActive
+                  ? 'No matches'
+                  : 'No products yet'
+                : catalog.length >= listMeta.total
+                  ? `${listMeta.total.toLocaleString('en-US')} product${listMeta.total === 1 ? '' : 's'}`
+                  : `Showing ${catalog.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
-        {items.length === 0 ? (
+        {listLoading && catalog.length === 0 ? null : listMeta.total === 0 ? (
           <EmptyState
-            title="No products yet"
-            description="Add your first product catalog item, then restock it in Warehouse."
-          />
-        ) : catalog.length === 0 ? (
-          <EmptyState
-            title="No matches"
-            description="Try another search or clear the unit filter."
+            title={filtersActive ? 'No matches' : 'No products yet'}
+            description={
+              filtersActive
+                ? 'Try another search or clear the filters.'
+                : 'Add your first product catalog item, then restock it in Warehouse.'
+            }
           />
         ) : (
           <>

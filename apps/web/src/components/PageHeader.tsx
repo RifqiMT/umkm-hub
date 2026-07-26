@@ -10,7 +10,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="umkm-page-header">
+    <header className={`umkm-page-header${actions ? '' : ' is-solo'}`}>
       <div className="umkm-page-header-text">
         <h1 className="umkm-title">{title}</h1>
         {description ? <p className="umkm-sub">{description}</p> : null}
@@ -23,14 +23,17 @@ export function PageHeader({
 export function EmptyState({
   title,
   description,
+  children,
 }: {
   title: string;
   description: string;
+  children?: ReactNode;
 }) {
   return (
     <div className="umkm-empty">
       <strong>{title}</strong>
       <p>{description}</p>
+      {children}
     </div>
   );
 }
@@ -54,9 +57,10 @@ export function ContentSection({
   quiet?: boolean;
 }) {
   const hasHead = Boolean(title || description || eyebrow || actions);
+  const soloHead = hasHead && !actions;
   return (
     <section
-      className={`umkm-panel${quiet ? ' quiet' : ''} umkm-content-section ${className}`.trim()}
+      className={`umkm-panel${quiet ? ' quiet' : ''} umkm-content-section${soloHead ? ' is-head-solo' : ''} ${className}`.trim()}
     >
       {hasHead ? (
         <div className="umkm-panel-head">

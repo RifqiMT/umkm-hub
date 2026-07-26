@@ -14,6 +14,7 @@
     "api:dev": "npm --prefix apps/api run start:dev",
     "api:test": "npm --prefix apps/api test",
     "web:dev": "npm --prefix apps/web run dev",
-    "web:build": "npm --prefix apps/web run build"
+    "web:build": "npm --prefix apps/web run build",
+    "glossary:sync": "npx tsx scripts/sync-glossary-mobile.ts"
   }
 }

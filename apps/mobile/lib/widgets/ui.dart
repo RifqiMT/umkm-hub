@@ -14,12 +14,12 @@ class PageIntro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
       child: Text(
         subtitle,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: UmkmColors.muted,
-              height: 1.45,
+              height: 1.4,
             ),
       ),
     );
@@ -40,7 +40,7 @@ class EmptyHint extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: UmkmColors.surface.withOpacity(0.72),
@@ -283,9 +283,9 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             text,
@@ -402,17 +402,20 @@ class EntityCard extends StatelessWidget {
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       elevation: 0,
+      color: UmkmColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: UmkmColors.line.withOpacity(0.72)),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        splashColor: UmkmColors.brandSoft.withOpacity(0.55),
+        highlightColor: UmkmColors.brandSoft.withOpacity(0.28),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          padding: const EdgeInsets.fromLTRB(15, 15, 15, 13),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -850,6 +853,124 @@ class ChoiceChipGroup<T> extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Collapsible filter chrome — collapsed by default on phones/tablets.
+class ExpandableFilters extends StatefulWidget {
+  const ExpandableFilters({
+    super.key,
+    required this.child,
+    this.title = 'Filters',
+    this.activeCount = 0,
+    this.idleHint = 'All',
+    this.initiallyExpanded = false,
+  });
+
+  final Widget child;
+  final String title;
+  final int activeCount;
+  final String idleHint;
+  final bool initiallyExpanded;
+
+  @override
+  State<ExpandableFilters> createState() => _ExpandableFiltersState();
+}
+
+class _ExpandableFiltersState extends State<ExpandableFilters> {
+  late bool _open = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.activeCount > 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: active
+              ? Color.lerp(UmkmColors.brandSoft, Colors.white, 0.45)
+              : UmkmColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => setState(() => _open = !_open),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: active
+                      ? UmkmColors.brand.withOpacity(0.35)
+                      : UmkmColors.line.withOpacity(0.85),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    widget.title,
+                    style: UmkmType.body(
+                      size: 14.5,
+                      weight: FontWeight.w700,
+                      color: UmkmColors.brandDeep,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (active)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: UmkmColors.brandSoft,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${widget.activeCount} active',
+                        style: UmkmType.label(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: UmkmColors.brandDeep,
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      widget.idleHint,
+                      style: UmkmType.body(
+                        size: 13,
+                        weight: FontWeight.w600,
+                        color: UmkmColors.muted,
+                      ),
+                    ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _open ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: UmkmColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: widget.child,
+          ),
+          crossFadeState:
+              _open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 200),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
     );
   }
 }

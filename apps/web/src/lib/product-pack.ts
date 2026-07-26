@@ -1,4 +1,5 @@
 import type { Product } from '@/lib/types';
+import { formatMoney, formatQty } from '@/lib/format-money';
 
 export type ActivePack = {
   sizeLabel: string;
@@ -19,11 +20,8 @@ function unitShort(unit?: string) {
   }
 }
 
-function formatPackMoney(value: number) {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
+function formatPackSize(value: number) {
+  return formatQty(value);
 }
 
 function marginFromSellCost(
@@ -67,7 +65,7 @@ export function getActivePack(product: Product): ActivePack | null {
   }
   if (product.priceCustom != null && product.customSize != null) {
     return {
-      sizeLabel: `${formatPackMoney(product.customSize)} ${short}`,
+      sizeLabel: `${formatPackSize(product.customSize)} ${short}`,
       size: product.customSize,
       price: product.priceCustom,
       cost: product.costCustom,
@@ -120,6 +118,10 @@ export function qtyFromPackCount(packCount: number, packSize: number): number {
   return Math.round((packCount * packSize + Number.EPSILON) * 10000) / 10000;
 }
 
+/**
+ * Human label for packs in stock.
+ * e.g. "2.00 Bn packs (100 g)" or "12 pcs"
+ */
 export function formatPacksOnHand(
   stockQty: number,
   pack: ActivePack | null,
@@ -127,7 +129,7 @@ export function formatPacksOnHand(
   const count = packsOnHand(stockQty, pack);
   if (count == null || !pack) return null;
   if (pack.size === 1 && pack.shortUnit === 'pcs') {
-    return `${formatPackMoney(count)} pcs`;
+    return `${formatMoney(count)} pcs`;
   }
-  return `${formatPackMoney(count)} × ${pack.sizeLabel}`;
+  return `${formatMoney(count)} packs (${pack.sizeLabel})`;
 }

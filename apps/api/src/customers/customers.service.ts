@@ -3,8 +3,9 @@ import { randomUUID } from 'crypto';
 import { CompanyType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { CustomerQueryDto } from './dto/customer-query.dto';
+import { CustomerQueryDto, CustomerSummaryQueryDto } from './dto/customer-query.dto';
 import { buildCustomerSku } from './customer-sku';
+import { buildCustomerSummary } from './customer-summary';
 
 @Injectable()
 export class CustomersService {
@@ -14,6 +15,59 @@ export class CustomersService {
 
   private skuFor(name: string, companyType: CompanyType, id: string) {
     return buildCustomerSku(name, companyType, id);
+  }
+
+  private buildCustomerWhere(
+    profileId: string,
+    query: Pick<
+      CustomerQueryDto,
+      'search' | 'status' | 'companyType' | 'relationshipLevel'
+    > = {},
+  ): Prisma.CustomerWhereInput {
+    return {
+      profileId,
+      ...(query.status && query.status.length > 0
+        ? { status: { in: query.status } }
+        : {}),
+      ...(query.companyType ? { companyType: query.companyType } : {}),
+      ...(query.relationshipLevel
+        ? { relationshipLevel: query.relationshipLevel }
+        : {}),
+      ...(query.search?.trim()
+        ? {
+            OR: [
+              { name: { contains: query.search.trim(), mode: 'insensitive' } },
+              {
+                companyName: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              { email: { contains: query.search.trim(), mode: 'insensitive' } },
+              { city: { contains: query.search.trim(), mode: 'insensitive' } },
+              {
+                province: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              {
+                country: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              {
+                postalCode: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              { sku: { contains: query.search.trim(), mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
   }
 
   /** Align skus to `{NameSegments}{Type}_{uuid}` (safe to call repeatedly). */
@@ -80,33 +134,65 @@ export class CustomersService {
     return customer;
   }
 
-  async findAll(profileId: string, query: CustomerQueryDto) {
-    await this.backfillMissingSkus(profileId);
+  async getSummary(profileId: string, query: CustomerSummaryQueryDto = {}) {
+    const where = this.buildCustomerWhere(profileId, query);
+    const and = (extra: Prisma.CustomerWhereInput): Prisma.CustomerWhereInput => ({
+      AND: [where, extra],
+    });
 
+    // SQL-side counts/aggregates — avoid hydrating every CRM row into Node.
+    const [
+      agg,
+      interestedCount,
+      closingCount,
+      promiseCount,
+      contactCount,
+    ] = await Promise.all([
+      this.prisma.customer.aggregate({
+        where,
+        _count: true,
+        _sum: { approvalPercentage: true },
+      }),
+      this.prisma.customer.count({
+        where: and({ status: 'INTERESTED' }),
+      }),
+      this.prisma.customer.count({
+        where: and({ relationshipLevel: 'CLOSING_FIRST_ORDER' }),
+      }),
+      this.prisma.customer.count({
+        where: and({
+          OR: [
+            { promiseAnnualBonus: true },
+            { promiseOnTimeDelivery: true },
+            { promisePackagingBox: true },
+          ],
+        }),
+      }),
+      this.prisma.customer.count({
+        where: and({
+          OR: [
+            { email: { not: '' } },
+            { phone: { not: '' } },
+          ],
+        }),
+      }),
+    ]);
+
+    return buildCustomerSummary({
+      customerCount: agg._count,
+      approvalSum: agg._sum.approvalPercentage ?? 0,
+      interestedCount,
+      closingCount,
+      promiseCount,
+      contactCount,
+    });
+  }
+
+  async findAll(profileId: string, query: CustomerQueryDto) {
+    // SKU backfill is offline/CLI only — never on the list hot path.
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where: Prisma.CustomerWhereInput = {
-      profileId,
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.companyType ? { companyType: query.companyType } : {}),
-      ...(query.relationshipLevel
-        ? { relationshipLevel: query.relationshipLevel }
-        : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { companyName: { contains: query.search, mode: 'insensitive' } },
-              { email: { contains: query.search, mode: 'insensitive' } },
-              { city: { contains: query.search, mode: 'insensitive' } },
-              { province: { contains: query.search, mode: 'insensitive' } },
-              { country: { contains: query.search, mode: 'insensitive' } },
-              { postalCode: { contains: query.search, mode: 'insensitive' } },
-              { sku: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+    const where = this.buildCustomerWhere(profileId, query);
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.customer.count({ where }),

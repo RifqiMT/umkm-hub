@@ -3,6 +3,21 @@ export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 10000) / 10000;
 }
 
+/** Decimal(28,4) absolute max (24 integer digits). */
+const MAX_STORED_MONEY = 1e24 - 1e-4;
+
+/** Guard amounts before writing to Decimal(28,4) money columns. */
+export function assertMoneyFits(value: number, label = 'Amount'): void {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  if (Math.abs(value) >= MAX_STORED_MONEY) {
+    throw new Error(
+      `${label} is too large to save (max about 1e24). Use a smaller value.`,
+    );
+  }
+}
+
 /**
  * Systematic monthly series from January base + MoM growth %.
  * amount(m) = base × (1 + growth/100)^(m−1) for m = 1…12

@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-07-25 (v1.5.88) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-07-26 (v1.5.217) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 
@@ -207,7 +207,7 @@ All resource routes require `Authorization: Bearer <accessToken>` and enforce `p
 ## 5. Web App (Next.js) — Screens
 
 1. **Login / Register**
-2. **Dashboard** — counts: products, customers, open pipeline, recent orders
+2. **Dashboard** — Period filter scopes order KPIs; Feature stage + bands for orders / products / customers; quick links with live snippets
 3. **Products** — table + create/edit/delete modal or page
 4. **Customers** — table + rich form (all CRM fields)
 5. **Orders** — list + create/edit with product picker (shows stock & price)

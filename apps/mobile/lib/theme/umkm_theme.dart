@@ -114,10 +114,10 @@ ThemeData buildUmkmTheme() {
       titleTextStyle: UmkmType.display(size: 22, weight: FontWeight.w700),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: UmkmColors.surface.withOpacity(0.96),
+      backgroundColor: Colors.transparent,
       indicatorColor: UmkmColors.brandSoft,
       elevation: 0,
-      height: 68,
+      height: 70,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -130,6 +130,7 @@ ThemeData buildUmkmTheme() {
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
+          size: selected ? 24 : 22,
           color: selected ? UmkmColors.brandDeep : UmkmColors.muted,
         );
       }),

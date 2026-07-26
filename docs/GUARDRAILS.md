@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.88 |
-| **Date** | 2026-07-25 |
+| **Version** | 1.5.217 |
+| **Date** | 2026-07-26 |
 | **Purpose** | Technical and business limitations that constrain product development |
 
 ---
@@ -15,6 +15,8 @@
 |-----------|-----------|
 | Never commit secrets (`.env` gitignored); rotate JWT secrets for production | Prevent credential leaks |
 | Do not log passwords, tokens, or full Authorization headers | Security & compliance hygiene |
+| Profile location/IP: city/country sealed AES-256-GCM (`loc1:…`) at rest; IP one-way HMAC (`h1:…`); never plaintext IP in DB; decrypt city/country only for the authenticated owner | Privacy |
+| Email verify tokens: store HMAC only; single-use; 24h TTL; do not log raw tokens; resend cooldown | Security |
 | All resource queries filter by `profileId` from JWT (no IDOR) | Multi-tenant isolation |
 | Order create/update runs in a DB transaction with stock updates | Consistency under concurrency |
 | Warehouse restock runs in a DB transaction (increment stock + history) | Auditability |
@@ -28,7 +30,7 @@
 | Never overwrite existing local `.env` / `.env.local` from automation | Protect local secrets & overrides |
 | Schema PRs without committed Prisma migration are rejected | Sandbox compatibility |
 | Money math uses 4 decimal places; shared helpers for order/target/analytics | Avoid drift across clients |
-| Do not add Redis/caching until measured need | Performance Guardrail — profile first |
+| Prefer measured caching: short in-process TTL for analytics windows is allowed; Redis still deferred until multi-instance need | Performance Guardrail — profile first |
 
 ---
 
@@ -37,6 +39,9 @@
 | Guardrail | Rationale |
 |-----------|-----------|
 | One profile = one tenant owner; **no RBAC / team seats in v1** | Scope control; personas share credentials consciously |
+| Username unique (case-insensitive) and **immutable** after registration | Stable login identity |
+| Email required, unique (case-insensitive), and **immutable** after registration | 1:1 with username; anti-account takeover via email change |
+| Register / register-availability never reveal which of username or email collided | Anti-enumeration |
 | Orders may include multiple lines; discount is **order-level** only | Simpler commercial model |
 | **No order delete** in v1 — edit or cancel | Audit trail; stock restore via cancel |
 | Payment status is **terms classification**, not PSP result | Avoid false “paid” semantics |
@@ -57,6 +62,12 @@
 |-----------|----------|
 | Indexes on `profileId` (+ common filters) | Keep list queries selective |
 | Avoid N+1 on order list | `include` lines + products as needed |
+| No SKU backfill on list/read hot paths | Use CLI/migration scripts only (`backfillMissingSkus`) |
+| Derive analytics actuals from the window load | Do not re-fetch the same non-cancelled orders for monthly buckets |
+| Analytics progressive `include` / `granularity` | Default (omitted) remains full overview; clients should request only needed parts for first paint |
+| Analytics window cache (~45s, in-process) | Reuse order/catalog load across progressive requests; cap map size; no Redis yet |
+| Order list stays lean | Slim select + `lineCount`/`installmentCount`/`paidAmount`; full lines/installments via `GET /orders/:id` |
+| Prefer SQL aggregates for summaries | Inventory value via `SUM(stock×price)`; avoid hydrating all products for stage KPIs |
 | No >10% regression on critical paths without benchmarks | Order create, analytics year load |
 | Suggest pagination / indexes before new hot paths | Especially analytics window queries |
 | Compact money formatting is display-only | Do not change stored precision for UI |

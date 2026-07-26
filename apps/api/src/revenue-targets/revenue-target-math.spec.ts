@@ -1,11 +1,23 @@
 import {
   attainmentPercent,
   annualTargetFromMonthAmounts,
+  assertMoneyFits,
   distributeAnnualToMonths,
   generateSystematicMonthlyAmounts,
   projectNextAnnualAmount,
   sumAmounts,
 } from './revenue-target-math';
+
+describe('assertMoneyFits', () => {
+  it('accepts large seeded-scale totals', () => {
+    expect(() => assertMoneyFits(4.5e16)).not.toThrow();
+  });
+
+  it('rejects non-finite and oversize values', () => {
+    expect(() => assertMoneyFits(Number.POSITIVE_INFINITY)).toThrow(/finite/);
+    expect(() => assertMoneyFits(1e24)).toThrow(/too large/);
+  });
+});
 
 describe('generateSystematicMonthlyAmounts', () => {
   it('keeps a flat series when growth is 0', () => {

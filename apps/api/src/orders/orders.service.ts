@@ -15,7 +15,6 @@ import {
   ProductUnit,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import { decimalToNumber, serializeOrder } from '../common/utils/serialize';
 import {
   calculateMultiLineOrderTotals,
@@ -24,6 +23,7 @@ import {
 import {
   assertInstallmentsChronological,
   assertInstallmentsWithinTotal,
+  calculateRemainingFromPaid,
 } from './order-installments';
 import { resolveOrderPack } from './order-packs';
 import { buildOrderSku } from './order-sku';
@@ -33,14 +33,26 @@ import {
   OrderLineDto,
   UpdateOrderDto,
 } from './dto/order.dto';
+import { OrderListQueryDto } from './dto/order-list-query.dto';
+import { OrderSummaryQueryDto } from './dto/order-summary-query.dto';
+import {
+  cancellationRatePercent,
+  discountRatePercent,
+  fullPaymentRatePercent,
+  profitMarginRatePercent,
+  toDateOnlyIso,
+  totalProductsSold,
+} from './order-summary';
+import { dateOnlyBounds, parseDateOnlyUtc } from './order-date-range';
+import { buildOrderFilterSql } from './order-filter-sql';
 
 /** Parse YYYY-MM-DD (or ISO) as a calendar date at UTC midnight. */
 function parseDateOnly(value: string): Date {
-  const day = value.slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+  try {
+    return parseDateOnlyUtc(value);
+  } catch {
     throw new BadRequestException('Invalid date format. Use YYYY-MM-DD.');
   }
-  return new Date(`${day}T00:00:00.000Z`);
 }
 
 function todayDateOnly(): Date {
@@ -59,6 +71,53 @@ const orderInclude = {
     orderBy: { sortOrder: 'asc' as const },
   },
   installments: { orderBy: { installmentDate: 'asc' as const } },
+};
+
+/**
+ * Lean list shape — full lines/installments load on GET /orders/:id.
+ * Installment rows omitted; paid totals come from a page-scoped groupBy.
+ */
+const orderListSelect = {
+  id: true,
+  profileId: true,
+  sku: true,
+  customerId: true,
+  productId: true,
+  orderDate: true,
+  shipmentDate: true,
+  invoiceDate: true,
+  invoiceStatus: true,
+  productQty: true,
+  packSizeSnapshot: true,
+  packPriceSnapshot: true,
+  packCount: true,
+  unitSnapshot: true,
+  unitPriceSnapshot: true,
+  stockQtySnapshot: true,
+  lineTotal: true,
+  discountType: true,
+  discountValue: true,
+  totalOrderValue: true,
+  status: true,
+  paymentStatus: true,
+  createdAt: true,
+  updatedAt: true,
+  product: {
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      unit: true,
+    },
+  },
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      companyName: true,
+    },
+  },
+  _count: { select: { lines: true, installments: true } },
 };
 
 type ResolvedLine = {
@@ -386,27 +445,335 @@ export class OrdersService {
     });
   }
 
-  async findAll(profileId: string, query: PaginationQueryDto) {
-    await this.backfillMissingSkus(profileId);
+  private buildOrderFilterWhere(
+    profileId: string,
+    query: {
+      search?: string;
+      status?: OrderStatus[];
+      paymentStatus?: PaymentStatus[];
+      orderDateFrom?: string;
+      orderDateTo?: string;
+      shipmentDateFrom?: string;
+      shipmentDateTo?: string;
+      invoiceDateFrom?: string;
+      invoiceDateTo?: string;
+    },
+  ): Prisma.OrderWhereInput {
+    const search = query.search?.trim() ?? '';
+    const statuses = query.status ?? [];
+    const paymentStatuses = query.paymentStatus ?? [];
+    const orderDate = dateOnlyBounds(query.orderDateFrom, query.orderDateTo);
+    const shipmentDate = dateOnlyBounds(
+      query.shipmentDateFrom,
+      query.shipmentDateTo,
+    );
+    const invoiceDate = dateOnlyBounds(
+      query.invoiceDateFrom,
+      query.invoiceDateTo,
+    );
 
+    return {
+      profileId,
+      ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
+      ...(paymentStatuses.length > 0
+        ? { paymentStatus: { in: paymentStatuses } }
+        : {}),
+      ...(orderDate ? { orderDate } : {}),
+      ...(shipmentDate ? { shipmentDate } : {}),
+      ...(invoiceDate ? { invoiceDate } : {}),
+      ...(search
+        ? {
+            OR: [
+              { sku: { contains: search, mode: 'insensitive' } },
+              {
+                product: {
+                  name: { contains: search, mode: 'insensitive' },
+                },
+              },
+              {
+                product: {
+                  sku: { contains: search, mode: 'insensitive' },
+                },
+              },
+              {
+                customer: {
+                  name: { contains: search, mode: 'insensitive' },
+                },
+              },
+              {
+                lines: {
+                  some: {
+                    product: {
+                      name: { contains: search, mode: 'insensitive' },
+                    },
+                  },
+                },
+              },
+              ...(Object.values(OrderStatus).includes(
+                search.toUpperCase() as OrderStatus,
+              )
+                ? [{ status: search.toUpperCase() as OrderStatus }]
+                : []),
+              ...(Object.values(PaymentStatus).includes(
+                search.toUpperCase() as PaymentStatus,
+              )
+                ? [{ paymentStatus: search.toUpperCase() as PaymentStatus }]
+                : []),
+            ],
+          }
+        : {}),
+    };
+  }
+
+  async findAll(profileId: string, query: OrderListQueryDto) {
+    // SKU backfill is offline/CLI only — never on the list hot path.
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where: Prisma.OrderWhereInput = { profileId };
+    const sort = query.sort ?? 'date';
+    const dir = query.dir ?? 'desc';
+    const where = this.buildOrderFilterWhere(profileId, query);
+
+    const orderBy: Prisma.OrderOrderByWithRelationInput[] = (() => {
+      switch (sort) {
+        case 'product':
+          return [{ product: { name: dir } }, { orderDate: 'desc' }];
+        case 'status':
+          return [{ status: dir }, { orderDate: 'desc' }];
+        case 'total':
+          return [{ totalOrderValue: dir }, { orderDate: 'desc' }];
+        case 'payment':
+          return [{ paymentStatus: dir }, { orderDate: 'desc' }];
+        case 'date':
+        default:
+          return [{ orderDate: dir }, { updatedAt: 'desc' }];
+      }
+    })();
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({
         where,
-        include: orderInclude,
-        orderBy: [{ orderDate: 'desc' }, { updatedAt: 'desc' }],
+        select: orderListSelect,
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
     ]);
 
+    const orderIds = items.map((order) => order.id);
+    const paidByOrderId = new Map<string, number>();
+    if (orderIds.length > 0) {
+      const paidRows = await this.prisma.orderInstallment.groupBy({
+        by: ['orderId'],
+        where: { orderId: { in: orderIds } },
+        _sum: { amount: true },
+      });
+      for (const row of paidRows) {
+        paidByOrderId.set(
+          row.orderId,
+          decimalToNumber(row._sum.amount ?? 0),
+        );
+      }
+    }
+
     return {
-      items: items.map(serializeOrder),
+      items: items.map((order) => {
+        const { _count, product, customer, ...rest } = order;
+        const totalOrderValue = decimalToNumber(rest.totalOrderValue);
+        const paidAmount = paidByOrderId.get(order.id) ?? 0;
+        const serialized = serializeOrder({
+          ...rest,
+          // List omits line/installment rows; header + aggregates are enough.
+          lines: [],
+          installments: [],
+          product: null,
+          customer: null,
+        });
+        return {
+          ...serialized,
+          lineCount: Math.max(1, _count.lines),
+          installmentCount: _count.installments,
+          lines: undefined,
+          installments: [],
+          paidAmount,
+          remainingAmount: calculateRemainingFromPaid(
+            totalOrderValue,
+            paidAmount,
+          ),
+          product: product ?? undefined,
+          customer: customer ?? undefined,
+        };
+      }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  /**
+   * Order snapshot for the same filter scope as the list
+   * (search, status, paymentStatus, order/shipment/invoice dates).
+   * Volume/revenue metrics exclude CANCELLED.
+   * Rates: cancellation (all matching), margin/discount/full-payment (active).
+   *
+   * Important: never materialize matching order IDs into IN (...). Seeded
+   * catalogs exceed Postgres' ~32767 bind-variable limit and crash the stage.
+   */
+  async getSummary(profileId: string, query: OrderSummaryQueryDto = {}) {
+    const filterWhere = this.buildOrderFilterWhere(profileId, query);
+    const matchedCount = await this.prisma.order.count({ where: filterWhere });
+
+    if (matchedCount === 0) {
+      return {
+        earliestOrderDate: null,
+        latestOrderDate: null,
+        orderCount: 0,
+        productsSold: 0,
+        totalRevenue: 0,
+        cancellationRate: null,
+        profitMarginRate: null,
+        discountRate: null,
+        fullPaymentRate: null,
+      };
+    }
+
+    const activeWhere: Prisma.OrderWhereInput = {
+      AND: [filterWhere, { status: { not: OrderStatus.CANCELLED } }],
+    };
+    const filterSql = buildOrderFilterSql(profileId, query);
+
+    const [
+      orderAgg,
+      linePackAgg,
+      headerOnlyPackAgg,
+      statusGroups,
+      fullyPaidRows,
+      lineCostRows,
+      headerCostRows,
+    ] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: activeWhere,
+        _min: { orderDate: true },
+        _max: { orderDate: true },
+        _count: true,
+        _sum: { totalOrderValue: true, lineTotal: true },
+      }),
+      this.prisma.orderLine.aggregate({
+        where: { order: activeWhere },
+        _sum: { packCount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          AND: [activeWhere, { lines: { none: {} } }],
+        },
+        _sum: { packCount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['status'],
+        where: filterWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM "Order" o
+        WHERE o.status <> 'CANCELLED'::"OrderStatus"
+          AND ${filterSql}
+          AND COALESCE(
+            (
+              SELECT SUM(i.amount)
+              FROM "OrderInstallment" i
+              WHERE i."orderId" = o.id
+            ),
+            0
+          ) >= o."totalOrderValue" - 0.00005
+      `,
+      this.prisma.$queryRaw<
+        Array<{ costSum: Prisma.Decimal | number | null; hasCost: boolean }>
+      >`
+        SELECT
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p."costPerUnit" IS NOT NULL
+                THEN ol."productQty" * p."costPerUnit"
+                ELSE 0
+              END
+            ),
+            0
+          ) AS "costSum",
+          BOOL_OR(p."costPerUnit" IS NOT NULL) AS "hasCost"
+        FROM "OrderLine" ol
+        INNER JOIN "Order" o ON o.id = ol."orderId"
+        INNER JOIN "Product" p ON p.id = ol."productId"
+        WHERE o.status <> 'CANCELLED'::"OrderStatus"
+          AND ${filterSql}
+      `,
+      this.prisma.$queryRaw<
+        Array<{ costSum: Prisma.Decimal | number | null; hasCost: boolean }>
+      >`
+        SELECT
+          COALESCE(
+            SUM(
+              CASE
+                WHEN p."costPerUnit" IS NOT NULL
+                THEN o."productQty" * p."costPerUnit"
+                ELSE 0
+              END
+            ),
+            0
+          ) AS "costSum",
+          BOOL_OR(p."costPerUnit" IS NOT NULL) AS "hasCost"
+        FROM "Order" o
+        INNER JOIN "Product" p ON p.id = o."productId"
+        WHERE o.status <> 'CANCELLED'::"OrderStatus"
+          AND ${filterSql}
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderLine" ol WHERE ol."orderId" = o.id
+          )
+      `,
+    ]);
+
+    const productsSold = totalProductsSold({
+      linePackSum: decimalToNumber(linePackAgg._sum.packCount ?? 0),
+      headerOnlyPackSum: decimalToNumber(
+        headerOnlyPackAgg._sum.packCount ?? 0,
+      ),
+    });
+
+    const totalRevenue = decimalToNumber(orderAgg._sum.totalOrderValue ?? 0);
+    const lineTotalSum = decimalToNumber(orderAgg._sum.lineTotal ?? 0);
+
+    let cancelledCount = 0;
+    let allOrderCount = 0;
+    for (const row of statusGroups) {
+      allOrderCount += row._count._all;
+      if (row.status === OrderStatus.CANCELLED) {
+        cancelledCount += row._count._all;
+      }
+    }
+
+    const fullyPaidCount = Number(fullyPaidRows[0]?.count ?? 0);
+    const lineCostSum = decimalToNumber(lineCostRows[0]?.costSum ?? 0);
+    const headerCostSum = decimalToNumber(headerCostRows[0]?.costSum ?? 0);
+    const hasCost = Boolean(
+      lineCostRows[0]?.hasCost || headerCostRows[0]?.hasCost,
+    );
+
+    return {
+      earliestOrderDate: toDateOnlyIso(orderAgg._min.orderDate),
+      latestOrderDate: toDateOnlyIso(orderAgg._max.orderDate),
+      orderCount: orderAgg._count,
+      productsSold,
+      totalRevenue,
+      cancellationRate: cancellationRatePercent(cancelledCount, allOrderCount),
+      profitMarginRate: profitMarginRatePercent(
+        totalRevenue,
+        lineCostSum + headerCostSum,
+        hasCost,
+      ),
+      discountRate: discountRatePercent(lineTotalSum, totalRevenue),
+      fullPaymentRate: fullPaymentRatePercent(
+        fullyPaidCount,
+        orderAgg._count,
+      ),
     };
   }
 

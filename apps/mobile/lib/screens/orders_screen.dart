@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/models.dart';
@@ -8,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/order_math.dart';
 import '../services/product_packs.dart';
 import '../theme/umkm_theme.dart';
+import '../timeline.dart';
 import '../widgets/ui.dart';
 
 String _todayDate() {
@@ -142,8 +144,15 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   List<OrderItem> items = [];
   List<Product> products = [];
+  OrderSummary? summary;
   String? error;
   bool loading = true;
+  bool loadingMore = false;
+  int page = 1;
+  int totalOrders = 0;
+  int totalPages = 1;
+
+  bool get hasMore => page < totalPages;
 
   @override
   void initState() {
@@ -155,15 +164,50 @@ class _OrdersScreenState extends State<OrdersScreen> {
     setState(() {
       loading = true;
       error = null;
+      page = 1;
     });
     try {
       final api = context.read<ApiService>();
-      items = await api.listOrders();
-      products = await api.listProducts();
+      final results = await Future.wait([
+        api.listOrders(page: 1),
+        api.listProducts(),
+        api.getOrderSummary(),
+      ]);
+      final orders = results[0] as PaginatedOrders;
+      items = orders.items;
+      page = orders.page;
+      totalOrders = orders.total;
+      totalPages = orders.totalPages;
+      products = results[1] as List<Product>;
+      summary = results[2] as OrderSummary;
     } catch (e) {
       error = e.toString();
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (loadingMore || !hasMore) return;
+    setState(() => loadingMore = true);
+    try {
+      final api = context.read<ApiService>();
+      final next = await api.listOrders(page: page + 1);
+      if (!mounted) return;
+      setState(() {
+        items = [...items, ...next.items];
+        page = next.page;
+        totalOrders = next.total;
+        totalPages = next.totalPages;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load more orders: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => loadingMore = false);
     }
   }
 
@@ -184,7 +228,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           : DateTime.now();
     }
 
-    final first = minDate != null ? parse(minDate) : DateTime(2020);
+    final first = minDate != null ? parse(minDate) : AppTimeline.firstDate;
     var initialDate = parse(initial);
     if (initialDate.isBefore(first)) initialDate = first;
     final picked = await showDatePicker(
@@ -314,6 +358,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
       return;
     }
 
+    OrderItem? fullExisting = existing;
+    if (existing != null) {
+      try {
+        fullExisting = await _fetchFullOrder(existing.id);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load order for edit: $e')),
+        );
+        return;
+      }
+      if (!mounted) return;
+    }
+
     List<Customer> customers = const [];
     try {
       customers = await context.read<ApiService>().listCustomers();
@@ -321,19 +379,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
       customers = const [];
     }
 
-    final sourceLines = existing?.lines.isNotEmpty == true
-        ? existing!.lines
-        : existing != null
+    final sourceLines = fullExisting?.lines.isNotEmpty == true
+        ? fullExisting!.lines
+        : fullExisting != null
             ? [
                 OrderLineItem(
-                  productId: existing.productId,
-                  productName: existing.productName,
-                  packSizeSnapshot: existing.packSizeSnapshot,
-                  packPriceSnapshot: existing.packPriceSnapshot,
-                  packCount: existing.packCount,
-                  productQty: existing.productQty,
-                  lineTotal: existing.lineTotal,
-                  unit: existing.unitSnapshot,
+                  productId: fullExisting.productId,
+                  productName: fullExisting.productName,
+                  packSizeSnapshot: fullExisting.packSizeSnapshot,
+                  packPriceSnapshot: fullExisting.packPriceSnapshot,
+                  packCount: fullExisting.packCount,
+                  productQty: fullExisting.productQty,
+                  lineTotal: fullExisting.lineTotal,
+                  unit: fullExisting.unitSnapshot,
                 ),
               ]
             : <OrderLineItem>[];
@@ -350,20 +408,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
             .toList()
         : [_newLineRow()];
 
-    String orderDate = (existing?.orderDate.isNotEmpty == true)
-        ? existing!.orderDate.substring(0, 10)
+    String orderDate = (fullExisting?.orderDate.isNotEmpty == true)
+        ? fullExisting!.orderDate.substring(0, 10)
         : _todayDate();
-    String shipmentDate = existing?.shipmentDate?.substring(0, 10) ?? '';
-    String? customerId = existing?.customerId;
-    String status = existing?.status ?? 'PENDING';
-    String discountType = existing?.discountType ?? 'PERCENTAGE';
+    String shipmentDate = fullExisting?.shipmentDate?.substring(0, 10) ?? '';
+    String? customerId = fullExisting?.customerId;
+    String status = fullExisting?.status ?? 'PENDING';
+    String discountType = fullExisting?.discountType ?? 'PERCENTAGE';
     final discountCtrl = TextEditingController(
-      text: (existing?.discountValue ?? 0).toString(),
+      text: (fullExisting?.discountValue ?? 0).toString(),
     );
-    String payment = existing?.paymentStatus ?? 'CASH';
-    String invoiceStatus = existing?.invoiceStatus ?? 'CREATED';
-    String invoiceDate = existing?.invoiceDate?.substring(0, 10) ?? _todayDate();
-    final installmentRows = (existing?.installments ?? [])
+    String payment = fullExisting?.paymentStatus ?? 'CASH';
+    String invoiceStatus = fullExisting?.invoiceStatus ?? 'CREATED';
+    String invoiceDate =
+        fullExisting?.invoiceDate?.substring(0, 10) ?? _todayDate();
+    final installmentRows = (fullExisting?.installments ?? [])
         .map(
           (row) => _InstallmentFormRow(
             amount: row.amount,
@@ -375,7 +434,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     final saved = await showAppFormSheet<bool>(
       context: context,
-      title: existing == null ? 'Create order' : 'Modify order',
+      title: fullExisting == null ? 'Create order' : 'Modify order',
       body: (context, setLocal) {
         final amounts = <OrderLineAmount>[];
         for (final row in lineRows) {
@@ -401,7 +460,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           total,
           installmentRows.map((row) => row.resolvedAmount(total)),
         );
-        final stockStatus = _stockStatusFor(lineRows, existing: existing);
+        final stockStatus = _stockStatusFor(lineRows, existing: fullExisting);
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1307,7 +1366,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       actions: (context, setLocal) {
         final canSave = lineRows.isNotEmpty &&
             lineRows.every((row) => _lineAmountFor(row) != null) &&
-            !_stockStatusFor(lineRows, existing: existing)
+            !_stockStatusFor(lineRows, existing: fullExisting)
                 .values
                 .any((s) => !s.ok);
         return [
@@ -1334,7 +1393,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       return;
     }
 
-    final stockStatus = _stockStatusFor(lineRows, existing: existing);
+    final stockStatus = _stockStatusFor(lineRows, existing: fullExisting);
     if (stockStatus.values.any((s) => !s.ok)) {
       for (final row in installmentRows) {
         row.dispose();
@@ -1433,10 +1492,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     try {
       final api = context.read<ApiService>();
-      if (existing == null) {
+      if (fullExisting == null) {
         await api.request('POST', '/orders', body: body);
       } else {
-        await api.request('PATCH', '/orders/${existing.id}', body: body);
+        await api.request('PATCH', '/orders/${fullExisting.id}', body: body);
       }
       await _load();
     } catch (e) {
@@ -1447,7 +1506,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  Future<void> _openView(OrderItem order) async {
+  Future<OrderItem> _fetchFullOrder(String id) async {
+    final raw = await context.read<ApiService>().request(
+          'GET',
+          '/orders/$id',
+        );
+    return OrderItem.fromJson(raw as Map<String, dynamic>);
+  }
+
+  Future<void> _openView(OrderItem listed) async {
+    OrderItem order = listed;
+    try {
+      order = await _fetchFullOrder(listed.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not load order details: $e')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
     final paidPct = order.totalOrderValue > 0
         ? (order.paidAmount / order.totalOrderValue).clamp(0.0, 1.0)
         : 0.0;
@@ -1780,6 +1859,218 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (action == 'edit') await _openForm(existing: order);
   }
 
+  Widget _buildSummarySection() {
+    final s = summary;
+    final revenue = s == null ? null : formatMoneyParts(s.totalRevenue);
+    final packs = s == null ? null : formatCompactQtyParts(s.productsSold);
+    final fromLabel =
+        s == null ? '···' : formatDateLabel(s.earliestOrderDate);
+    final toLabel = s == null ? '···' : formatDateLabel(s.latestOrderDate);
+    final ordersLabel = s == null
+        ? '···'
+        : NumberFormat.decimalPattern('en_US').format(s.orderCount);
+    final isPulseLoading = s == null;
+    final mutedValue = UmkmColors.muted.withValues(alpha: 0.55);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionLabel(
+            'Order pulse',
+            subtitle: 'Volume, health rates, and active date span.',
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  UmkmColors.brandSoft.withValues(alpha: 0.55),
+                  Colors.white.withValues(alpha: 0.94),
+                  UmkmColors.surface,
+                ],
+              ),
+              border: Border.all(
+                color: UmkmColors.brand.withValues(alpha: 0.18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: UmkmColors.brandDeep.withValues(alpha: 0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'TOTAL REVENUE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.08,
+                    color: UmkmColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _PulseMagnitude(
+                  figure: revenue?.figure ?? '···',
+                  unit: revenue?.unit,
+                  figureSize: 30,
+                  loading: isPulseLoading,
+                  mutedValue: mutedValue,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'After discounts · non-cancelled',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: UmkmColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PulseMetric(
+                        label: 'Orders',
+                        child: Text(
+                          ordersLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                            color: isPulseLoading
+                                ? mutedValue
+                                : UmkmColors.brandDeep,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: UmkmColors.line.withValues(alpha: 0.85),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 14),
+                        child: _PulseMetric(
+                          label: 'Packs sold',
+                          child: _PulseMagnitude(
+                            figure: packs?.figure ?? '···',
+                            unit: packs?.unit,
+                            figureSize: 18,
+                            unitCompact: true,
+                            loading: isPulseLoading,
+                            mutedValue: mutedValue,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  height: 1,
+                  color: UmkmColors.line.withValues(alpha: 0.75),
+                ),
+                const SizedBox(height: 12),
+                _PulseRateGrid(
+                  loading: isPulseLoading,
+                  mutedValue: mutedValue,
+                  cancellation: s?.cancellationRate,
+                  margin: s?.profitMarginRate,
+                  discount: s?.discountRate,
+                  fullPayment: s?.fullPaymentRate,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  height: 1,
+                  color: UmkmColors.line.withValues(alpha: 0.75),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      'SPAN',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.08,
+                        color: UmkmColors.muted,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      fromLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isPulseLoading
+                            ? mutedValue
+                            : UmkmColors.brandDeep,
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              height: 2,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(99),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    UmkmColors.brand.withValues(alpha: 0.35),
+                                    UmkmColors.brand,
+                                    UmkmColors.brandDeep,
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _PulseDot(color: UmkmColors.brand),
+                                _PulseDot(color: UmkmColors.brandDeep),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Text(
+                      toLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isPulseLoading
+                            ? mutedValue
+                            : UmkmColors.brandDeep,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
@@ -1797,16 +2088,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
         onRefresh: _load,
         child: items.isEmpty
             ? ListView(
-                children: const [
-                  PageIntro(
+                children: [
+                  const PageIntro(
                     subtitle: 'Pack-based orders with locked product prices.',
                   ),
-                  SectionLabel(
+                  _buildSummarySection(),
+                  const SectionLabel(
                     'Fulfillment',
                     subtitle: 'Orders with locked pack prices.',
                   ),
-                  SizedBox(height: 8),
-                  EmptyHint(
+                  const SizedBox(height: 8),
+                  const EmptyHint(
                     title: 'No orders yet',
                     message: 'Tap + to create your first order.',
                   ),
@@ -1814,21 +2106,38 @@ class _OrdersScreenState extends State<OrdersScreen> {
               )
             : ListView.builder(
                 padding: listChromePadding(context),
-                itemCount: items.length + 1,
+                itemCount: items.length + 2,
                 itemBuilder: (context, i) {
                   if (i == 0) {
-                    return const Column(
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        PageIntro(
+                        const PageIntro(
                           subtitle:
                               'Pack-based orders with locked product prices.',
                         ),
+                        _buildSummarySection(),
                         SectionLabel(
                           'Fulfillment',
-                          subtitle: 'Orders with locked pack prices.',
+                          subtitle: totalOrders <= items.length
+                              ? '${items.length} orders with locked pack prices.'
+                              : 'Showing ${items.length} of $totalOrders orders.',
                         ),
                       ],
+                    );
+                  }
+                  if (i == items.length + 1) {
+                    if (!hasMore) {
+                      return const SizedBox(height: 24);
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                      child: OutlinedButton(
+                        onPressed: loadingMore ? null : _loadMore,
+                        child: Text(
+                          loadingMore ? 'Loading…' : 'Load more orders',
+                        ),
+                      ),
                     );
                   }
                   final o = items[i - 1];
@@ -1917,6 +2226,280 @@ class _OrderSummaryCell extends StatelessWidget {
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: emphasize ? UmkmColors.brandDeep : UmkmColors.ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PulseDot extends StatelessWidget {
+  const _PulseDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.28),
+            blurRadius: 0,
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PulseMetric extends StatelessWidget {
+  const _PulseMetric({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.08,
+            color: UmkmColors.muted,
+          ),
+        ),
+        const SizedBox(height: 4),
+        child,
+      ],
+    );
+  }
+}
+
+class _PulseMagnitude extends StatelessWidget {
+  const _PulseMagnitude({
+    required this.figure,
+    required this.unit,
+    required this.figureSize,
+    required this.loading,
+    required this.mutedValue,
+    this.unitCompact = false,
+  });
+
+  final String figure;
+  final String? unit;
+  final double figureSize;
+  final bool loading;
+  final Color mutedValue;
+  final bool unitCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = loading ? mutedValue : UmkmColors.brandDeep;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Flexible(
+          child: Text(
+            figure,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: figureSize,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+              height: 1.05,
+              color: ink,
+            ),
+          ),
+        ),
+        if (unit != null) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: unitCompact ? 5 : 7,
+              vertical: unitCompact ? 2 : 3,
+            ),
+            decoration: BoxDecoration(
+              color: UmkmColors.brandSoft.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: UmkmColors.brand.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Text(
+              unit!,
+              style: TextStyle(
+                fontSize: unitCompact ? 10 : 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.04,
+                color: UmkmColors.brand,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PulseRateGrid extends StatelessWidget {
+  const _PulseRateGrid({
+    required this.loading,
+    required this.mutedValue,
+    required this.cancellation,
+    required this.margin,
+    required this.discount,
+    required this.fullPayment,
+  });
+
+  final bool loading;
+  final Color mutedValue;
+  final double? cancellation;
+  final double? margin;
+  final double? discount;
+  final double? fullPayment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _PulseRateMeter(
+                label: 'Cancellation',
+                value: cancellation,
+                loading: loading,
+                mutedValue: mutedValue,
+                color: const Color(0xFF9A5B3C),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PulseRateMeter(
+                label: 'Profit margin',
+                value: margin,
+                loading: loading,
+                mutedValue: mutedValue,
+                color: UmkmColors.brand,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _PulseRateMeter(
+                label: 'Discount',
+                value: discount,
+                loading: loading,
+                mutedValue: mutedValue,
+                color: const Color(0xFF2F6F8F),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PulseRateMeter(
+                label: 'Full payment',
+                value: fullPayment,
+                loading: loading,
+                mutedValue: mutedValue,
+                color: UmkmColors.brandDeep,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PulseRateMeter extends StatelessWidget {
+  const _PulseRateMeter({
+    required this.label,
+    required this.value,
+    required this.loading,
+    required this.mutedValue,
+    required this.color,
+  });
+
+  final String label;
+  final double? value;
+  final bool loading;
+  final Color mutedValue;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = value == null || !value!.isFinite
+        ? 0.0
+        : (value!.clamp(0, 100) / 100);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.08,
+                  color: UmkmColors.muted,
+                ),
+              ),
+            ),
+            Text(
+              loading ? '···' : formatRatePercent(value),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+                color: loading ? mutedValue : UmkmColors.brandDeep,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: SizedBox(
+            height: 4,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: UmkmColors.line.withValues(alpha: 0.55)),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: ratio,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: 0.45),
+                          color,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

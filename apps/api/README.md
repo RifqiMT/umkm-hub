@@ -1,6 +1,6 @@
 # UMKM Hub API
 
-NestJS REST system of record for UMKM Hub (`/api/v1`).
+NestJS REST system of record for UMKM Hub (`/api/v1`). Product tip: **v1.5.217** docs aligned to code through **v1.5.216**.
 
 ## Stack
 
@@ -11,26 +11,22 @@ NestJS REST system of record for UMKM Hub (`/api/v1`).
 
 ## Local run
 
-From monorepo root (preferred):
-
 ```bash
+# From monorepo root
 npm run setup   # once
 npm run sync    # after pulls
 npm run api:dev # http://localhost:3001/api/v1/health
 ```
 
-Or from this package:
-
-```bash
-cp .env.example .env
-npm install
-npx prisma migrate deploy
-npm run start:dev
-```
-
 ## Modules
 
 `auth`, `profiles`, `products`, `customers`, `orders`, `warehouse`, `revenue-targets`, `analytics`, `geo`, `health`
+
+Notable auth/analytics:
+
+- `POST /auth/register-availability` (anti-enumeration)
+- `POST /auth/login` accepts `login` (username or email)
+- `GET /analytics?years=&include=&granularity=` (progressive)
 
 ## Tests
 
@@ -41,7 +37,4 @@ npm run test:cov
 
 ## Docs
 
-- Product & PRD: [`../../docs/`](../../docs/)
-- Architecture: [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
-- Variables / formulas: [`../../docs/VARIABLES.md`](../../docs/VARIABLES.md)
-- Traceability: [`../../docs/TRACEABILITY.md`](../../docs/TRACEABILITY.md)
+- [`../../docs/`](../../docs/) — PRODUCT, PRD, VARIABLES, ARCHITECTURE, TRACEABILITY

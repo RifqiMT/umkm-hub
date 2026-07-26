@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '@/lib/api';
 import {
   ContentSection,
@@ -10,6 +10,9 @@ import {
 } from '@/components/PageHeader';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
 import { OptionChips } from '@/components/OptionChips';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import { FeatureStage } from '@/components/FeatureStage';
 import { LABELS, PRODUCT_UNITS, todayDateInput } from '@/lib/enums';
 import {
   formatPacksOnHand,
@@ -19,10 +22,22 @@ import {
   qtyFromPackCount,
   type ActivePack,
 } from '@/lib/product-pack';
-import type { Paginated, Product, WarehouseRestock } from '@/lib/types';
-import { formatMoney, formatQty } from '@/lib/format-money';
+import { STOCK_STATUS_FILTER_OPTIONS } from '@/lib/product-readiness';
+import type {
+  Paginated,
+  Product,
+  WarehouseRestock,
+  WarehouseSummary,
+} from '@/lib/types';
+import {
+  formatDateLabel,
+  formatMoney,
+  formatMoneyParts,
+  formatQty,
+  formatMoneyExact,
+} from '@/lib/format-money';
 
-type UnitFilter = 'ALL' | (typeof PRODUCT_UNITS)[number];
+type ProductUnitValue = (typeof PRODUCT_UNITS)[number];
 type InvSortKey = 'name' | 'stock' | 'sell' | 'cost' | 'profit' | 'margin';
 type HistSortKey = 'date' | 'product' | 'qty' | 'after';
 type SortDir = 'asc' | 'desc';
@@ -252,6 +267,7 @@ function emptyForm(product?: Product): RestockForm {
 export default function WarehousePage() {
   const [items, setItems] = useState<WarehouseRestock[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [summary, setSummary] = useState<WarehouseSummary | null>(null);
   const [form, setForm] = useState<RestockForm>(emptyForm());
   const [formOpen, setFormOpen] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
@@ -259,24 +275,28 @@ export default function WarehousePage() {
     useState<WarehouseRestock | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listMeta, setListMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 0,
+  });
   const [search, setSearch] = useState('');
-  const [unitFilter, setUnitFilter] = useState<UnitFilter>('ALL');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [unitFilters, setUnitFilters] = useState<string[]>([]);
+  const [stockStatusFilters, setStockStatusFilters] = useState<string[]>([]);
   const [invSortKey, setInvSortKey] = useState<InvSortKey>('name');
   const [invSortDir, setInvSortDir] = useState<SortDir>('asc');
   const [histSortKey, setHistSortKey] = useState<HistSortKey>('date');
   const [histSortDir, setHistSortDir] = useState<SortDir>('desc');
+  const loadSeq = useRef(0);
 
   const selected = products.find((p) => p.id === form.productId);
 
   const inventory = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = products;
-    if (q) list = list.filter((p) => p.name.toLowerCase().includes(q));
-    if (unitFilter !== 'ALL') {
-      list = list.filter((p) => p.unit === unitFilter);
-    }
-
-    return [...list].sort((a, b) => {
+    // Products are already filter-scoped by the API; only sort locally.
+    return [...products].sort((a, b) => {
       let cmp = 0;
       switch (invSortKey) {
         case 'name':
@@ -306,7 +326,7 @@ export default function WarehousePage() {
       }
       return invSortDir === 'asc' ? cmp : -cmp;
     });
-  }, [products, search, unitFilter, invSortKey, invSortDir]);
+  }, [products, invSortKey, invSortDir]);
 
   const history = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -333,62 +353,67 @@ export default function WarehousePage() {
     });
   }, [items, histSortKey, histSortDir]);
 
-  const totalPotentialRevenue = useMemo(
-    () => inventory.reduce((sum, p) => sum + (p.potentialRevenue ?? 0), 0),
-    [inventory],
-  );
-
-  const totalPotentialCost = useMemo(
-    () => inventory.reduce((sum, p) => sum + (p.potentialCost ?? 0), 0),
-    [inventory],
-  );
-
-  const totalPotentialProfit = useMemo(
-    () => inventory.reduce((sum, p) => sum + (p.potentialProfit ?? 0), 0),
-    [inventory],
-  );
-
-  const productsWithCost = useMemo(
-    () => inventory.filter((p) => p.potentialCost != null).length,
-    [inventory],
-  );
-
-  /** Margin over sell value of products that have cost configured. */
-  const inventoryMarginPercent = useMemo(() => {
-    const priced = inventory.filter((p) => p.potentialCost != null);
-    const revenue = priced.reduce(
-      (sum, p) => sum + (p.potentialRevenue ?? 0),
-      0,
-    );
-    const profit = priced.reduce(
-      (sum, p) => sum + (p.potentialProfit ?? 0),
-      0,
-    );
-    if (priced.length === 0 || revenue <= 0) return null;
-    return (
-      Math.round(((profit / revenue) * 100 + Number.EPSILON) * 100) / 100
-    );
-  }, [inventory]);
-
-  async function load(searchTerm = search) {
+  async function loadInventory(searchTerm = debouncedSearch) {
+    const seq = ++loadSeq.current;
+    setListLoading(true);
+    const filterParams = {
+      search: searchTerm.trim() || undefined,
+      unit: unitFilters.length > 0 ? unitFilters : undefined,
+      stockStatus:
+        stockStatusFilters.length > 0 ? stockStatusFilters : undefined,
+    };
     try {
-      const [restocks, productList] = await Promise.all([
-        api<Paginated<WarehouseRestock>>('/warehouse', {
-          searchParams: { limit: 50, search: searchTerm || undefined },
+      const [productList, warehouseSummary] = await Promise.all([
+        api<Paginated<Product>>('/products', {
+          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
         }),
-        api<Paginated<Product>>('/products', { searchParams: { limit: 100 } }),
+        api<WarehouseSummary>('/warehouse/summary', {
+          searchParams: filterParams,
+        }),
       ]);
-      setItems(restocks.items);
+      if (seq !== loadSeq.current) return;
       setProducts(productList.items);
+      setListMeta(productList.meta);
+      setSummary(warehouseSummary);
+      setError('');
+    } catch (err) {
+      if (seq !== loadSeq.current) return;
+      setError(err instanceof Error ? err.message : 'Failed to load warehouse');
+    } finally {
+      if (seq === loadSeq.current) setListLoading(false);
+    }
+  }
+
+  /** Restock history is search-scoped only — skip on unit/stock filter changes. */
+  async function loadRestocks(searchTerm = debouncedSearch) {
+    try {
+      const restocks = await api<Paginated<WarehouseRestock>>('/warehouse', {
+        searchParams: { limit: 50, search: searchTerm.trim() || undefined },
+      });
+      setItems(restocks.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load warehouse');
     }
   }
 
+  async function load(searchTerm = debouncedSearch) {
+    await Promise.all([loadInventory(searchTerm), loadRestocks(searchTerm)]);
+  }
+
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 280);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    void loadInventory(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [debouncedSearch, unitFilters, stockStatusFilters]);
+
+  useEffect(() => {
+    void loadRestocks(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   function toggleInvSort(key: InvSortKey) {
     if (invSortKey === key) {
@@ -480,14 +505,61 @@ export default function WarehousePage() {
   }
 
   const focusMode = formOpen || Boolean(viewingProduct) || Boolean(viewingRestock);
+  const filtersActive =
+    debouncedSearch.trim().length > 0 ||
+    unitFilters.length > 0 ||
+    stockStatusFilters.length > 0;
+  const stageSummary = summary;
+  const pulseSell = stageSummary
+    ? formatMoneyParts(stageSummary.inventorySellValue)
+    : null;
+  const pulseCost = stageSummary
+    ? formatMoneyParts(stageSummary.inventoryCostValue)
+    : null;
+  const pulseProfit = stageSummary
+    ? formatMoneyParts(stageSummary.inventoryProfitValue)
+    : null;
 
   return (
     <section>
-      <PageHeader
-        title="Warehouse"
-        description="Track stock by pack, inventory value, and restocks."
-        actions={
-          !focusMode ? (
+      {!focusMode ? (
+        <FeatureStage
+          title="Warehouse"
+          loading={listLoading && !stageSummary}
+          subtitle={
+            stageSummary ? (
+              <>
+                {!filtersActive &&
+                (stageSummary.earliestRestockDate ||
+                  stageSummary.latestRestockDate) ? (
+                  <>
+                    <time
+                      dateTime={stageSummary.earliestRestockDate ?? undefined}
+                    >
+                      {formatDateLabel(stageSummary.earliestRestockDate)}
+                    </time>
+                    <span className="umkm-stage-dash" aria-hidden>
+                      –
+                    </span>
+                    <time
+                      dateTime={stageSummary.latestRestockDate ?? undefined}
+                    >
+                      {formatDateLabel(stageSummary.latestRestockDate)}
+                    </time>
+                    <span className="umkm-stage-sep" aria-hidden>
+                      ·
+                    </span>
+                  </>
+                ) : null}
+                {filtersActive
+                  ? 'Filtered inventory value and stock health'
+                  : 'Inventory value and restock health'}
+              </>
+            ) : (
+              'Track stock by pack, inventory value, and restocks.'
+            )
+          }
+          action={
             <button
               type="button"
               className="umkm-btn"
@@ -496,9 +568,110 @@ export default function WarehousePage() {
             >
               Add restock
             </button>
-          ) : null
-        }
-      />
+          }
+          stats={[
+            {
+              label: 'Sell value',
+              hero: true,
+              tip: {
+                value: stageSummary
+                  ? formatMoneyExact(stageSummary.inventorySellValue)
+                  : undefined,
+                description:
+                  'What on-hand stock would sell for at catalog prices.',
+              },
+              value: pulseSell ? (
+                <>
+                  <b>{pulseSell.figure}</b>
+                  {pulseSell.unit ? <small>{pulseSell.unit}</small> : null}
+                </>
+              ) : (
+                <b>···</b>
+              ),
+            },
+            {
+              label: 'Cost value',
+              tip: {
+                value: stageSummary
+                  ? formatMoneyExact(stageSummary.inventoryCostValue)
+                  : undefined,
+                description: 'Estimated cost of the stock you currently hold.',
+              },
+              value: pulseCost ? (
+                <>
+                  <b>{pulseCost.figure}</b>
+                  {pulseCost.unit ? <small>{pulseCost.unit}</small> : null}
+                </>
+              ) : (
+                <b>···</b>
+              ),
+            },
+            {
+              label: 'Profit',
+              tip: {
+                value: stageSummary
+                  ? formatMoneyExact(stageSummary.inventoryProfitValue)
+                  : undefined,
+                description:
+                  'Potential profit if on-hand stock sold at list price.',
+              },
+              value: pulseProfit ? (
+                <>
+                  <b>{pulseProfit.figure}</b>
+                  {pulseProfit.unit ? <small>{pulseProfit.unit}</small> : null}
+                </>
+              ) : (
+                <b>···</b>
+              ),
+            },
+          ]}
+          ratesLabel="Warehouse rates"
+          rates={[
+            {
+              tone: 'tone-margin',
+              label: 'Margin',
+              tip: {
+                description:
+                  'Inventory profit margin when unit cost is available.',
+                detail: 'Profit ÷ sell value on SKUs with cost',
+              },
+              value: stageSummary?.profitMarginRate,
+            },
+            {
+              tone: 'tone-discount',
+              label: 'Cost set',
+              tip: {
+                description: 'Share of SKUs that have a unit cost filled in.',
+                detail: 'SKUs with cost ÷ products in view',
+              },
+              value: stageSummary?.costCoverageRate,
+            },
+            {
+              tone: 'tone-paid',
+              label: 'In stock',
+              tip: {
+                description: 'Share of products that still have stock on hand.',
+                detail: 'In-stock SKUs ÷ products in view',
+              },
+              value: stageSummary?.inStockRate,
+            },
+            {
+              tone: 'tone-cancel',
+              label: 'Out of stock',
+              tip: {
+                description: 'Share of products with zero stock left.',
+                detail: 'Out-of-stock SKUs ÷ products in view',
+              },
+              value: stageSummary?.outOfStockRate,
+            },
+          ]}
+        />
+      ) : (
+        <PageHeader
+          title="Warehouse"
+          description="Track stock by pack, inventory value, and restocks."
+        />
+      )}
       {error ? <div className="umkm-error">{error}</div> : null}
 
       {viewingProduct ? (
@@ -533,6 +706,10 @@ export default function WarehousePage() {
           <ViewSheetBody onClose={closeView}>
             {(() => {
               const pack = getActivePack(viewingProduct);
+              const packsCount = packsOnHand(
+                viewingProduct.stockQty,
+                pack,
+              );
               const packsLabel = formatPacksOnHand(
                 viewingProduct.stockQty,
                 pack,
@@ -556,21 +733,45 @@ export default function WarehousePage() {
                     metricLabel="On hand"
                     metricValue={
                       <>
-                        {formatQty(viewingProduct.stockQty)}{' '}
+                        {formatMoney(viewingProduct.stockQty)}{' '}
                         {unitShort(viewingProduct.unit)}
                       </>
                     }
                     metricHint={
-                      packsLabel
-                        ? `${packsLabel} in stock`
-                        : 'Current warehouse stock'
+                      pack && packsCount != null ? (
+                        <>
+                          Packs in stock:{' '}
+                          <strong>{formatMoney(packsCount)}</strong>
+                          {` × ${pack.sizeLabel}`}
+                        </>
+                      ) : (
+                        'Current warehouse stock'
+                      )
                     }
                   />
 
                   <ViewBlock
                     title="Pack"
-                    description="Catalog selling pack with unit rates packed underneath."
+                    description={
+                      packsLabel
+                        ? `${packsLabel} on hand · catalog rates below.`
+                        : 'Catalog selling pack with unit rates packed underneath.'
+                    }
                   >
+                    {pack && packsCount != null ? (
+                      <p className="umkm-wh-packs-in-stock">
+                        <span className="umkm-view-metric-label">
+                          Packs in stock
+                        </span>
+                        <strong>
+                          {formatMoney(packsCount)}
+                          <em>
+                            {' '}
+                            packs of {pack.sizeLabel}
+                          </em>
+                        </strong>
+                      </p>
+                    ) : null}
                     <PackEconomicsStrip pack={pack} showHeader={false} />
                   </ViewBlock>
 
@@ -1127,75 +1328,56 @@ export default function WarehousePage() {
                   autoComplete="off"
                 />
               </div>
-              <div
-                className="umkm-catalog-filters"
-                role="group"
-                aria-label="Filter by unit"
+              <CollapsibleFilters
+                activeCount={
+                  (unitFilters.length > 0 ? 1 : 0) +
+                  (stockStatusFilters.length > 0 ? 1 : 0)
+                }
               >
-                {(
-                  [
-                    ['ALL', 'All'],
-                    ['PCS', 'Pcs'],
-                    ['GRAM', 'Gram'],
-                    ['LITER', 'Liter'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`umkm-filter-chip${unitFilter === value ? ' is-active' : ''}`}
-                    onClick={() => setUnitFilter(value)}
-                    aria-pressed={unitFilter === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+                <MultiSelectFilter
+                  id="warehouse-unit-filter"
+                  label="Unit"
+                  allLabel="All units"
+                  value={unitFilters}
+                  onChange={setUnitFilters}
+                  options={PRODUCT_UNITS.map((unit) => ({
+                    value: unit,
+                    label: unitLabel(unit),
+                  }))}
+                />
+                <MultiSelectFilter
+                  id="warehouse-stock-status-filter"
+                  label="Stock"
+                  allLabel="Any stock"
+                  value={stockStatusFilters}
+                  onChange={setStockStatusFilters}
+                  options={STOCK_STATUS_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
+              </CollapsibleFilters>
               <p className="umkm-catalog-count">
-                {inventory.length} item{inventory.length === 1 ? '' : 's'}
+                {listLoading
+                  ? 'Loading…'
+                  : listMeta.total === 0
+                    ? filtersActive
+                      ? 'No matches'
+                      : 'No inventory yet'
+                    : inventory.length >= listMeta.total
+                      ? `${listMeta.total.toLocaleString('en-US')} item${listMeta.total === 1 ? '' : 's'}`
+                      : `Showing ${inventory.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
               </p>
             </div>
 
-            <div className="umkm-wh-kpis">
-              <div className="umkm-wh-kpi">
-                <span>Sell value</span>
-                <strong>{formatMoney(totalPotentialRevenue)}</strong>
-              </div>
-              <div className="umkm-wh-kpi">
-                <span>Cost value</span>
-                <strong>
-                  {productsWithCost > 0 ? formatMoney(totalPotentialCost) : '—'}
-                </strong>
-              </div>
-              <div className="umkm-wh-kpi">
-                <span>Profit</span>
-                <strong>
-                  {productsWithCost > 0
-                    ? formatMoney(totalPotentialProfit)
-                    : '—'}
-                </strong>
-              </div>
-              <div className="umkm-wh-kpi">
-                <span>Margin</span>
-                <strong>
-                  {inventoryMarginPercent != null ? (
-                    <MarginPill value={inventoryMarginPercent} />
-                  ) : (
-                    '—'
-                  )}
-                </strong>
-              </div>
-            </div>
-
-            {products.length === 0 ? (
+            {listLoading && inventory.length === 0 ? null : listMeta.total === 0 ? (
               <EmptyState
-                title="No inventory yet"
-                description="Create products first, then add stock here to see inventory sell, cost, profit, and margin."
-              />
-            ) : inventory.length === 0 ? (
-              <EmptyState
-                title="No matches"
-                description="Try another search or clear the unit filter."
+                title={filtersActive ? 'No matches' : 'No inventory yet'}
+                description={
+                  filtersActive
+                    ? 'Try another search or clear the filters.'
+                    : 'Create products first, then add stock here to see inventory sell, cost, profit, and margin.'
+                }
               />
             ) : (
               <>
@@ -1304,10 +1486,13 @@ export default function WarehousePage() {
                           <td className="is-num">
                             <div className="umkm-num-stack">
                               <span className="umkm-num">
-                                {formatQty(p.stockQty)}
+                                {formatMoney(p.stockQty)}{' '}
+                                {unitShort(p.unit)}
                               </span>
                               <span className="umkm-num-sub">
-                                {packsLabel ?? unitShort(p.unit)}
+                                {packsLabel
+                                  ? packsLabel
+                                  : unitShort(p.unit)}
                               </span>
                             </div>
                           </td>
@@ -1377,10 +1562,12 @@ export default function WarehousePage() {
                           </div>
                           <div className="umkm-catalog-card-details">
                             <span>
-                              {formatQty(p.stockQty)} {unitShort(p.unit)}
-                              {packsLabel ? ` on hand` : ''}
+                              {formatMoney(p.stockQty)} {unitShort(p.unit)} on
+                              hand
                             </span>
-                            {packsLabel ? <span>{packsLabel}</span> : null}
+                            {packsLabel ? (
+                              <span>Packs in stock · {packsLabel}</span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="umkm-catalog-card-metrics">
@@ -1445,7 +1632,7 @@ export default function WarehousePage() {
           <ContentSection
             eyebrow="History"
             title="Restock history"
-            description="Stock additions with before → after quantities."
+            description="Stock additions with before → after quantities and pack equivalents."
           >
             {history.length === 0 ? (
               <EmptyState
@@ -1507,6 +1694,16 @@ export default function WarehousePage() {
                     <tbody>
                       {history.map((r) => {
                         const u = unitShort(r.unit ?? r.unitSnapshot);
+                        const pack = r.product ? getActivePack(r.product) : null;
+                        const packsAdded = formatPacksOnHand(r.qtyAdded, pack);
+                        const packsBefore = formatPacksOnHand(
+                          r.stockBefore,
+                          pack,
+                        );
+                        const packsAfter = formatPacksOnHand(
+                          r.stockAfter,
+                          pack,
+                        );
                         return (
                           <tr
                             key={r.id}
@@ -1526,14 +1723,28 @@ export default function WarehousePage() {
                               </span>
                             </td>
                             <td>
-                              <span className="umkm-product-name">
-                                {r.product?.name ?? r.productId}
-                              </span>
+                              <div className="umkm-num-stack" style={{ alignItems: 'flex-start' }}>
+                                <span className="umkm-product-name">
+                                  {r.product?.name ?? r.productId}
+                                </span>
+                                {pack ? (
+                                  <span className="umkm-num-sub">
+                                    Pack {pack.sizeLabel}
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                             <td className="is-num">
-                              <span className="umkm-num umkm-wh-added">
-                                +{formatQty(r.qtyAdded)} {u}
-                              </span>
+                              <div className="umkm-num-stack">
+                                <span className="umkm-num umkm-wh-added">
+                                  +{formatQty(r.qtyAdded)} {u}
+                                </span>
+                                {packsAdded ? (
+                                  <span className="umkm-num-sub">
+                                    +{packsAdded}
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
                             <td className="is-num">
                               <div className="umkm-num-stack">
@@ -1542,6 +1753,11 @@ export default function WarehousePage() {
                                 </span>
                                 <span className="umkm-num-sub">
                                   from {formatQty(r.stockBefore)}
+                                  {packsAfter
+                                    ? ` · ${packsAfter}`
+                                    : packsBefore
+                                      ? ` · was ${packsBefore}`
+                                      : ''}
                                 </span>
                               </div>
                             </td>
@@ -1577,6 +1793,10 @@ export default function WarehousePage() {
                 <ul className="umkm-catalog-cards umkm-wh-cards">
                   {history.map((r) => {
                     const u = unitShort(r.unit ?? r.unitSnapshot);
+                    const pack = r.product ? getActivePack(r.product) : null;
+                    const packsAdded = formatPacksOnHand(r.qtyAdded, pack);
+                    const packsBefore = formatPacksOnHand(r.stockBefore, pack);
+                    const packsAfter = formatPacksOnHand(r.stockAfter, pack);
                     return (
                       <li key={r.id} className="umkm-catalog-card">
                         <button
@@ -1592,11 +1812,19 @@ export default function WarehousePage() {
                               <span className="umkm-wh-added">
                                 +{formatQty(r.qtyAdded)} {u}
                               </span>
+                              {pack ? (
+                                <span className="umkm-pack-size">
+                                  Pack {pack.sizeLabel}
+                                </span>
+                              ) : null}
                             </div>
                             <div className="umkm-catalog-card-details">
                               <span>
                                 {r.restockDate?.slice(0, 10) ?? '—'}
                               </span>
+                              {packsAdded ? (
+                                <span>Added {packsAdded}</span>
+                              ) : null}
                               {r.notes ? <span>{r.notes}</span> : null}
                             </div>
                           </div>
@@ -1606,12 +1834,18 @@ export default function WarehousePage() {
                               <strong>
                                 {formatQty(r.stockBefore)} {u}
                               </strong>
+                              {packsBefore ? (
+                                <em className="umkm-num-sub">{packsBefore}</em>
+                              ) : null}
                             </div>
                             <div>
                               <span>After</span>
                               <strong>
                                 {formatQty(r.stockAfter)} {u}
                               </strong>
+                              {packsAfter ? (
+                                <em className="umkm-num-sub">{packsAfter}</em>
+                              ) : null}
                             </div>
                           </div>
                         </button>

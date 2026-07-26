@@ -14,6 +14,7 @@ import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import { WarehouseService } from './warehouse.service';
 import { CreateWarehouseRestockDto } from './dto/warehouse.dto';
+import { WarehouseSummaryQueryDto } from './dto/warehouse-query.dto';
 
 @Controller('warehouse')
 @UseGuards(JwtAuthGuard)
@@ -31,6 +32,14 @@ export class WarehouseController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
     return this.warehouseService.findAll(user.profileId, query);
+  }
+
+  @Get('summary')
+  getSummary(
+    @CurrentUser() user: AuthUser,
+    @Query() query: WarehouseSummaryQueryDto,
+  ) {
+    return this.warehouseService.getSummary(user.profileId, query);
   }
 
   @Get(':id')

@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.88 |
-| **Date** | 2026-07-25 |
+| **Version** | 1.5.217 |
+| **Date** | 2026-07-26 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
 
@@ -12,7 +12,7 @@
 
 ## 1. Overview
 
-**UMKM Hub** is a multi-tenant **CRM + inventory + order workspace** built for Indonesian micro and small enterprises (UMKM)—especially food and packaging suppliers selling to restaurants, hotels, and stores.
+**UMKM Hub** is a multi-tenant **CRM + inventory + order workspace** for Indonesian micro and small enterprises (UMKM)—especially food and packaging suppliers selling to restaurants, hotels, and stores.
 
 Each seller operates under a single **Profile** (tenant). That profile owns products, customers, warehouse restocks, orders, revenue targets, and analytics. Web (Next.js) and mobile (Flutter) clients share one NestJS REST API and PostgreSQL system of record.
 
@@ -22,8 +22,10 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 - Structured B2B customer pipeline and delivery address
 - Multi-line pack-based orders with discounts, installments, and stock control
 - Warehouse restock history and inventory valuation
-- Yearly revenue targets with attainment vs real order actuals
-- Analytics for revenue, margins, lead times, product/customer performance, and LTV
+- Yearly revenue targets with **% of target**, on-plan, pace, and coverage rates vs real order actuals
+- Analytics across **Weekly / Monthly / Quarterly / Annual** (single year, multi-year, or All timelines): revenue, margins, lead times, order-status/payment mix, UPT, APF, product/customer performance, LTV
+- **Dictionary** of metrics: searchable, feature-browsable plain-English definitions and formulas (web nav + mobile Profile)
+- Account workspace: personal details, sealed location, email verification, workspace snapshot
 
 ---
 
@@ -32,69 +34,78 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | # | Benefit | Outcome |
 |---|---------|---------|
 | 1 | **Single source of truth per profile** | Stock, prices, CRM, and orders stay aligned across devices |
-| 2 | **Faster, safer order capture** | Automatic line/order totals, live remaining balance, and stock checks before save |
-| 3 | **Structured B2B CRM** | Partnership stage, status, relationship, promises, approval %, and postal address |
+| 2 | **Faster, safer order capture** | Automatic totals, live remaining balance, stock checks before save |
+| 3 | **Structured B2B CRM** | Partnership stage, status, relationship, promises, approval %, address |
 | 4 | **Cross-platform access** | Same API for desktop ops (web) and field sales (mobile) |
-| 5 | **Warehouse visibility** | Restock history with before/after stock; sell/cost/profit/margin at inventory level |
-| 6 | **Revenue planning** | Manual or systematic monthly/annual targets with attainment % |
-| 7 | **Decision-ready analytics** | Monthly/annual revenue & orders, rates, lead times, product & customer tables, LTV |
-| 8 | **Compact money readability** | Large amounts display as Mn/Bn/Tn/Qd/Qn; quantities stay full digits |
+| 5 | **Warehouse visibility** | Stock + packs-on-hand; restock by qty or pack; sell/cost/profit/margin |
+| 6 | **Revenue planning** | Manual or systematic monthly/annual targets with attainment, on-plan, pace, coverage |
+| 7 | **Decision-ready analytics** | Multi-granularity charts, mix %, lead times, Top/Bottom rankings, progressive load |
+| 8 | **Compact money readability** | Large amounts as million/billion words; quantities stay full digits |
+| 9 | **Shared metric language** | Dictionary explains KPIs and formulas in plain English |
+| 10 | **Trustworthy account identity** | Unique username + email (immutable), verify-via-link, privacy-sealed location |
 
 ---
 
 ## 3. Feature domains
 
 ### 3.1 Profile & access
-- Register with unique `profileName` + password (≥8)
-- Login returns JWT access + refresh tokens
-- Update name/password; delete account (cascades all owned data)
+- Register with unique **username** (`profileName`) + unique **email** (both case-insensitive) + password (≥8)
+- Live availability via `POST /auth/register-availability` returns only available/taken (anti-enumeration); register 409 uses the same unified message
+- Login with username **or** email + password → JWT access + refresh
+- Username and email are **immutable** after registration; credentials save is password-only
+- Optional first/last name; city/country (sealed AES-GCM at rest; IP one-way HMAC when detected)
+- Email verification: send link from Profile; open `/verify-email?token=…` (Resend or `devVerifyUrl`); login allowed while unverified
+- Profile workspace: identity strip, snapshot (products/customers/orders/margin), shortcuts (Dictionary / Analytics / Targets / Dashboard on web), security tips
+- Shell: Account chip opens Profile; Log out only on Profile
 
 ### 3.2 Products (catalog)
-- CRUD with unit **pcs / gram / liter**
-- Pack selling prices + optional pack costs (50/100/250/500/1000/custom for gram/liter; exactly one active pack)
-- Product ID: `{INITIALS}_{PACK}_{uuid}` (regenerates prefix when name or pack size changes)
-- Stock is **not** edited on Products—managed in Warehouse
+- CRUD with unit **pcs / gram / liter**; exactly one active pack for gram/liter; optional COGS
+- Product ID `{INITIALS}_{PACK}_{uuid}`; stock managed in Warehouse only
+- List feature stage + `GET /products/summary` (inventory value, SKU count, stock rates; filter-aware)
 - Delete blocked if any order line references the product
 
 ### 3.3 Customers (CRM)
-- CRUD with company type (Restaurant / Hotel / Store), contacts, optional CRM fields
-- Address: street, additional, postal, city, province, country
-- Postal + country lookup auto-fills locality when fields are empty or previously auto-filled
-- Customer ID: `{NameSegments}{R|H|S}_{uuid}`
+- CRUD with company type, contacts, optional CRM fields, address + postal geo fill
+- Customer ID `{NameSegments}{R|H|S}_{uuid}`
+- `GET /customers/summary` (count, approval, interested/closing/promises/contact rates)
 
 ### 3.4 Orders
-- Multi-line pack-based orders; locked pack price snapshots
-- Order-level discount (percentage or amount)
-- Payment terms: cash / consignment / delayed payment
-- Fulfillment status: pending → confirmed → shipped → delivered / cancelled
-- Invoice status: created / sent; optional invoice date
-- Installments (amount or % of total, stored as amount); non-decreasing dates; sum ≤ total
-- Computed `paidAmount` / `remainingAmount` on read
-- Optional CRM customer link (enables customer analytics & LTV)
-- Order ID: `YYYY_MM_DD_{uuid}` from order date
-- Stock draw on create/update; cancel restores stock (transactional)
+- Multi-line packs; order-level discount; payment terms; status lifecycle; installments; invoice status
+- Optional CRM customer link (enables LTV & customer analytics)
+- Order ID `YYYY_MM_DD_{uuid}`; stock transactional; no delete (cancel restores stock)
+- Paginated list with search/status/payment/date-range filters; `GET /orders/summary` health rates
+- Feature stages across Orders, Products, Warehouse, Customers, Targets, Analytics
 
 ### 3.5 Warehouse
-- Restock existing catalog products only (manual qty or by pack)
-- History with `stockBefore` / `stockAfter`
-- Inventory view: stock, packs-on-hand, potential revenue/cost/profit, margin %
+- Restock existing products (manual qty or by pack); history with before/after
+- `GET /warehouse/summary` (sell/cost/profit; margin/cost-set/stock rates; restock date span)
 
 ### 3.6 Revenue targets (web-first)
-- One plan per profile + calendar year
-- Monthly: Manual (12 amounts) or Systematic (January base + MoM growth %)
-- Annual: Manual or Systematic (+ optional YoY projection)
-- Annual always equals month sum when months exist; clear either side clears the year
-- Actuals = sum of non-cancelled order totals by `orderDate`
+- One plan per profile + calendar year; Manual/Systematic monthly and annual
+- Annual always equals month sum when months exist; one Clear plan clears the year
+- Actuals = sum of non-cancelled order totals by UTC `orderDate`
+- FeatureStage: Annual target / Annual actual / Next year; rates **Attainment / On plan / Pace / Coverage**
+- UI: YearSelect + **By month | By year** + single Edit plan / Clear plan
 
 ### 3.7 Analytics
-- Year-scoped overview: monthly series + rolling 5-year annual window
-- Revenue, order count, AOV, targets, attainment %
-- Margin series (cost/profit/margin % on pre-discount gross base)
-- Lead times: shipment, first payment, last payment (avg days)
-- Product performance table (revenue, discount, cost, profit+margin, AOV, qty)
-- Customer performance table (same pattern for linked orders)
-- Avg LTV + LTV trend + top customers by LTV (requires `customerId` on orders)
-- Web: `/analytics`; Mobile: entry from Profile
+- Timeline: single year, multi-year (`years=2024,2025`), or **All** (`years=all`); UI years **2020–2035**
+- Granularity: **Weekly / Monthly / Quarterly / Annual**
+- Single-year annual context uses rolling **10-year** window (`ANNUAL_WINDOW = 10`)
+- Progressive load: `include=summary|series|products|customers` + `granularity=…`; ~45s in-process window cache
+- Summary + series: revenue, orders, AOV, target, attainment, cost/profit/**stage margin %** (profit ÷ **net** revenue), lead times (ship / invoice / first pay / last pay), UPT (`avgBasketSize`), APF, avg product revenue, avg LTV
+- Mix: order-status % (includes CANCELLED); payment-mode % (excludes cancelled)
+- Charts omit empty periods; Graph | Table toggle; fullscreen cinema with prev/next
+- Product/customer tables: revenue, packs sold, discount/cost/profit/%, AOV, first/avg repeat days
+- Rankings: Top **and Bottom** 5 products by revenue; Top **and Bottom** 5 customers by LTV
+- Web `/analytics`; Mobile via Profile
+
+### 3.8 Dictionary
+- Searchable glossary of stage/analytics/order/warehouse metrics (≈80 terms)
+- Web `/glossary`; mobile Profile → Dictionary; catalogs kept in sync
+
+### 3.9 Dashboard (web)
+- Parallel summary loads; period filter scopes order summary by `orderDate`
+- Feature stage + workspace board (Orders featured; Products/Customers panels; rail to Warehouse/Targets/Analytics)
 
 ---
 
@@ -102,17 +113,24 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Topic | Rule |
 |-------|------|
-| **Tenancy** | Every resource is scoped by `profileId` from JWT |
-| **Order math** | Line total = pack price × pack count; order total after % or amount discount |
+| **Tenancy** | Every resource scoped by JWT `profileId` |
+| **Identity** | Username + email unique (case-insensitive), required, immutable after register |
+| **Order math** | Line = pack price × pack count; order total after % or amount discount |
 | **Stock qty** | `packSize × packCount` per line |
-| **Payments** | Installments sum → paidAmount; remaining = max(0, total − paid) |
-| **Stock lifecycle** | Products start at 0; restock increases; order create/update decreases; cancel restores |
-| **Order update stock** | Restore previous line qtys, then apply new lines in one transaction |
-| **Product costs** | Optional; profit = price − cost; margin % = (price − cost) / price × 100 |
-| **Analytics actuals** | Shared helper with targets: `status ≠ CANCELLED`, bucket by UTC `orderDate` |
-| **Rate base** | Discount %, COGS %, margin % use pre-discount gross so they sum ≈ 100% |
-| **Money display** | `formatMoney` compact labels; `formatQty` full digits |
-| **Rounding** | Money stored/computed to 4 decimal places |
+| **Payments** | Installments → paidAmount; remaining = max(0, total − paid) |
+| **Stock lifecycle** | Start 0 → restock ↑ → order ↓ → cancel restores |
+| **Analytics actuals** | Shared with targets: `status ≠ CANCELLED`, UTC `orderDate` |
+| **Stage margin %** | `(profit / netRevenue) × 100` on charts/summary |
+| **Table margin %** | `(profit / (revenue + discount)) × 100` on product/customer tables |
+| **Weekly target** | Day-weighted share of monthly plan amounts |
+| **Quarterly target** | Sum of the three monthly plan amounts |
+| **UPT** | `Σ packCount / orderCount` |
+| **APF** | Linked orders ÷ distinct customers with linked orders |
+| **Targets On plan** | Months with attainment ≥ 100 ÷ months with target > 0 |
+| **Targets Pace** | YTD actual ÷ sum of targets for elapsed UTC months |
+| **Targets Coverage** | Months with target ÷ 12 |
+| **Money display** | Compact words for KPIs; exact in tooltips; full digits for qty |
+| **Rounding** | Money to 4 decimal places |
 
 ---
 
@@ -120,21 +138,22 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Client | Role | Highlights |
 |--------|------|------------|
-| **Web (Next.js 15)** | Primary desktop ops UI | Teal shell, catalog tables + stacked cards ≤900px, View sheets, OptionChips, Targets page, full Analytics |
-| **Mobile (Flutter)** | Field CRM & orders | Shared forest-teal tokens, EntityCard metrics, Analytics via Profile; **Targets web-first** (no mobile screen in v1) |
-| **API (NestJS)** | System of record | `/api/v1`, JWT, Prisma, throttling, validation |
+| **Web (Next.js 15)** | Primary desktop + responsive ops UI | Teal shell; tablet icon rail; phone bottom tabs + drawer; Targets; full Analytics; Dictionary; Dashboard |
+| **Mobile (Flutter)** | Field CRM & orders | Shared tokens; Analytics + Dictionary via Profile; **Targets web-first** |
+| **API (NestJS)** | System of record | `/api/v1`, JWT, Prisma, throttling, validation, progressive analytics |
 
 ---
 
 ## 6. Business guidelines
 
-- Password minimum 8 characters; never stored in plain text (bcrypt cost 12)
-- Profile name unique system-wide; pattern `[A-Za-z0-9._-]{3,64}`
-- Orders are immutable-delete in v1 (edit only; cancel to restore stock)
-- Payment status is **commercial terms**, not a payment-gateway state
-- Invoice status is operational (created/sent), not fiscal e-invoice compliance
-- Profile deletion is irreversible and removes all owned data
-- LTV / customer performance only include orders with a linked customer
+- Password ≥8; bcrypt cost 12; never stored plain
+- Username unique + immutable; email required, unique, immutable (1:1 with username)
+- Register/login never reveal which of username/email collided
+- Orders: no delete in v1; cancel restores stock
+- Payment status = commercial terms (not PSP); invoice status = operational
+- Profile deletion irreversible (cascades owned data)
+- LTV / customer analytics require `customerId` on orders
+- Location city/country sealed; IP never stored plaintext
 
 ---
 
@@ -146,9 +165,11 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | Auth | Bearer access JWT; refresh via `POST /auth/refresh` |
 | Pagination | Default page=1, limit=20, **max 100** |
 | Errors | `{ statusCode, error, message, timestamp }` |
-| CORS | Configured via `CORS_ORIGIN` (comma-separated) |
-| Rate limit | Global throttler (~100 req / 60s); stricter on auth |
-| Validation | Whitelist + forbid unknown properties |
+| Analytics | `years` / `year`, `include`, `granularity`; window cache TTL 45s |
+| CORS | `CORS_ORIGIN` (comma-separated) |
+| Rate limit | Global ~100/60s; stricter on auth |
+| Location crypto | `PROFILE_LOCATION_SECRET` (falls back to `JWT_ACCESS_SECRET`) |
+| Email | Optional `RESEND_API_KEY`; `APP_PUBLIC_URL` for verify links |
 | Sandbox | `npm run setup` / `npm run sync` — never overwrite existing `.env` |
 
 ---
@@ -158,15 +179,14 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | Layer | Technology |
 |-------|------------|
 | API | NestJS 11, TypeScript, Prisma 6, class-validator, Passport JWT |
-| Database | PostgreSQL 16 (Docker Compose locally) |
+| Database | PostgreSQL 16 |
 | Auth | JWT access + refresh, bcrypt cost 12 |
-| Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, Recharts |
+| Web | Next.js 15, React 19, Tailwind CSS 4, Recharts |
 | Mobile | Flutter (Provider, http, fl_chart, google_fonts, secure storage) |
-| Shared | `@umkm-hub/shared` — enums, labels, order total helper |
+| Shared | `@umkm-hub/shared` — enums, labels, order totals |
 | Local ops | Docker Compose, `scripts/sync-env.sh` |
 
-Full layout and scripts: root [README.md](../README.md).  
-Requirements: [PRD.md](./PRD.md). Variables & formulas: [VARIABLES.md](./VARIABLES.md).
+See root [README.md](../README.md). Requirements: [PRD.md](./PRD.md). Formulas: [VARIABLES.md](./VARIABLES.md).
 
 ---
 
@@ -174,15 +194,15 @@ Requirements: [PRD.md](./PRD.md). Variables & formulas: [VARIABLES.md](./VARIABL
 
 | Document | Purpose |
 |----------|---------|
-| [PRD.md](./PRD.md) | Functional & non-functional requirements |
+| [PRD.md](./PRD.md) | Requirements |
 | [PERSONAS.md](./PERSONAS.md) | User personas |
-| [USER_STORIES.md](./USER_STORIES.md) | Epics, stories, acceptance criteria |
-| [VARIABLES.md](./VARIABLES.md) | Variable catalog + relationship diagrams |
+| [USER_STORIES.md](./USER_STORIES.md) | Epics & acceptance criteria |
+| [VARIABLES.md](./VARIABLES.md) | Variable catalog + charts |
 | [METRICS.md](./METRICS.md) | Product metrics & OKRs |
-| [DESIGN_GUIDELINES.md](./DESIGN_GUIDELINES.md) | Visual system & UI standards |
-| [TRACEABILITY.md](./TRACEABILITY.md) | Requirements → code map |
+| [DESIGN_GUIDELINES.md](./DESIGN_GUIDELINES.md) | Visual system |
+| [TRACEABILITY.md](./TRACEABILITY.md) | FR → code map |
 | [GUARDRAILS.md](./GUARDRAILS.md) | Tech & business limits |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Sandbox & contribution rules |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Sandbox rules |
 | [CHANGELOG.md](./CHANGELOG.md) | Development history |
 | [PLAN.md](./PLAN.md) | Approved implementation plan |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture overview |

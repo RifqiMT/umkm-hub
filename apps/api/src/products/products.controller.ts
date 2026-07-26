@@ -13,9 +13,12 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
-import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import { ProductsService } from './products.service';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import {
+  ProductQueryDto,
+  ProductSummaryQueryDto,
+} from './dto/product-query.dto';
 
 @Controller('products')
 @UseGuards(JwtAuthGuard)
@@ -28,8 +31,16 @@ export class ProductsController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
+  findAll(@CurrentUser() user: AuthUser, @Query() query: ProductQueryDto) {
     return this.productsService.findAll(user.profileId, query);
+  }
+
+  @Get('summary')
+  getSummary(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ProductSummaryQueryDto,
+  ) {
+    return this.productsService.getSummary(user.profileId, query);
   }
 
   @Get(':id')

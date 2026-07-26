@@ -1,9 +1,14 @@
 'use client';
 
+import { appYearOptions } from '@/lib/app-timeline';
+
+export type YearSelectValue = number | 'all';
+
 type YearSelectProps = {
-  value: number;
-  onChange: (year: number) => void;
-  years: number[];
+  value: YearSelectValue;
+  onChange: (year: YearSelectValue) => void;
+  /** Defaults to the shared app timeline (2020–2035, buffered around today). */
+  years?: number[];
   id?: string;
   label?: string;
   'aria-label'?: string;
@@ -11,6 +16,9 @@ type YearSelectProps = {
   className?: string;
   /** Hide the visible label when an external label is already present. */
   hideLabel?: boolean;
+  /** Prepend an “All timelines” option (Analytics scope). */
+  allowAll?: boolean;
+  allLabel?: string;
 };
 
 export function YearSelect({
@@ -23,7 +31,10 @@ export function YearSelect({
   disabled = false,
   className = '',
   hideLabel = false,
+  allowAll = false,
+  allLabel = 'All timelines',
 }: YearSelectProps) {
+  const options = years ?? appYearOptions();
   const rootClass = ['umkm-year-select', className].filter(Boolean).join(' ');
 
   return (
@@ -36,12 +47,19 @@ export function YearSelect({
       <div className="umkm-year-select-control">
         <select
           id={id}
-          value={value}
+          value={value === 'all' ? 'all' : String(value)}
           disabled={disabled}
           aria-label={ariaLabel ?? label}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (next === 'all') onChange('all');
+            else onChange(Number(next));
+          }}
         >
-          {years.map((y) => (
+          {allowAll ? (
+            <option value="all">{allLabel}</option>
+          ) : null}
+          {options.map((y) => (
             <option key={y} value={y}>
               {y}
             </option>

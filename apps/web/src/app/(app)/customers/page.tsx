@@ -13,6 +13,9 @@ import {
 } from '@/components/ViewSheet';
 import { CountryCombobox } from '@/components/CountryCombobox';
 import { OptionChips } from '@/components/OptionChips';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import { FeatureStage } from '@/components/FeatureStage';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
   COMPANY_TYPES,
@@ -21,9 +24,9 @@ import {
   PARTNERSHIP_STAGES,
   RELATIONSHIP_LEVELS,
 } from '@/lib/enums';
-import type { Customer, Paginated } from '@/lib/types';
+import type { Customer, CustomerSummary, Paginated } from '@/lib/types';
+import { formatRatePercent } from '@/lib/format-money';
 
-type StatusFilter = 'ALL' | (typeof CUSTOMER_STATUSES)[number];
 type SortKey = 'name' | 'company' | 'city' | 'status' | 'relationship' | 'approval';
 type SortDir = 'asc' | 'desc';
 
@@ -52,16 +55,16 @@ const emptyForm = {
   remarks: '',
 };
 
-function statusLabel(status?: string | null) {
-  if (!status) return null;
+function statusLabel(status?: string | null): string {
+  if (!status) return '—';
   return (
     LABELS.customerStatus[status as keyof typeof LABELS.customerStatus] ??
     status
   );
 }
 
-function relationshipLabel(level?: string | null) {
-  if (!level) return null;
+function relationshipLabel(level?: string | null): string {
+  if (!level) return '—';
   return (
     LABELS.relationshipLevel[
       level as keyof typeof LABELS.relationshipLevel
@@ -147,6 +150,7 @@ function buildCustomerPayload(form: typeof emptyForm) {
 
 export default function CustomersPage() {
   const [items, setItems] = useState<Customer[]>([]);
+  const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -157,35 +161,23 @@ export default function CustomersPage() {
   const [viewing, setViewing] = useState<Customer | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listMeta, setListMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 0,
+  });
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const loadSeq = useRef(0);
 
   const directory = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = items;
-    if (q) {
-      list = list.filter((c) => {
-        const hay = [
-          c.name,
-          c.companyName,
-          c.email,
-          c.phone,
-          c.city,
-          c.province,
-          c.country,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
-    if (statusFilter !== 'ALL') {
-      list = list.filter((c) => c.status === statusFilter);
-    }
-    return [...list].sort((a, b) => {
+    // List is already filter-scoped by the API; only sort locally.
+    return [...items].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
         case 'name':
@@ -202,15 +194,13 @@ export default function CustomersPage() {
           });
           break;
         case 'status':
-          cmp = (statusLabel(a.status) || '').localeCompare(
-            statusLabel(b.status) || '',
-            undefined,
-            { sensitivity: 'base' },
-          );
+          cmp = statusLabel(a.status).localeCompare(statusLabel(b.status), undefined, {
+            sensitivity: 'base',
+          });
           break;
         case 'relationship':
-          cmp = (relationshipLabel(a.relationshipLevel) || '').localeCompare(
-            relationshipLabel(b.relationshipLevel) || '',
+          cmp = relationshipLabel(a.relationshipLevel).localeCompare(
+            relationshipLabel(b.relationshipLevel),
             undefined,
             { sensitivity: 'base' },
           );
@@ -221,7 +211,7 @@ export default function CustomersPage() {
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [items, search, statusFilter, sortKey, sortDir]);
+  }, [items, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -239,20 +229,49 @@ export default function CustomersPage() {
     return sortDir;
   }
 
-  async function load() {
+  async function load(
+    searchTerm = debouncedSearch,
+    statuses = statusFilters,
+  ) {
+    const seq = ++loadSeq.current;
+    setListLoading(true);
+    const filterParams = {
+      search: searchTerm.trim() || undefined,
+      status: statuses.length > 0 ? statuses : undefined,
+    };
     try {
-      const data = await api<Paginated<Customer>>('/customers', {
-        searchParams: { limit: 50 },
-      });
+      const [data, customerSummary] = await Promise.all([
+        api<Paginated<Customer>>('/customers', {
+          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
+        }),
+        api<CustomerSummary>('/customers/summary', {
+          searchParams: filterParams,
+        }),
+      ]);
+      if (seq !== loadSeq.current) return;
       setItems(data.items);
+      setListMeta(data.meta);
+      setSummary(customerSummary);
+      setError('');
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load customers');
+    } finally {
+      if (seq === loadSeq.current) setListLoading(false);
     }
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    void load(debouncedSearch, statusFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, statusFilters]);
 
   useEffect(() => {
     if (!formOpen) {
@@ -408,19 +427,105 @@ export default function CustomersPage() {
     }
   }
 
+  const filtersActive =
+    debouncedSearch.trim().length > 0 || statusFilters.length > 0;
+  const stageSummary = summary;
+
   return (
     <section>
-      <PageHeader
-        title="Customers"
-        description="Required: name, title, company name, company type. Other CRM fields are optional."
-        actions={
-          !formOpen && !viewing ? (
+      {!formOpen && !viewing ? (
+        <FeatureStage
+          title="Customers"
+          loading={listLoading && !stageSummary}
+          subtitle={
+            stageSummary
+              ? `${stageSummary.customerCount.toLocaleString('en-US')} contact${stageSummary.customerCount === 1 ? '' : 's'}${filtersActive ? ' in view' : ''} · Pipeline health and reachability`
+              : 'Required: name, title, company name, company type.'
+          }
+          action={
             <button type="button" className="umkm-btn" onClick={startCreate}>
               Add customer
             </button>
-          ) : null
-        }
-      />
+          }
+          stats={[
+            {
+              label: 'Customers',
+              hero: true,
+              tip: {
+                description: 'Contacts in the current customer view.',
+              },
+              value: stageSummary
+                ? stageSummary.customerCount.toLocaleString('en-US')
+                : '···',
+            },
+            {
+              label: 'Avg approval',
+              tip: {
+                description: 'Average approval score across these contacts.',
+              },
+              value: stageSummary
+                ? formatRatePercent(stageSummary.avgApproval)
+                : '···',
+            },
+            {
+              label: 'Interested',
+              tip: {
+                description: 'How many contacts are marked Interested.',
+              },
+              value: stageSummary
+                ? stageSummary.interestedCount.toLocaleString('en-US')
+                : '···',
+            },
+          ]}
+          ratesLabel="Customer rates"
+          rates={[
+            {
+              tone: 'tone-paid',
+              label: 'Interested',
+              tip: {
+                description: 'Share of contacts marked as Interested.',
+                detail: 'Interested ÷ customers in view',
+              },
+              value: stageSummary?.interestedRate,
+            },
+            {
+              tone: 'tone-margin',
+              label: 'Closing',
+              tip: {
+                description:
+                  'Share of contacts at Closing / first-order stage.',
+                detail: 'Closing ÷ customers in view',
+              },
+              value: stageSummary?.closingRate,
+            },
+            {
+              tone: 'tone-discount',
+              label: 'Promises',
+              tip: {
+                description:
+                  'Share of contacts with at least one commercial promise on file.',
+                detail: 'With promises ÷ customers in view',
+              },
+              value: stageSummary?.promiseRate,
+            },
+            {
+              tone: 'tone-cancel',
+              label: 'Contact',
+              tip: {
+                description:
+                  'Share of contacts that have an email or phone number.',
+                detail: 'Reachable ÷ customers in view',
+              },
+              value: stageSummary?.contactRate,
+            },
+          ]}
+        />
+      ) : (
+        <PageHeader
+          title="Customers"
+          description="Required: name, title, company name, company type. Other CRM fields are optional."
+        />
+      )}
       {error ? <div className="umkm-error">{error}</div> : null}
 
       {viewing ? (
@@ -472,7 +577,7 @@ export default function CustomersPage() {
                   <ViewChip>
                     {companyTypeLabel(viewing.companyType)}
                   </ViewChip>
-                  {relationshipLabel(viewing.relationshipLevel) ? (
+                  {viewing.relationshipLevel ? (
                     <ViewChip>
                       {relationshipLabel(viewing.relationshipLevel)}
                     </ViewChip>
@@ -901,46 +1006,42 @@ export default function CustomersPage() {
               autoComplete="off"
             />
           </div>
-          <div
-            className="umkm-catalog-filters"
-            role="group"
-            aria-label="Filter by status"
+          <CollapsibleFilters
+            activeCount={statusFilters.length > 0 ? 1 : 0}
           >
-            <button
-              type="button"
-              className={`umkm-filter-chip${statusFilter === 'ALL' ? ' is-active' : ''}`}
-              onClick={() => setStatusFilter('ALL')}
-              aria-pressed={statusFilter === 'ALL'}
-            >
-              All
-            </button>
-            {CUSTOMER_STATUSES.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={`umkm-filter-chip${statusFilter === status ? ' is-active' : ''}`}
-                onClick={() => setStatusFilter(status)}
-                aria-pressed={statusFilter === status}
-              >
-                {statusLabel(status)}
-              </button>
-            ))}
-          </div>
+            <MultiSelectFilter
+              id="customer-status-filter"
+              label="Status"
+              allLabel="All statuses"
+              value={statusFilters}
+              onChange={setStatusFilters}
+              options={CUSTOMER_STATUSES.map((status) => ({
+                value: status,
+                label: statusLabel(status),
+              }))}
+            />
+          </CollapsibleFilters>
           <p className="umkm-catalog-count">
-            {directory.length} customer{directory.length === 1 ? '' : 's'}
-            {statusFilter !== 'ALL' ? ` · ${statusLabel(statusFilter)}` : ''}
+            {listLoading
+              ? 'Loading…'
+              : listMeta.total === 0
+                ? filtersActive
+                  ? 'No matches'
+                  : 'No customers yet'
+                : directory.length >= listMeta.total
+                  ? `${listMeta.total.toLocaleString('en-US')} customer${listMeta.total === 1 ? '' : 's'}`
+                  : `Showing ${directory.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
-        {items.length === 0 ? (
+        {listLoading && directory.length === 0 ? null : listMeta.total === 0 ? (
           <EmptyState
-            title="No customers yet"
-            description="Add a customer to start tracking partnerships and pipeline status."
-          />
-        ) : directory.length === 0 ? (
-          <EmptyState
-            title="No matches"
-            description="Try another search or clear the status filter."
+            title={filtersActive ? 'No matches' : 'No customers yet'}
+            description={
+              filtersActive
+                ? 'Try another search or clear the filters.'
+                : 'Add a customer to start tracking partnerships and pipeline status.'
+            }
           />
         ) : (
           <>
@@ -1078,7 +1179,9 @@ export default function CustomersPage() {
                           )}
                         </td>
                         <td>
-                          {relationshipLabel(c.relationshipLevel) ?? (
+                          {c.relationshipLevel ? (
+                            relationshipLabel(c.relationshipLevel)
+                          ) : (
                             <span className="umkm-num is-empty">—</span>
                           )}
                         </td>
@@ -1166,7 +1269,9 @@ export default function CustomersPage() {
                         <div>
                           <span>Relationship</span>
                           <strong>
-                            {relationshipLabel(c.relationshipLevel) ?? '—'}
+                            {c.relationshipLevel
+                              ? relationshipLabel(c.relationshipLevel)
+                              : '—'}
                           </strong>
                         </div>
                         <div>

@@ -8,13 +8,22 @@ import {
 import { randomUUID } from 'crypto';
 import { Prisma, ProductUnit } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import {
+  ProductQueryDto,
+  ProductSummaryQueryDto,
+} from './dto/product-query.dto';
 import { serializeProduct, decimalToNumber } from '../common/utils/serialize';
 import { resolveCostPerUnit, resolvePricePerUnit } from './product-pricing';
 import {
   buildProductSkuFromProduct,
 } from './product-sku';
+import { buildProductSummary } from './product-summary';
+import {
+  buildProductFilterSql,
+  inventoryValueSelectSql,
+  mapInventoryValueRow,
+} from './product-inventory-sql';
 import { Decimal } from '@prisma/client/runtime/library';
 
 function nullPacks() {
@@ -266,32 +275,154 @@ export class ProductsService {
     return serializeProduct(product);
   }
 
-  async findAll(profileId: string, query: PaginationQueryDto) {
-    await this.backfillMissingSkus(profileId);
+  private buildProductWhere(
+    profileId: string,
+    query: Pick<
+      ProductQueryDto,
+      'search' | 'unit' | 'costSet' | 'packReady' | 'stockStatus'
+    > = {},
+  ): Prisma.ProductWhereInput {
+    const where: Prisma.ProductWhereInput = { profileId };
+    const search = query.search?.trim();
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (query.unit && query.unit.length > 0) {
+      where.unit = { in: query.unit };
+    }
 
+    const costSet = query.costSet ?? [];
+    if (costSet.length === 1) {
+      where.costPerUnit =
+        costSet[0] === 'set' ? { not: null } : null;
+    } else if (costSet.length > 1 && !costSet.includes('set')) {
+      where.costPerUnit = null;
+    } else if (costSet.length > 1 && !costSet.includes('unset')) {
+      where.costPerUnit = { not: null };
+    }
+
+    const packReady = query.packReady ?? [];
+    if (packReady.length === 1) {
+      const readyClause: Prisma.ProductWhereInput = {
+        OR: [
+          { unit: ProductUnit.PCS },
+          { price50: { not: null } },
+          { price100: { not: null } },
+          { price250: { not: null } },
+          { price500: { not: null } },
+          { price1000: { not: null } },
+          { priceCustom: { not: null } },
+        ],
+      };
+      // Must AND (never Object.assign) so search `OR` is not overwritten.
+      where.AND = [
+        ...(Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : []),
+        packReady[0] === 'ready' ? readyClause : { NOT: readyClause },
+      ];
+    }
+
+    const stockStatus = query.stockStatus ?? [];
+    if (stockStatus.length === 1) {
+      where.stockQty =
+        stockStatus[0] === 'in_stock' ? { gt: 0 } : { lte: 0 };
+    }
+
+    return where;
+  }
+
+  async getSummary(profileId: string, query: ProductSummaryQueryDto = {}) {
+    const where = this.buildProductWhere(profileId, query);
+    const packReadyClause: Prisma.ProductWhereInput = {
+      OR: [
+        { unit: ProductUnit.PCS },
+        { price50: { not: null } },
+        { price100: { not: null } },
+        { price250: { not: null } },
+        { price500: { not: null } },
+        { price1000: { not: null } },
+        { priceCustom: { not: null } },
+      ],
+    };
+    const and = (extra: Prisma.ProductWhereInput): Prisma.ProductWhereInput => ({
+      AND: [where, extra],
+    });
+
+    const productFilterSql = buildProductFilterSql({
+      profileId,
+      search: query.search,
+      unit: query.unit,
+      stockStatus: query.stockStatus,
+      costSet: query.costSet,
+      packReady: query.packReady,
+    });
+
+    // Counts via Prisma; inventory value via SQL SUM(stock×price/cost).
+    const [agg, inStockCount, withCostCount, packReadyCount, valueRows] =
+      await Promise.all([
+        this.prisma.product.aggregate({
+          where,
+          _count: true,
+          _sum: { stockQty: true },
+        }),
+        this.prisma.product.count({
+          where: and({ stockQty: { gt: 0 } }),
+        }),
+        this.prisma.product.count({
+          where: and({ costPerUnit: { not: null } }),
+        }),
+        this.prisma.product.count({
+          where: and(packReadyClause),
+        }),
+        this.prisma.$queryRaw<
+          Array<{
+            sellValue: Prisma.Decimal | number | null;
+            costedSellValue: Prisma.Decimal | number | null;
+            costValue: Prisma.Decimal | number | null;
+            profitValue: Prisma.Decimal | number | null;
+            hasCost: boolean | null;
+          }>
+        >`
+          SELECT ${inventoryValueSelectSql()}
+          FROM "Product" p
+          WHERE ${productFilterSql}
+        `,
+      ]);
+
+    const values = mapInventoryValueRow(
+      valueRows[0] ?? {
+        sellValue: 0,
+        costedSellValue: 0,
+        costValue: 0,
+        profitValue: 0,
+        hasCost: false,
+      },
+    );
+
+    return buildProductSummary({
+      productCount: agg._count,
+      totalStockQty: decimalToNumber(agg._sum.stockQty ?? 0),
+      sellValue: values.sellValue,
+      costedSellValue: values.costedSellValue,
+      costValue: values.costValue,
+      hasCost: values.hasCost,
+      inStockCount,
+      withCostCount,
+      packReadyCount,
+    });
+  }
+
+  async findAll(profileId: string, query: ProductQueryDto) {
+    // SKU backfill is offline/CLI only — never on the list hot path.
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where: Prisma.ProductWhereInput = {
-      profileId,
-      ...(query.search
-        ? {
-            OR: [
-              {
-                name: {
-                  contains: query.search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                sku: {
-                  contains: query.search,
-                  mode: 'insensitive' as const,
-                },
-              },
-            ],
-          }
-        : {}),
-    };
+    const where = this.buildProductWhere(profileId, query);
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.product.count({ where }),

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.88 |
+| **Version** | 1.5.217 |
 | **Related** | [ARCHITECTURE.md](./ARCHITECTURE.md), [GUARDRAILS.md](./GUARDRAILS.md), root [README.md](../README.md) |
 
 ---

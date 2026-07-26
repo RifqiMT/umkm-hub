@@ -30,6 +30,10 @@ class ApiService {
   Future<String?> get accessToken => _storage.read(key: _accessKey);
   Future<String?> get profileName => _storage.read(key: _profileNameKey);
 
+  Future<void> updateStoredProfileName(String profileName) async {
+    await _storage.write(key: _profileNameKey, value: profileName);
+  }
+
   Future<void> _saveSession(AuthSession session) async {
     await _storage.write(key: _accessKey, value: session.accessToken);
     await _storage.write(key: _refreshKey, value: session.refreshToken);
@@ -40,23 +44,53 @@ class ApiService {
     await _storage.deleteAll();
   }
 
-  Future<AuthSession> register(String profileName, String password) async {
-    return _auth('/auth/register', profileName, password);
+  Future<AuthSession> register(
+    String profileName,
+    String email,
+    String password,
+  ) async {
+    return _auth(
+      '/auth/register',
+      body: {
+        'profileName': profileName,
+        'email': email.trim().toLowerCase(),
+        'password': password,
+      },
+    );
   }
 
-  Future<AuthSession> login(String profileName, String password) async {
-    return _auth('/auth/login', profileName, password);
+  /// Combined check — never reveals whether username or email collided.
+  Future<Map<String, dynamic>> checkRegistrationAvailability(
+    String profileName,
+    String email,
+  ) async {
+    final data = await request(
+      'POST',
+      '/auth/register-availability',
+      body: {
+        'profileName': profileName.trim(),
+        'email': email.trim().toLowerCase(),
+      },
+      auth: false,
+    );
+    return data as Map<String, dynamic>;
+  }
+
+  Future<AuthSession> login(String login, String password) async {
+    return _auth(
+      '/auth/login',
+      body: {'login': login, 'password': password},
+    );
   }
 
   Future<AuthSession> _auth(
-    String path,
-    String profileName,
-    String password,
-  ) async {
+    String path, {
+    required Map<String, dynamic> body,
+  }) async {
     final res = await _client.post(
       Uri.parse('${AppConfig.apiBaseUrl}$path'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'profileName': profileName, 'password': password}),
+      body: jsonEncode(body),
     );
     final data = _decode(res);
     final session = AuthSession.fromJson(data as Map<String, dynamic>);
@@ -169,12 +203,23 @@ class ApiService {
         .toList();
   }
 
-  Future<List<OrderItem>> listOrders() async {
-    final data = await request('GET', '/orders', query: {'limit': '100'});
-    final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
-    return items
-        .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
-        .toList();
+  Future<PaginatedOrders> listOrders({int page = 1, int limit = 50}) async {
+    final data = await request(
+      'GET',
+      '/orders',
+      query: {
+        'page': '$page',
+        'limit': '$limit',
+        'sort': 'date',
+        'dir': 'desc',
+      },
+    );
+    return PaginatedOrders.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<OrderSummary> getOrderSummary() async {
+    final data = await request('GET', '/orders/summary');
+    return OrderSummary.fromJson(data as Map<String, dynamic>);
   }
 
   Future<List<WarehouseRestock>> listWarehouseRestocks() async {

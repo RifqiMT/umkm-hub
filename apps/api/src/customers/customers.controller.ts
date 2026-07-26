@@ -15,7 +15,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { CustomerQueryDto } from './dto/customer-query.dto';
+import { CustomerQueryDto, CustomerSummaryQueryDto } from './dto/customer-query.dto';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard)
@@ -30,6 +30,14 @@ export class CustomersController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: CustomerQueryDto) {
     return this.customersService.findAll(user.profileId, query);
+  }
+
+  @Get('summary')
+  getSummary(
+    @CurrentUser() user: AuthUser,
+    @Query() query: CustomerSummaryQueryDto,
+  ) {
+    return this.customersService.getSummary(user.profileId, query);
   }
 
   @Get(':id')

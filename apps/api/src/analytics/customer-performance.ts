@@ -1,4 +1,5 @@
 import { roundMoney } from '../revenue-targets/revenue-target-math';
+import { repeatOrderDuration } from './repeat-order-duration';
 
 export type CustomerOrderRow = {
   orderId: string;
@@ -6,12 +7,15 @@ export type CustomerOrderRow = {
   customerName: string;
   companyName: string;
   companyType: string;
+  orderDate: Date;
   /** Net order total after discount. */
   revenue: number;
   /** Order discount (gross − net). */
   discount: number;
   /** Estimated COGS for the order (sum of line qty × catalog cost). Null if none set. */
   cost: number | null;
+  /** Packs sold on this order (sum of line pack counts). */
+  packsSold: number;
 };
 
 export type CustomerPerformanceRow = {
@@ -20,8 +24,20 @@ export type CustomerPerformanceRow = {
   companyName: string;
   companyType: string;
   orderCount: number;
+  /** Sum of packs across the customer’s orders in scope. */
+  packsSold: number;
   revenue: number;
   avgOrderValue: number | null;
+  /**
+   * UTC days from first → second order for this customer.
+   * Null when fewer than two distinct orders.
+   */
+  firstRepeatOrderDays: number | null;
+  /**
+   * Mean UTC days between consecutive orders for this customer.
+   * Null when fewer than two distinct orders.
+   */
+  avgRepeatOrderDays: number | null;
   discount: number;
   discountPercent: number | null;
   cost: number | null;
@@ -42,7 +58,8 @@ export function aggregateCustomerPerformance(
     name: string;
     companyName: string;
     companyType: string;
-    orderIds: Set<string>;
+    orderDatesById: Map<string, Date>;
+    packsSold: number;
     revenue: number;
     discount: number;
     costSum: number;
@@ -52,9 +69,13 @@ export function aggregateCustomerPerformance(
   const byCustomer = new Map<string, Acc>();
 
   for (const row of rows) {
+    const packs = Math.max(0, row.packsSold);
     const existing = byCustomer.get(row.customerId);
     if (existing) {
-      existing.orderIds.add(row.orderId);
+      if (!existing.orderDatesById.has(row.orderId)) {
+        existing.orderDatesById.set(row.orderId, row.orderDate);
+      }
+      existing.packsSold += packs;
       existing.revenue += row.revenue;
       existing.discount += Math.max(0, row.discount);
       if (row.cost != null) {
@@ -67,7 +88,8 @@ export function aggregateCustomerPerformance(
         name: row.customerName,
         companyName: row.companyName,
         companyType: row.companyType,
-        orderIds: new Set([row.orderId]),
+        orderDatesById: new Map([[row.orderId, row.orderDate]]),
+        packsSold: packs,
         revenue: row.revenue,
         discount: Math.max(0, row.discount),
         costSum: row.cost != null ? row.cost : 0,
@@ -80,9 +102,13 @@ export function aggregateCustomerPerformance(
   for (const acc of byCustomer.values()) {
     const revenue = roundMoney(acc.revenue);
     const discount = roundMoney(acc.discount);
-    const orderCount = acc.orderIds.size;
+    const packsSold = roundMoney(acc.packsSold);
+    const orderCount = acc.orderDatesById.size;
     const avgOrderValue =
       orderCount > 0 ? roundMoney(revenue / orderCount) : null;
+    const { firstRepeatOrderDays, avgRepeatOrderDays } = repeatOrderDuration([
+      ...acc.orderDatesById.values(),
+    ]);
     const gross = revenue + discount;
     const discountPercent =
       gross > 0 ? roundMoney((discount / gross) * 100) : null;
@@ -107,8 +133,11 @@ export function aggregateCustomerPerformance(
       companyName: acc.companyName,
       companyType: acc.companyType,
       orderCount,
+      packsSold,
       revenue,
       avgOrderValue,
+      firstRepeatOrderDays,
+      avgRepeatOrderDays,
       discount,
       discountPercent,
       cost,

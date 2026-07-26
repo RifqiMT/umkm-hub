@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.88 |
-| **Date** | 2026-07-25 |
+| **Version** | 1.5.217 |
+| **Date** | 2026-07-26 |
 
 ---
 
@@ -82,11 +82,28 @@ Root scripts use `npm --prefix` (not a full Turborepo/pnpm workspace).
 ### Shared aggregation
 `loadOrderActuals` powers both **Targets** and **Analytics** so attainment never drifts.
 
+### Analytics contract
+`GET /api/v1/analytics` accepts:
+
+| Query | Values | Notes |
+|-------|--------|-------|
+| `years` (preferred) / `year` | omit → current UTC year; `all`; `2024,2025` | Timeline scope (`analytics-period.ts`) |
+| `include` | `summary,series,products,customers` | Progressive load; omit → all |
+| `granularity` | `weekly\|monthly\|quarterly\|annual\|all` | Which series to build |
+
+Single-year annual context loads a rolling **10-year** window. In-process window cache TTL **45s** (`analytics-cache.ts`).
+
+### Auth & profile identity
+- Register requires unique username + email (case-insensitive); `POST /auth/register-availability` is anti-enumerating
+- Login accepts `login` (username or email)
+- Username and email immutable after register; email verify via one-time link
+- Location city/country sealed (AES-GCM); IP hashed (HMAC)
+
 ---
 
 ## 4. Data model (summary)
 
-Profile owns: Product, Customer, Order, WarehouseRestock, RevenueTargetPlan.  
+Profile owns: Product, Customer, Order, WarehouseRestock, RevenueTargetPlan, EmailVerificationToken.  
 Order has: OrderLine[], OrderInstallment[], optional Customer.  
 RevenueTargetPlan has: RevenueTargetMonth[12].
 
@@ -100,11 +117,12 @@ Full field catalog: [VARIABLES.md](./VARIABLES.md). Schema: `apps/api/prisma/sch
 |---------|----------------|
 | Framework | Next.js 15 App Router, React 19 |
 | Styling | Tailwind CSS 4 + `globals.css` design tokens |
-| Auth UX | Login/register; token in client storage; API helper `lib/api.ts` |
-| Charts | Recharts |
-| Shell | `AppShell` sidebar + `(app)/*` pages |
+| Auth UX | Login/register/verify-email; token in client storage; `lib/api.ts` |
+| Charts | Recharts (code-split; progressive panels) |
+| Shell | `AppShell` (sidebar / tablet rail / phone bottom tabs) |
+| Glossary | `/glossary` + `lib/glossary/*` |
 
-Routes: `/dashboard`, `/products`, `/customers`, `/orders`, `/warehouse`, `/targets`, `/analytics`, `/profile`.
+Routes: `/dashboard`, `/products`, `/customers`, `/orders`, `/warehouse`, `/targets`, `/analytics`, `/glossary`, `/profile`, `/verify-email`.
 
 ---
 
@@ -115,10 +133,11 @@ Routes: `/dashboard`, `/products`, `/customers`, `/orders`, `/warehouse`, `/targ
 | Framework | Flutter, Provider |
 | HTTP | `api_service.dart` |
 | Session | `session_controller.dart` + secure storage |
-| Charts | fl_chart |
+| Charts | fl_chart (viewport-lazy) |
 | Theme | `umkm_theme.dart` (Manrope + UmkmColors) |
+| Glossary | Profile → Dictionary (`glossary_catalog.dart`, synced from web) |
 
-Screens: login, home shell tabs (products, customers, orders, warehouse, profile), analytics (from profile).  
+Screens: login, home shell tabs (products, customers, orders, warehouse, profile), analytics + dictionary (from profile).  
 **Targets:** API-ready; UI web-first in v1.
 
 ---
@@ -129,7 +148,8 @@ Screens: login, home shell tabs (products, customers, orders, warehouse, profile
 |---------|----------|
 | IDOR prevention | Always `where: { profileId, … }` |
 | Enums | Prisma enums + `packages/shared` + mobile Dart mirrors |
-| Money display | Client `formatMoney` / `formatQty` |
+| Money display | Client `formatMoney` / `formatQty` / exact tooltips |
+| Analytics progressive load | Clients fetch summary+active series first, then tables |
 | Env | `.env.example` templates; sync never overwrites |
 | Local DB | Docker Compose Postgres 16 |
 
@@ -143,7 +163,7 @@ Screens: login, home shell tabs (products, customers, orders, warehouse, profile
 | Web | Vercel |
 | Mobile | App stores |
 
-Caching (Redis) and object storage are **phase 2** — only after measured need ([GUARDRAILS.md](./GUARDRAILS.md)).
+Redis multi-instance cache and object storage are **phase 2** — only after measured need ([GUARDRAILS.md](./GUARDRAILS.md)). Short in-process analytics TTL is allowed in v1.
 
 ---
 

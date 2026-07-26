@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.88 |
-| **Date** | 2026-07-25 |
+| **Version** | 1.5.217 |
+| **Date** | 2026-07-26 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
@@ -19,6 +19,7 @@ erDiagram
   Profile ||--o{ Order : owns
   Profile ||--o{ WarehouseRestock : owns
   Profile ||--o{ RevenueTargetPlan : owns
+  Profile ||--o{ EmailVerificationToken : has
   RevenueTargetPlan ||--o{ RevenueTargetMonth : has
   Customer ||--o{ Order : "optional link"
   Product ||--o{ Order : "primary line denorm"
@@ -31,6 +32,23 @@ erDiagram
     uuid id PK
     string profileName UK
     string passwordHash
+    string firstName
+    string lastName
+    string email UK
+    datetime emailVerifiedAt
+    datetime accountVerifiedAt
+    string locationCity
+    string locationCountry
+    string locationIpHash
+    enum locationSource
+  }
+  EmailVerificationToken {
+    uuid id PK
+    uuid profileId FK
+    string email
+    string tokenHash UK
+    datetime expiresAt
+    datetime consumedAt
   }
   Product {
     uuid id PK
@@ -161,12 +179,18 @@ flowchart TB
     actual["actual = Σ totalOrderValue ≠ CANCELLED"]
     target[monthly / annual target]
     attain["attainmentPercent = actual / target × 100"]
+    onPlan["monthsOnPlanRate = months≥100% ÷ months with target"]
+    pace["paceRate = YTD actual ÷ elapsed month targets"]
+    coverage["monthCoverageRate = months with target ÷ 12"]
     aov["avgOrderValue = revenue / orderCount"]
+    basket["avgBasketSize (UPT) = Σ(packCount) / orderCount"]
+    apf["avgPurchaseFrequency (APF) = linkedOrders / uniqueCustomers"]
     ltv["avgLtv = linkedRevenue / distinctCustomers"]
+    stageMargin["stage margin% = profit / netRevenue × 100"]
     rateBase["gross = revenue + discount"]
     discPct["discountPercent = discount / gross × 100"]
     costPct["costPercent = cost / gross × 100"]
-    margPct["marginPercent = profit / gross × 100"]
+    margPct["table marginPercent = profit / gross × 100"]
   end
 
   packSize --> productQty
@@ -188,8 +212,14 @@ flowchart TB
   total --> actual
   actual --> attain
   target --> attain
+  attain --> onPlan
+  actual --> pace
+  target --> pace
+  target --> coverage
   actual --> aov
+  actual --> basket
   actual --> ltv
+  actual --> stageMargin
   total --> rateBase
   rateBase --> discPct
   rateBase --> costPct
@@ -207,8 +237,24 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
 | `id` (Profile) | Profile ID | System-generated tenant key | `uuid()` | DB `Profile.id`; `GET/PATCH/DELETE /profiles/me`; web/mobile Profile | `a1b2c3d4-…` |
-| `profileName` | Profile name | Unique login identifier | `[A-Za-z0-9._-]{3,64}`, unique | Auth register/login; Profile | `sari_umkm` |
+| `profileName` | Username | Unique login identifier (UI: Username; immutable after register) | `[A-Za-z0-9._-]{3,64}`, unique | `POST /auth/register`; login; Profile UI (read-only) | `sari_umkm` |
+| `login` (auth) | Login identifier | Username or email for sign-in | username as stored, or email (case-insensitive) | `POST /auth/login` body `login` (alias `profileName`) | `sari@example.com` |
 | `password` / `passwordHash` | Password | Access credential | bcrypt cost **12**; min length 8 | Auth; never returned by API | `••••••••` |
+| `firstName` | First name | Optional given name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Sari` |
+| `lastName` | Last name | Optional family name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Wijaya` |
+| `email` | Email | Required unique identity email (1:1 with username; immutable after register) | RFC email; unique; NOT NULL; stored lowercased | `POST /auth/register`; login; Profile UI (read-only) | `sari@example.com` |
+| `emailVerifiedAt` | Email verified at | When email link was confirmed | timestamp or null | Profile; set by verify-email | `2026-07-26T…` |
+| `accountVerifiedAt` | Account verified at | When account was verified (with email in v1) | timestamp or null | Profile; set by verify-email | `2026-07-26T…` |
+| `EmailVerificationToken.tokenHash` | Verify token digest | HMAC of raw email-verify token | never store raw token | DB only | `a3f2…` |
+| `RESEND_API_KEY` | Resend API key | Outbound email provider | optional; without it, links are logged/dev-returned | `apps/api/.env` | (secret) |
+| `APP_PUBLIC_URL` | Public web URL | Base for verify links | no trailing slash | `apps/api/.env` | `http://localhost:3000` |
+| `locationCity` | City (sealed) | AES-256-GCM blob of city (`loc1:…`) | seal/open with location key | DB sealed; API returns decrypted to owner | `loc1:…` / `Jakarta` |
+| `locationCountry` | Country (sealed) | AES-256-GCM blob of country | same | DB sealed; API returns decrypted to owner | `loc1:…` / `Indonesia` |
+| `locationIpHash` | IP digest | HMAC-SHA256 of client IP when source is IP | `h1:<hex>`; cleared on manual/clear | DB only; never returned by API | `h1:0e44…` |
+| `locationSet` | Location on file | Whether sealed city/country exist | `has(city) OR has(country)` | API `GET /profiles/me` | `true` |
+| `locationNeedsReentry` | Re-enter location | Legacy irreversible HMAC city/country | true when only `h1:` blobs remain | API `GET /profiles/me` | `false` |
+| `locationSource` | Location source | How location was set | `MANUAL` \| `IP` \| null | Profile; set by detect or edit | `IP` |
+| `PROFILE_LOCATION_SECRET` | Location crypto secret | Key material for seal + IP HMAC | Falls back to `JWT_ACCESS_SECRET` | `apps/api/.env` | (secret) |
 | JWT `sub` | Token subject | Authenticated profile id | Payload `{ sub, profileName }` | Access & refresh tokens | same as Profile id |
 | `DATABASE_URL` | Database URL | Postgres connection string | Prisma datasource | `apps/api/.env` | `postgresql://umkm:…@localhost:5432/umkm_hub` |
 | Sandbox `profileName` | Sandbox login | Seeded demo account | Create-if-missing in seed | `apps/api/prisma/seed.ts` | `rifqi_tjahyono` |
@@ -270,6 +316,10 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `paymentStatus` | Payment terms | Commercial payment mode | `CASH` \| `CONSIGNMENT` \| `DELAYED_PAYMENT` | Order | `CASH` |
 | `invoiceStatus` | Invoice status | Operational invoice state | `CREATED` \| `SENT` | Order | `CREATED` |
 | `invoiceDate` | Invoice date | Invoice business date | Optional; defaults to order date on create | Order | `2026-07-25` |
+| `orderDateFrom` / `orderDateTo` | Order date filter | Inclusive list/summary range on `orderDate` | YYYY-MM-DD; omit = no bound; inverted from/to swapped | `GET /orders`, `GET /orders/summary`, Dashboard Period | `2024-01-01` |
+| `paymentStatus` (filter) | Payment status filter | Restrict list/summary to selected payment terms | Comma-separated `CASH` / `CONSIGNMENT` / `DELAYED_PAYMENT` | `GET /orders`, `GET /orders/summary` | `CASH,CONSIGNMENT` |
+| `shipmentDateFrom` / `shipmentDateTo` | Shipment date filter | Inclusive list range on `shipmentDate` | Same; excludes null shipment dates when set | `GET /orders` | `2024-06-01` |
+| `invoiceDateFrom` / `invoiceDateTo` | Invoice date filter | Inclusive list range on `invoiceDate` | Same; excludes null invoice dates when set | `GET /orders` | `2024-06-30` |
 | `packSizeSnapshot` | Pack size | Locked pack size on line | From product packs; `1` for PCS | OrderLine | `100` |
 | `packPriceSnapshot` | Pack price | Locked selling price per pack | Snapshot at order time | OrderLine | `20000` |
 | `packCount` | Pack count | Number of packs / pieces | > 0 | OrderLine | `2` |
@@ -285,6 +335,20 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `installmentDate` | Installment date | Payment date | Non-decreasing in list order | OrderInstallment | `2026-08-01` |
 | `paidAmount` | Paid amount | Sum of installments | `SUM(installment.amount)` | Order read DTO | `54000` |
 | `remainingAmount` | Remaining amount | Unpaid balance | `max(0, totalOrderValue − paidAmount)` | Order read DTO | `81000` |
+| `orders.summary.cancellationRate` | Cancellation rate | Share of orders cancelled | `cancelledCount ÷ allOrders × 100` (null if none) | `GET /orders/summary` | `2.5` |
+| `orders.summary.profitMarginRate` | Profit margin rate | Margin on post-discount revenue | `(revenue − COGS) ÷ revenue × 100` when any catalog cost exists | `GET /orders/summary` | `58.2` |
+| `orders.summary.discountRate` | Discount rate | Discount share of pre-discount totals | `(Σ lineTotal − Σ total) ÷ Σ lineTotal × 100` | `GET /orders/summary` | `6.4` |
+| `orders.summary.fullPaymentRate` | Full-payment rate | Share of active orders paid in full | `count(paid ≥ total − 0.00005) ÷ activeOrders × 100` (CANCELLED excluded) | `GET /orders/summary` | `25` |
+| `order.paymentRate` | Order paid % | Progress of installments vs total | `paidAmount ÷ totalOrderValue × 100` (100 when fully paid) | Orders list Paid column | `100` |
+| `products.summary.inventorySellValue` | Inventory sell value | Stock × unit price across catalog | `Σ(stockQty × pricePerUnit)` | `GET /products/summary` | `125000` |
+| `products.summary.outOfStockRate` | Out-of-stock rate | Zero-stock SKU share | `count(stock≤0) ÷ products × 100` | `GET /products/summary` | `12.5` |
+| `products.summary.packReadyRate` | Pack-ready rate | PCS or SKUs with a pack price | `packReady ÷ products × 100` | `GET /products/summary` | `90` |
+| `warehouse.summary.inventorySellValue` | Warehouse sell value | Same inventory sell math | `Σ(stockQty × pricePerUnit)` | `GET /warehouse/summary` | `125000` |
+| `warehouse.summary.profitMarginRate` | Warehouse margin | Margin on costed inventory | `(sell − cost) ÷ sell × 100` when cost known | `GET /warehouse/summary` | `58` |
+| `customers.summary.avgApproval` | Avg approval | Mean approval % | `Σ approval ÷ customers` | `GET /customers/summary` | `70` |
+| `customers.summary.interestedRate` | Interested rate | Status = INTERESTED share | `interested ÷ customers × 100` | `GET /customers/summary` | `40` |
+| `customers.summary.closingRate` | Closing rate | Relationship = CLOSING_FIRST_ORDER | `closing ÷ customers × 100` | `GET /customers/summary` | `20` |
+| `customers.summary.contactRate` | Contact rate | Email or phone on file | `withContact ÷ customers × 100` | `GET /customers/summary` | `80` |
 
 ### 4.5 Warehouse
 
@@ -310,20 +374,70 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `month` / `amount` | Monthly target | Target revenue for month 1–12 | Stored per plan; annual save → even split (Dec remainder) | RevenueTargetMonth | month `3`, `11025000` |
 | `source` | Month source | How month amount was produced | `MANUAL` \| `GENERATED` | RevenueTargetMonth | `GENERATED` |
 | `actual` | Actual revenue | Sum of order totals in period | `SUM(totalOrderValue)` where status ≠ `CANCELLED` | `/revenue-targets/:year`; Analytics | `8500000` |
-| `attainmentPercent` | Attainment % | Actual vs target | `(actual / target) × 100` or null if target ≤ 0 | Targets API/UI; Analytics | `85` |
+| `attainmentPercent` | % of target / Attainment | Share of revenue target reached | `(actual / target) × 100` or null if target ≤ 0 | Targets API/UI; Analytics; FeatureStage | `85` |
+| `monthsOnPlanRate` | On plan rate | Share of targeted months that hit ≥ 100% attainment | `count(attainment ≥ 100) ÷ count(target > 0) × 100` | Web `feature-stage-metrics.ts`; Targets FeatureStage | `66.67` |
+| `paceRate` (targets) | Pace rate | YTD actual vs sum of targets for elapsed months | `ytdActual ÷ pacedTarget × 100`; elapsed = UTC months 1…current (past years = 12; future = 0) | Targets FeatureStage | `92.5` |
+| `monthCoverageRate` | Coverage rate | Share of year months with a target amount | `count(target > 0) ÷ 12 × 100` | Targets FeatureStage | `100` |
+| `nextYearProjected` | Next year projection | Systematic YoY projection from this year’s annual | `base × (1 + annualGrowthPercent/100)` when set | Revenue targets API/UI | `180000000` |
+| `analytics.weekly[].target` | Weekly target | Day-weighted share of monthly plan for the ISO week | `Σ_m T_m × (UTC days of week in m) / days(m)`; null if no 12-month plan | `GET /analytics` weekly series | `70000` |
 
-### 4.7 Analytics series & tables
+### 4.7 Analytics query contract & summary
+
+| Variable | Friendly name | Definition | Formula / rule | Location | Example |
+|----------|---------------|------------|----------------|----------|---------|
+| `years` / `year` | Timeline query | Analytics year scope | omit → current UTC year; `all`; `2024,2025` (comma/`+`/space); parse accepts 2000–2100 | `GET /analytics`; `analytics-period.ts` | `2024,2025` |
+| `include` | Progressive include | Which overview parts to compute | `summary` \| `series` \| `products` \| `customers` (comma); omit → all | `analytics-query.ts` | `summary,series` |
+| `granularity` | Series granularity | Which series to build | `weekly` \| `monthly` \| `quarterly` \| `annual` \| `all`; omit → `all` | `analytics-query.ts` | `monthly` |
+| `scope` | Scope label | How the response was scoped | `year` \| `years` \| `all` | Overview response | `year` |
+| `ANNUAL_WINDOW` | Annual rolling window | Years loaded for single-year Annual series context | **10** years ending at focus year | `analytics-period.ts` | `10` |
+| `APP_YEAR_MIN` / `APP_YEAR_MAX` | App year picker range | Inclusive UI / All-timelines load range | **2020–2035** | `analytics-period.ts`; year pickers | `2020`, `2035` |
+| `ANALYTICS_WINDOW_CACHE_TTL_MS` | Analytics window cache TTL | In-process cache for order window loads | **45000** ms; max 64 entries | `analytics-cache.ts` | `45000` |
+| `summary.revenue` | Scope revenue | Non-cancelled totals in focus years | Same actuals rules | `GET /analytics` summary | `48000000` |
+| `summary.orderCount` | Scope order count | Non-cancelled orders in focus | — | summary | `120` |
+| `summary.target` | Scope target | Plan target for focus (month sum / annual) | null when All or no plan | summary | `150000000` |
+| `summary.attainmentPercent` | Scope attainment | `actual / target × 100` | null if target ≤ 0 | summary | `72` |
+| `summary.monthlyTargetSum` | Monthly target sum | Sum of 12 monthly plan amounts | Used when aligning annual display | summary | `150000000` |
+| `summary.cost` / `summary.profit` | Scope cost / profit | Estimated COGS and profit for scope | From margin series on non-cancelled | summary | `20000000` / `28000000` |
+| `summary.marginPercent` | Stage margin % | Profit ÷ **net** revenue × 100 | `(profit / revenue) × 100` | summary / charts | `58.3` |
+| `summary.avgBasketSize` | UPT | Mean packs per order | `Σ packCount / orderCount` | summary + lens | `2.5` |
+| `summary.avgPurchaseFrequency` | APF | Mean orders per linked customer | `linkedOrders / uniqueCustomers` | summary + lens | `1.5` |
+| `summary.purchaseFrequencyCustomerCount` | APF denominator | Distinct linked customers in scope | count | summary | `40` |
+| `summary.avgProductRevenue` | Avg product revenue | Mean net revenue per product with sales | `productRevenue / distinctProducts` | summary | `2100000` |
+| `summary.productSaleCount` | Products with sales | Distinct products sold | count | summary | `8` |
+| `summary.avgLtv` / `ltvCustomerCount` | Avg LTV / buyers | Linked revenue ÷ distinct customers | Requires `customerId` | summary | `3750000` / `12` |
+| `summary.avgShipmentDays` (+ sample) | Ship lead time | Mean order→shipment days | sample size paired | summary | `5` / `90` |
+| `summary.avgInvoiceDays` (+ sample) | Invoice lead time | Mean order→invoice days | sample with `invoiceDate` | summary | `2` / `80` |
+| `summary.avgFirstPaymentDays` / `avgPaymentDays` | Payment lead times | First / last installment means | sample sizes paired | summary | `7` / `30` |
+
+### 4.8 Analytics series & tables
 
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
 | `analytics.monthly[].revenue` | Month revenue | Non-cancelled order totals in month | UTC month of `orderDate` | `GET /analytics` | `2250000` |
 | `analytics.monthly[].orderCount` | Month order count | Count of non-cancelled orders | — | `GET /analytics` | `12` |
-| `avgOrderValue` | Average order value | Mean ticket size | `revenue / orderCount` (null if none) | Summary / monthly / annual | `2500000` |
+| `analytics.quarterly[].revenue` | Quarter revenue | Non-cancelled order totals in UTC quarter | Q1=Jan–Mar … Q4=Oct–Dec | `GET /analytics` | `6750000` |
+| `analytics.quarterly[].orderCount` | Quarter order count | Count of non-cancelled orders in quarter | — | `GET /analytics` | `36` |
+| `analytics.quarterly[].target` | Quarter target | Sum of monthly plan amounts in the quarter | `T_q = T_m1 + T_m2 + T_m3`; null if no 12-month plan | `GET /analytics` quarterly series | `9000000` |
+| `avgOrderValue` | Average order value | Mean ticket size | `revenue / orderCount` (null if none) | Summary / series | `2500000` |
+| `avgBasketSize` | Units Per Transaction (UPT) | Mean packs sold per order | `Σ(packCount) / orderCount` (null if none) | Summary / series + Performance chart | `2.5` |
+| `avgPurchaseFrequency` | Average purchase frequency (APF) | Mean orders per unique linked customer | `linkedOrders / uniqueCustomers` (null if none) | Summary / series + Performance chart | `1.5` |
 | `analytics.annual[].revenue` | Year revenue | Sum for calendar year | Same rules as Targets actuals | `GET /analytics` | `48000000` |
 | `avgShipmentDays` | Shipment duration | Avg days order → shipment | Mean UTC day diff; sample = paired rows | Analytics | `5` |
+| `avgInvoiceDays` | Invoice duration | Avg days order → invoice | Mean UTC day diff; sample = orders with `invoiceDate` | Analytics lead times | `2` |
+| `statusShares` | Order status mix % | % of orders in each `OrderStatus` for the period | `(count(status) / statusOrderCount) × 100`; **includes CANCELLED** | weekly/monthly/quarterly/annual points | `{ DELIVERED: 70, CANCELLED: 10, … }` |
+| `statusOrderCount` | Status mix denominator | Orders in period including cancelled | Count of mix-loaded orders | Mix charts | `40` |
+| `paymentShares` | Payment mode mix % | % of non-cancelled orders by `PaymentStatus` | `(count(payment) / paymentOrderCount) × 100`; cancelled excluded | series points | `{ CASH: 50, … }` |
+| `paymentOrderCount` | Payment mix denominator | Non-cancelled orders in period | Count where status ≠ CANCELLED | Mix charts | `36` |
+| `growthLabels` (client) | Period growth in tooltips | Vs prior chart period | Levels: `%`; rates already in %: `bps = Δpp × 100` | Analytics chart tooltips | `+12.5%`, `+200 bps` |
 | `avgFirstPaymentDays` | First payment duration | Avg days order → first installment | Mean UTC day diff | Analytics | `7` |
 | `avgPaymentDays` | Last payment duration | Avg days order → last installment | Mean UTC day diff | Analytics | `30` |
-| `analytics.products[].revenue` | Product year revenue | Discount-allocated line revenue | Non-cancelled, selected year | `GET /analytics` | `2250000` |
+| `analytics.products[].packsSold` | Product packs sold | Sum of line `packCount` for the product | Non-cancelled, selected scope | `GET /analytics` | `48` |
+| `analytics.products[].orderCount` | Product order count | Distinct orders that include the product | Non-cancelled, selected scope | `GET /analytics` | `12` |
+| `analytics.products[].firstRepeatOrderDays` | Product 1st repeat | UTC days from first → second order with the product | Sorted order dates; gap[0]; null if fewer than 2 orders | `GET /analytics` | `10` |
+| `analytics.products[].avgRepeatOrderDays` | Product avg repeat | Mean UTC days between consecutive orders with the product | Average consecutive gaps; null if fewer than 2 orders | `GET /analytics` | `14.5` |
+| `analytics.customers[].firstRepeatOrderDays` | Customer 1st repeat | UTC days from first → second customer order | Same first-gap rule as products | `GET /analytics` | `15` |
+| `analytics.customers[].avgRepeatOrderDays` | Customer avg repeat | Mean UTC days between consecutive customer orders | Same gap rule as products | `GET /analytics` | `21` |
+| `analytics.products[].revenue` | Product year revenue | Discount-allocated line revenue | Non-cancelled, selected scope | `GET /analytics` | `2250000` |
 | `analytics.products[].discount` | Product year discount | Order discount allocated to lines | `gross line − allocated revenue` | `GET /analytics` | `112500` |
 | `analytics.products[].discountPercent` | Product discount % | Share of gross given as discount | `(discount / (revenue + discount)) × 100` | `GET /analytics` | `4.0` |
 | `analytics.products[].cost` | Est. product COGS | Catalog COGS × qty sold | `costPerUnit × qtySold`; null if unset | `GET /analytics` | `1250000` |
@@ -331,15 +445,24 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `analytics.products[].profit` | Product profit | Revenue − cost | Amount; margin % companion in UI | `GET /analytics` | `900000` |
 | `analytics.products[].marginPercent` | Product margin % | Profit share of pre-discount total | `(profit / (revenue + discount)) × 100` | `GET /analytics` | `40.4` |
 | `analytics.products[].avgOrderValue` | Product AOV | Net revenue per order with product | `revenue / orderCount` | `GET /analytics` | `187500` |
+| `analytics.customers[].packsSold` | Customer packs sold | Sum of line `packCount` across the customer’s orders | Linked orders in scope | `GET /analytics` | `120` |
+| `analytics.customers[].orderCount` | Customer order count | Distinct linked orders for the customer | Requires `customerId` | `GET /analytics` | `8` |
 | `analytics.customers[].*` | Customer performance | Same metric family for linked orders | Requires `customerId` | `GET /analytics` | — |
-| `avgLtv` | Average LTV | Mean linked revenue per active customer | `linkedRevenue / distinctCustomers` | Summary / monthly / annual | `3750000` |
+| `avgLtv` | Average LTV | Mean linked revenue per active customer | `linkedRevenue / distinctCustomers` | Summary / series | `3750000` |
 | `ltvCustomerCount` | LTV buyer count | Distinct customers with ≥1 linked order | count distinct `customerId` | Analytics summary | `12` |
+| `avgProductRevenue` | Average product revenue | Mean net revenue per product with sales | `productRevenue / distinctProducts` | Summary / series | `2100000` |
+| `productSaleCount` | Products with sales | Distinct products sold in period | count distinct `productId` on lines | Analytics summary | `8` |
 
-### 4.8 Display helpers
+### 4.9 Display helpers
 
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
-| `formatMoney` | Compact money label | Short UI currency display | `≥1e6` Mn, `≥1e9` Bn, `≥1e12` Tn, `≥1e15` Qd, `≥1e18` Qn (2 decimals); else full digits | Web `lib/format-money.ts`; mobile `format_money.dart` | `1.53 Mn` |
+| `formatMoney` | Compact money label | Short UI currency display | `≥1e6` million, `≥1e9` billion, `≥1e12` trillion, `≥1e15` quadrillion, `≥1e18` quintillion (2 decimals); else full digits | Web `lib/format-money.ts`; mobile `format_money.dart` | `1.53 million` |
+| `formatMoneyExact` | Exact money label | Tooltip / full-precision money | Locale grouping; no magnitude shortcut | Same modules | `1,532,000` |
+| `formatCompactAxis` | Chart axis money | Tight money axis ticks | Short Mn/Bn/Tn/Qd/Qn | Web analytics charts | `1.53 Mn` |
+| `formatCompactAxisQty` | Chart axis qty | Tight qty axis ticks (keeps decimals &lt; 1e6) | Short Mn/Bn… or full decimals | Basket / frequency charts | `1.5` |
+| `paddedDomain` | Chart axis padding | Value-axis min/max headroom | `min − 20%·|min|` … `max + 20%·|max|` (empty/zero → `[0,1]`; optional non-negative floor) | Web `lib/chart-domain.ts`; mobile `chart_domain.dart` | `[8.8, 37.2]` for `[11, 31]` |
+| `axisTicks` | Chart tick marks | Even labels across padded domain | 5 evenly spaced points from lo→hi | Web Analytics Y/X value axes | `8.8d … 37.2d` |
 | `formatQty` | Quantity label | Full-digit non-currency amounts | Locale grouping; no Mn/Bn | Same modules — stock/qty | `1,532,000` |
 
 ---
@@ -351,10 +474,15 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | Order math | `apps/api/src/orders/order-math.ts` |
 | Shared totals helper | `packages/shared/src/index.ts` |
 | Revenue target math | `apps/api/src/revenue-targets/revenue-target-math.ts` |
+| Targets FeatureStage rates | `apps/web/src/lib/feature-stage-metrics.ts` |
+| Analytics period / query / cache | `analytics-period.ts`, `analytics-query.ts`, `analytics-cache.ts` |
 | Order actuals (targets + analytics) | `apps/api/src/analytics/order-actuals.ts` |
-| Product / customer performance | `apps/api/src/analytics/product-performance.ts`, `customer-performance.ts` |
-| Margin / duration / LTV series | `margin-series.ts`, `duration-series.ts`, `ltv-series.ts` |
+| Week / quarter / basket / APF / mix | `week-series.ts`, `quarter-series.ts`, `weekly-target.ts`, `basket-series.ts`, `purchase-frequency-series.ts`, `status-payment-series.ts` |
+| Product / customer performance | `product-performance.ts`, `customer-performance.ts` |
+| Margin / duration / LTV / growth | `margin-series.ts`, `duration-series.ts`, `ltv-series.ts`, `period-growth.ts` |
 | Schema | `apps/api/prisma/schema.prisma` |
 | Money formatting | `apps/web/src/lib/format-money.ts`, `apps/mobile/lib/format_money.dart` |
+
+**User-facing glossary:** in-app Dictionary at `/glossary` (web) and Profile → Dictionary (mobile), sourced from `apps/web/src/lib/glossary`. Mobile mirror is generated with `npm run glossary:sync` → `apps/mobile/lib/glossary/glossary_catalog.dart`.
 
 Related: [PRODUCT.md](./PRODUCT.md) · [PRD.md](./PRD.md) · [METRICS.md](./METRICS.md)

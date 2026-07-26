@@ -2,6 +2,7 @@ import {
   assertInstallmentsChronological,
   assertInstallmentsWithinTotal,
   calculateRemainingAmount,
+  calculateRemainingFromPaid,
   sumInstallmentAmounts,
 } from './order-installments';
 
@@ -18,6 +19,7 @@ describe('order-installments', () => {
     ).toBe(35);
     expect(calculateRemainingAmount(50, [{ amount: 50 }])).toBe(0);
     expect(calculateRemainingAmount(50, [{ amount: 60 }])).toBe(0);
+    expect(calculateRemainingFromPaid(100, 65)).toBe(35);
   });
 
   it('rejects installments above total', () => {

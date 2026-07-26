@@ -8,7 +8,7 @@ import { setSession } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [profileName, setProfileName] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export default function LoginPage() {
       }>('/auth/login', {
         method: 'POST',
         auth: false,
-        body: { profileName, password },
+        body: { login: login.trim(), password },
       });
       setSession(data);
       router.replace('/dashboard');
@@ -52,13 +52,16 @@ export default function LoginPage() {
           {error ? <div className="umkm-error">{error}</div> : null}
           <form onSubmit={onSubmit}>
             <div className="umkm-field">
-              <label htmlFor="profileName">Profile name</label>
+              <label htmlFor="login">Username or email</label>
               <input
-                id="profileName"
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
+                id="login"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
                 required
+                minLength={3}
+                maxLength={254}
                 autoComplete="username"
+                placeholder="username or you@example.com"
               />
             </div>
             <div className="umkm-field">

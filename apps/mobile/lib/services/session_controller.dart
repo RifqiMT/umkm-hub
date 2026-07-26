@@ -27,6 +27,18 @@ class SessionController extends ChangeNotifier {
     }
   }
 
+  void clearError() {
+    if (error == null) return;
+    error = null;
+    notifyListeners();
+  }
+
+  void setError(String? message) {
+    if (error == message) return;
+    error = message;
+    notifyListeners();
+  }
+
   Future<void> login(String name, String password) async {
     error = null;
     notifyListeners();
@@ -41,15 +53,21 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> register(String name, String password) async {
+  Future<void> register(String name, String email, String password) async {
     error = null;
     notifyListeners();
     try {
-      final session = await _api.register(name, password);
+      final session = await _api.register(name, email, password);
       profileName = session.profileName;
       isAuthenticated = true;
     } catch (e) {
-      error = e.toString();
+      // Never reveal whether username or email collided.
+      if (e is ApiException && e.statusCode == 409) {
+        error =
+            'This username or email is already in use. Sign in, or try different details.';
+      } else {
+        error = e.toString();
+      }
       isAuthenticated = false;
     }
     notifyListeners();
@@ -59,6 +77,12 @@ class SessionController extends ChangeNotifier {
     await _api.clearSession();
     isAuthenticated = false;
     profileName = null;
+    notifyListeners();
+  }
+
+  Future<void> setProfileName(String name) async {
+    await _api.updateStoredProfileName(name);
+    profileName = name;
     notifyListeners();
   }
 }

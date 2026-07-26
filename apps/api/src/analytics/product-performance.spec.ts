@@ -12,9 +12,11 @@ describe('aggregateProductPerformance', () => {
         productId: 'p1',
         productName: 'Cabai',
         unit: 'GRAM',
+        orderDate: new Date(Date.UTC(2026, 0, 1)),
         totalOrderValue: 2000,
         discount: 100,
         productQty: 100,
+        packCount: 2,
         costPerUnit: 5,
       },
       {
@@ -22,9 +24,11 @@ describe('aggregateProductPerformance', () => {
         productId: 'p1',
         productName: 'Cabai',
         unit: 'GRAM',
+        orderDate: new Date(Date.UTC(2026, 0, 11)),
         totalOrderValue: 1000,
         discount: 50,
         productQty: 50,
+        packCount: 1,
         costPerUnit: 5,
       },
       {
@@ -32,9 +36,11 @@ describe('aggregateProductPerformance', () => {
         productId: 'p2',
         productName: 'Ayam',
         unit: 'PCS',
+        orderDate: new Date(Date.UTC(2026, 0, 5)),
         totalOrderValue: 5000,
         discount: 0,
         productQty: 10,
+        packCount: 10,
         costPerUnit: null,
       },
     ]);
@@ -51,6 +57,9 @@ describe('aggregateProductPerformance', () => {
       profit: null,
       marginPercent: null,
       orderCount: 1,
+      packsSold: 10,
+      firstRepeatOrderDays: null,
+      avgRepeatOrderDays: null,
     });
     expect(rows[1]).toMatchObject({
       productId: 'p1',
@@ -60,7 +69,10 @@ describe('aggregateProductPerformance', () => {
       discount: 150,
       discountPercent: 4.7619,
       qtySold: 150,
+      packsSold: 3,
       orderCount: 2,
+      firstRepeatOrderDays: 10,
+      avgRepeatOrderDays: 10,
       cost: 750,
       costPercent: 23.8095,
       profit: 2250,
@@ -81,9 +93,11 @@ describe('aggregateProductPerformance', () => {
         productId: 'p1',
         productName: 'Cabai',
         unit: 'GRAM',
+        orderDate: new Date(Date.UTC(2026, 0, 1)),
         totalOrderValue: 100,
         discount: 10,
         productQty: 10,
+        packCount: 1,
         costPerUnit: null,
       },
       {
@@ -91,9 +105,11 @@ describe('aggregateProductPerformance', () => {
         productId: 'p1',
         productName: 'Cabai',
         unit: 'GRAM',
+        orderDate: new Date(Date.UTC(2026, 0, 1)),
         totalOrderValue: 50,
         discount: 5,
         productQty: 5,
+        packCount: 1,
         costPerUnit: null,
       },
     ]);
@@ -102,5 +118,8 @@ describe('aggregateProductPerformance', () => {
     expect(rows[0].discount).toBe(15);
     expect(rows[0].discountPercent).toBe(9.0909);
     expect(rows[0].qtySold).toBe(15);
+    expect(rows[0].packsSold).toBe(2);
+    expect(rows[0].firstRepeatOrderDays).toBeNull();
+    expect(rows[0].avgRepeatOrderDays).toBeNull();
   });
 });

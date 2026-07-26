@@ -19,6 +19,7 @@ import {
 import {
   attainmentPercent,
   annualTargetFromMonthAmounts,
+  assertMoneyFits,
   distributeAnnualToMonths,
   generateSystematicMonthlyAmounts,
   projectNextAnnualAmount,
@@ -84,6 +85,13 @@ export class RevenueTargetsService {
       const monthlySum = annualTargetFromMonthAmounts(
         monthRows.map((row) => row.amount),
       );
+      try {
+        assertMoneyFits(monthlySum, 'Annual target (sum of months)');
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid annual target',
+        );
+      }
       // Months are source of truth — keep annual fields aligned to their sum.
       const keepYoY =
         saved.annualGrowthPercent != null &&
@@ -274,10 +282,33 @@ export class RevenueTargetsService {
           'Systematic monthly mode requires baseMonthAmount and monthlyGrowthPercent',
         );
       }
-      const amounts = generateSystematicMonthlyAmounts(
-        dto.baseMonthAmount,
-        dto.monthlyGrowthPercent,
-      );
+      try {
+        assertMoneyFits(dto.baseMonthAmount, 'Base month amount');
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid base month amount',
+        );
+      }
+      let amounts: number[];
+      try {
+        amounts = generateSystematicMonthlyAmounts(
+          dto.baseMonthAmount,
+          dto.monthlyGrowthPercent,
+        );
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid systematic monthly plan',
+        );
+      }
+      for (const amount of amounts) {
+        try {
+          assertMoneyFits(amount, 'Monthly target');
+        } catch (err) {
+          throw new BadRequestException(
+            err instanceof Error ? err.message : 'Invalid monthly target',
+          );
+        }
+      }
       return amounts.map((amount, index) => ({
         month: index + 1,
         amount,
@@ -296,6 +327,13 @@ export class RevenueTargetsService {
         throw new BadRequestException(`Duplicate month ${row.month}`);
       }
       seen.add(row.month);
+      try {
+        assertMoneyFits(row.amount, `Month ${row.month} target`);
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid month amount',
+        );
+      }
     }
     if (seen.size !== 12) {
       throw new BadRequestException('Months must cover 1 through 12');
@@ -316,6 +354,13 @@ export class RevenueTargetsService {
           'Manual annual mode requires annualAmount',
         );
       }
+      try {
+        assertMoneyFits(dto.annualAmount, 'Annual amount');
+      } catch (err) {
+        throw new BadRequestException(
+          err instanceof Error ? err.message : 'Invalid annual amount',
+        );
+      }
       return {
         annualAmount: dto.annualAmount,
         baseAnnualAmount: null as number | null,
@@ -325,6 +370,13 @@ export class RevenueTargetsService {
     if (dto.baseAnnualAmount == null) {
       throw new BadRequestException(
         'Systematic annual mode requires baseAnnualAmount',
+      );
+    }
+    try {
+      assertMoneyFits(dto.baseAnnualAmount, 'Base annual amount');
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Invalid base annual amount',
       );
     }
     return {

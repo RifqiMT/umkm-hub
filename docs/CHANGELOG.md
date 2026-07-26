@@ -1,5 +1,521 @@
 # Changelog — UMKM Hub
 
+## 2026-07-26 — v1.5.217 Documentation suite refresh (post-1.5.216)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit against tip **v1.5.216**. Aligned PRODUCT/PRD/USER_STORIES/VARIABLES/METRICS/TRACEABILITY/ARCHITECTURE/GUARDRAILS/PERSONAS/DESIGN/READMEs to live analytics (10-year window, Weekly/Quarterly, progressive `include`/`granularity`, UPT/APF, mix %, Top/Bottom 5), Targets FeatureStage rates (On plan / Pace / Coverage), and profile identity (required immutable email + username, anti-enumeration, verify, sealed location). Fixed contradictions (optional email; 5-year window; stage margin base). Version stamps → 1.5.217.
+
+## 2026-07-26 — v1.5.216 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Removed unused web shim (`analytics-period.ts`), deprecated timeline aliases, unused readiness/glossary/filter helpers, dead warehouse list DTO, and unused ISO-week debug helper. Demoted internals that were only used in-file. Kept seed/backfill scripts and nested API types.
+
+## 2026-07-26 — v1.5.215 Register conflict copy polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Simplified create-profile conflict wording (plain English): “already in use” + short sign-in guidance; CTA label “Sign in”.
+
+## 2026-07-26 — v1.5.214 Live register availability (unified)
+**Author:** Auto (Cursor agent)  
+**Impact:** Create profile checks uniqueness in real time once username + email are both valid (`POST /auth/register-availability`). Response is only available/taken with one message—never which field collided. Web/mobile show Checking… / Available / Already in use + Sign in before Create is enabled.
+
+## 2026-07-26 — v1.5.213 Register taken → Sign in CTA
+**Author:** Auto (Cursor agent)  
+**Impact:** When username or email is taken, Create profile shows a clear “already taken” alert with a Sign in instead button; both fields share the same hint + Sign in link (still does not reveal which field collided).
+
+## 2026-07-26 — v1.5.212 Register conflict UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Create profile always allows submit (validates on click), scrolls to the conflict alert, and marks username + email with the same unified taken message so the 409 is obvious without live per-field probes.
+
+## 2026-07-26 — v1.5.211 Register anti-enumeration
+**Author:** Auto (Cursor agent)  
+**Impact:** Registration no longer reveals whether username or email is taken. `POST /auth/register` returns one unified 409 message; public live availability endpoints removed. Web/mobile Create profile show format hints only, then a single conflict alert + Sign in.
+
+## 2026-07-26 — v1.5.210 Create-profile UX polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Register page redesigned: stronger brand panel, compact field status, password show/hide + strength, clearer disabled CTA, staggered motion, improved mobile stacking.
+
+## 2026-07-26 — v1.5.209 Username immutable + unique
+**Author:** Auto (Cursor agent)  
+**Impact:** Username stays unique at registration and cannot be changed afterward (`PATCH /profiles/me` rejects `profileName` changes). Web + mobile Profile show username read-only; credentials save is password-only.
+
+## 2026-07-26 — v1.5.208 Rename “Profile name” → “Username”
+**Author:** Auto (Cursor agent)  
+**Impact:** User-facing copy uses Username (login, register, Profile credentials, API error/availability messages). API field remains `profileName` for compatibility.
+
+## 2026-07-26 — v1.5.207 Email locked to profile name
+**Author:** Auto (Cursor agent)  
+**Impact:** Once a profile name is registered with an email, that email cannot be changed (`PATCH /profiles/me` rejects email updates). Web + mobile Profile show the email as read-only with a permanent-link notice; verification still works for the locked address.
+
+## 2026-07-26 — v1.5.206 Profile name ↔ unique email required
+**Author:** Auto (Cursor agent)  
+**Impact:** Every profile must have a unique email bound at registration (`POST /auth/register` requires `email`). Email can no longer be cleared. Public `GET /auth/email-availability` for create-profile live checks. DB: `Profile.email` NOT NULL + migration backfill for legacy rows. Web/mobile Create profile collect email; Profile personal details require email.
+
+## 2026-07-26 — v1.5.205 Unique profile name + email (case-insensitive)
+**Author:** Auto (Cursor agent)  
+**Impact:** Profile names and emails are unique case-insensitively (DB `LOWER()` unique indexes + app checks). Login/register/rename/availability treat `Foo`/`foo` and mixed-case emails as the same. `GET /profiles/me/email-availability` + live email status on web/mobile Profile. Clear taken-email copy. Migration `20260726230000_case_insensitive_profile_uniques`.
+
+## 2026-07-26 — v1.5.204 Live profile-name availability
+**Author:** Auto (Cursor agent)  
+**Impact:** `GET /auth/profile-name-availability?profileName=` returns whether a name is free (throttled). Web Create profile + Profile credentials check as you type (~350ms debounce) with available/taken status; Create is blocked while taken. Mobile register mode shows the same live helper text.
+
+## 2026-07-26 — v1.5.203 Duplicate profile name messaging
+**Author:** Auto (Cursor agent)  
+**Impact:** Register and profile rename return a clear 409 explaining that the profile name is already taken (includes the name; register also suggests signing in). Web Create profile shows the message + Sign in link; mobile register helper text notes uniqueness. Race on create (`P2002`) uses the same copy.
+
+## 2026-07-26 — v1.5.202 Email verify Strict Mode + dev link UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed false “Invalid or expired” on `/verify-email` (React Strict Mode double-submit). Verify is idempotent once the account is verified; web dedupes in-flight requests + session cache. Profile refreshes verification badges on focus; when Resend is unset, Profile shows a clear “Open verification link” callout instead of a quiet log-only send.
+
+## 2026-07-26 — v1.5.201 Email + account verification
+**Author:** Auto (Cursor agent)  
+**Impact:** Profiles can verify email (and account) via one-time link. `POST /profiles/me/email/send-verification` (auth) + `POST /auth/verify-email` (public). Tokens hashed at rest, 24h TTL, resend cooldown. Resend optional (`RESEND_API_KEY`); otherwise API logs/returns `devVerifyUrl`. Web `/verify-email` page + Profile badges/send; mobile Profile send + status. Changing email clears verification. Migration `20260726220000_email_verification`.
+
+## 2026-07-26 — v1.5.200 Login with profile name or email
+**Author:** Auto (Cursor agent)  
+**Impact:** `POST /auth/login` accepts `login` (profile name or email; `profileName` still works). Email match is case-insensitive; emails are stored lowercased. Web + mobile login labels updated. Generic invalid-credentials message avoids user enumeration.
+
+## 2026-07-26 — v1.5.199 Profile location UX + sealed storage
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed buggy location UI: city/country now round-trip (AES-GCM sealed at rest, decrypted for the owner); IP stays one-way HMAC. Equal-width location grid + matched country combobox styling. Detect falls back to browser ipapi.co on localhost/private IP. Legacy `h1:` digests prompt re-entry.
+
+## 2026-07-26 — v1.5.198 Profile location/IP HMAC at rest
+**Author:** Auto (Cursor agent)  
+**Impact:** City, country, and client IP are stored only as HMAC-SHA256 digests (`h1:<hex>`) via `PROFILE_LOCATION_SECRET` / `JWT_ACCESS_SECRET`. API never returns plaintext location or digests—only `locationSet`. Legacy plaintext rows are re-hashed on read. Added `locationIpHash` migration. UI shows “Location on file (hashed)” with replace/clear.
+
+## 2026-07-26 — v1.5.197 Profile personal details + IP location
+**Author:** Auto (Cursor agent)  
+**Impact:** Profiles can store first name, last name, email, and city/country. New `POST /profiles/me/detect-location` resolves city/country from the client IP (ipapi.co; IP not stored). Web + mobile Profile forms include Detect from network, Country combobox, and separate Save for personal vs credentials. Migration `20260726200000_profile_personal_fields`.
+
+## 2026-07-26 — v1.5.196 Shell account chip (no nav logout)
+**Author:** Auto (Cursor agent)  
+**Impact:** Removed the redundant sidebar Log out + “Signed in” block. Nav footer is a compact Account chip (monogram + name) that opens Profile; Log out stays on the Profile page only.
+
+## 2026-07-26 — v1.5.195 Profile workspace snapshot & polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Profile is now a clearer account home: two-column layout (desktop), workspace snapshot (products / customers / orders / margin from summary APIs), password show/hide + strength cue, confirm password, shortcuts (Dictionary / Analytics / Targets / Dashboard), and security tips. Mobile aligned with identity strip, snapshot tiles, confirm password, and the same shortcut/tips model.
+
+## 2026-07-26 — v1.5.194 Profile account workspace UI
+**Author:** Auto (Cursor agent)  
+**Impact:** Profile redesigned as an account workspace: identity strip (monogram, member since, last updated, copyable ID), clearer credentials with confirm-password + client validation, Log out + Discard, and a stronger danger panel. Delete now returns to `/login`. Dropped Quick links (already in nav).
+
+## 2026-07-26 — v1.5.193 Dictionary toolbar & visibility
+**Author:** Auto (Cursor agent)  
+**Impact:** Dictionary no longer looks empty: feature chips always visible (search + count on one row), removed left-nav/hidden-chip layout that left a blank panel, dropped opacity animations that could hide sections, simpler single-column flow with card grid below.
+
+## 2026-07-26 — v1.5.192 Dictionary card layout (no sticky clip)
+**Author:** Auto (Cursor agent)  
+**Impact:** Rebuilt Dictionary terms as a responsive card grid. Removed sticky term headers/`overflow:hidden` that clipped titles (e.g. AOV). No auto-open on search; expand keeps title + meaning + formula in one card. Section chrome simplified.
+
+## 2026-07-26 — v1.5.191 Dictionary expand layout fix
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed orphan “How it is calculated” panels on phone: sticky toolbar no longer covers term titles; accordion opens one term at a time; open title stays pinned with its body; mobile terms are separate cards (no CrossFade gap). Search auto-opens only the top match.
+
+## 2026-07-26 — v1.5.190 Dictionary catalog completeness
+**Author:** Auto (Cursor agent)  
+**Impact:** Dictionary expanded to **80** terms with formulas for every entry. Added Next year, Annual growth %, LTV buyers, Products sold, Product margin % (pre-discount table base), product/customer revenue·discount·cost·profit amounts, unit/pack economics, packs on hand, stock before/after, order discount. Aliases aligned to short UI labels (Subtotal, Attainment, Cancel, Sell value…). Mobile catalog now generated from web (`scripts/sync-glossary-mobile.ts`). Clarified stage vs table Margin; fixed Analytics Attainment tip; METRICS.md updated.
+
+## 2026-07-26 — v1.5.189 Dictionary UX polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Dictionary search is flatter and faster to use: unique A–Z results (no duplicate terms across features), match highlighting, formula cues, auto-open top matches, clearable search (`/` focus), active filter chips, section “Only this” + jump-to-section browse. Mobile aligned. Docs/changelog updated.
+
+## 2026-07-26 — v1.5.188 Dictionary UI refresh
+**Author:** Auto (Cursor agent)  
+**Impact:** Dictionary redesigned for denser, clearer browsing. Web: sticky search, desktop feature nav + mobile chip rail with counts, expandable term rows (preview → full meaning/formula), “Also on” hints, clearer empty-state reset. Mobile matches search/chip/expand model. Shorter page intro. Design Guidelines + user story AC updated.
+
+## 2026-07-26 — v1.5.187 Section intro density (no dead band)
+**Author:** Auto (Cursor agent)  
+**Impact:** Page and section support copy no longer sits in a narrow prose band inside wide panels. Dictionary intros, Analytics `ContentSection` descriptions, and form-section help lines fill the head width; solo heads are slightly tighter. Design Guidelines updated.
+
+## 2026-07-26 — v1.5.186 Performance Phase 4 (SQL value, leaner lists, analytics cache)
+**Author:** Auto (Cursor agent)  
+**Impact:** Warehouse/product inventory value via SQL `SUM(stock×price/cost)` (no row hydrate). Order list drops installment rows — `paidAmount`/`remainingAmount`/`installmentCount` from page groupBy; View/Edit still load full order (mobile now fetches `GET /orders/:id` too). Analytics shares a ~45s in-process window cache so progressive series→tables reuse the same order load.
+
+## 2026-07-26 — v1.5.185 Performance Phase 3 (analytics progressive load)
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics loads faster for first paint. API: `include` (`summary|series|products|customers`) and `granularity` (`weekly|monthly|quarterly|annual|all`) skip unused series/table work; omitted params keep full overview. Web: dynamic Recharts workspace chunk, viewport `LazyMount` for chart panels, progressive core→tables fetch + on-demand series when switching period. Flutter: same progressive API + viewport-lazy fl_chart build. Docs: FR-A19.
+
+## 2026-07-26 — v1.5.184 Performance Phase 2 (lists & summaries)
+**Author:** Auto (Cursor agent)  
+**Impact:** Leaner order list (slim includes, default limit 20; View/Edit fetch full order). Customer/product/warehouse summaries use SQL counts/aggregates instead of hydrating every row for rates. New DB indexes for `(profileId, updatedAt)`, order date+status, shipment/invoice dates, stockQty. Warehouse UI skips restock refetch when only unit/stock filters change.
+
+## 2026-07-26 — v1.5.183 Performance Phase 1 (load paths)
+**Author:** Auto (Cursor agent)  
+**Impact:** Faster list/analytics/dashboard loads. API: removed SKU backfill from list hot paths; analytics drops redundant order-actuals fetches, parallelizes year window loads, single-range mix query. Web: stale-while-revalidate on dashboard/analytics; dashboard refetches only orders summary on period change; Orders defers product/customer catalog until create/edit. Flutter: lazy IndexedStack keeps visited tabs alive; warehouse uses `Future.wait` + keeps prior list while refreshing.
+
+## 2026-07-26 — v1.5.182 Collapsible filters (narrow + mobile)
+**Author:** Auto (Cursor agent)  
+**Impact:** Catalog, glossary, and analytics period filters collapse by default on tablet/phone (≤1100) and Flutter. Expand to reveal controls; active-count badge when filters are applied. Desktop (>1100) stays always expanded.
+
+## 2026-07-26 — v1.5.181 Responsive shell & narrow UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Professional tablet/phone chrome across web + Flutter. Web: breakpoint tokens, tablet icon rail (901–1100), phone bottom tabs + More drawer, filter bottom sheets, sticky actions clear bottom nav/safe areas, denser stage/catalog/analytics on ≤480. Flutter: branded AppBar, nav haptics/transitions, richer EntityCard + Profile Insights hub. Docs: DESIGN_GUIDELINES breakpoints, FR-UX6.
+
+## 2026-07-26 — v1.5.180 Analytics fullscreen lens controls
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen includes **Weekly/Monthly/Quarterly/Annual** and **Graph/Table** toggles (synced with the lens). Stable panel keys keep cinema open across period changes. Mobile immersive overlay exposes the same controls.
+
+## 2026-07-26 — v1.5.179 Analytics fullscreen bottom-nav UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen cinema redesign: chart-first stage, compact header, **Previous/Next titled controls in the bottom dock**, scrubber dots, responsive stack on narrow screens. Mobile immersive matches (progress bar + bottom neighbors). Side peeks/edge chevrons removed.
+
+## 2026-07-26 — v1.5.178 Analytics fullscreen seamless prev/next
+**Author:** Auto (Cursor agent)  
+**Impact:** Native FS stays on a stable Analytics charts **host**; prev/next only swaps the active panel (no exit/enter flicker). Enter fade runs on first open only; inactive panels/section chrome hidden inside the host.
+
+## 2026-07-26 — v1.5.177 Analytics fullscreen panel-only scope
+**Author:** Auto (Cursor agent)  
+**Impact:** Native Fullscreen API targets Analytics chart/table surfaces only (not `documentElement` / app shell). CSS cover remains the fallback.
+
+## 2026-07-26 — v1.5.176 Analytics fullscreen chart fill fix
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen charts now fill the stage (grid `1fr` row + flex basis 0). Remount/ResizeObserver after layout so Recharts measures the tall stage; stop forcing SVG surface height (fixes scrambled Y-axis). Guard native FS enter race so cinema mode doesn’t drop mid-open.
+
+## 2026-07-26 — v1.5.175 Analytics fullscreen cinema polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen polish: progress bar, direction-aware stage motion, chart canvas frame, hover edge chevrons, prev/next peeks with subtitles, titled filmstrip (nearby charts), swipe-to-switch, clearer “Viewing n of m” status.
+
+## 2026-07-26 — v1.5.174 Analytics fullscreen cinema UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen UX redesign: Graph/Table badge, titled **Previous/Next** peeks with index, clickable progress dots, keyboard hints, stage motion, responsive rails→stacked peeks. Mobile gets neighbor title buttons + dot scrubber.
+
+## 2026-07-26 — v1.5.173 Analytics fullscreen chart-only focus
+**Author:** Auto (Cursor agent)  
+**Impact:** Fullscreen targets the **chart/table panel element** (not the whole app shell). Prev/next moves native fullscreen to the next panel; layout stays chart-first with compact chrome.
+
+## 2026-07-26 — v1.5.172 Analytics fullscreen in-place (permanent)
+**Author:** Auto (Cursor agent)  
+**Impact:** Permanent Analytics fullscreen fix: panels expand **in place** (no portals / remounts / flushSync). Browser Fullscreen API targets `documentElement` once; prev/next only swaps the active panel class. Esc / close / ← → remain.
+
+## 2026-07-26 — v1.5.171 Analytics fullscreen rewrite
+**Author:** Auto (Cursor agent)  
+**Impact:** Rewrote Analytics fullscreen shell: no stage portal / dual-mount; shell renders the active chart body via `getBody()` after panels update; keeps prev/next + Fullscreen API without the prior blank/crash loops.
+
+## 2026-07-26 — v1.5.170 Analytics fullscreen flushSync crash
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed React crash (`flushSync was called from inside a lifecycle method`) when opening Analytics fullscreen; stage node binds in `useLayoutEffect` instead.
+
+## 2026-07-26 — v1.5.169 Analytics fullscreen stability
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed buggy fullscreen: charts no longer mount in two places (blank/jumping graphs); stage bind is synchronous; mobile deck builds fresh slide instances with stable keys and full-size layout.
+
+## 2026-07-26 — v1.5.168 Analytics fullscreen chart navigation
+**Author:** Auto (Cursor agent)  
+**Impact:** In Analytics fullscreen, move between charts/tables without exiting: web prev/next + ←/→ keys; mobile prev/next + swipe. Counter shows position in the deck.
+
+## 2026-07-26 — v1.5.167 Analytics true browser / immersive fullscreen
+**Author:** Auto (Cursor agent)  
+**Impact:** Chart fullscreen uses the **browser Fullscreen API** (edge-to-edge viewport; Esc/close exits) with a CSS fallback, plus chart resize after enter. Mobile opens an **immersive** edge-to-edge view (hides system UI) instead of a padded dialog card.
+
+## 2026-07-26 — v1.5.166 Analytics chart fullscreen mode
+**Author:** Auto (Cursor agent)  
+**Impact:** Each Analytics graph/table panel has a **Fullscreen** control. Web opens a modal overlay (Esc / backdrop / close to exit); mobile pushes a fullscreen dialog. Respects the shared Graph | Table lens toggle.
+
+## 2026-07-26 — v1.5.165 Analytics tooltip period growth
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics graph tooltips show **vs prior period** growth: **%** for levels (revenue, orders, AOV, lead times, …) and **bps** for rate mixes (attainment, margin, status/payment shares). Web + mobile touch tooltips.
+
+## 2026-07-26 — v1.5.164 Analytics unify Graph | Table in lens
+**Author:** Auto (Cursor agent)  
+**Impact:** **Graph | Table** is a single control in the Analytics lens / Period header (web + mobile). It switches all chart panels at once; per-panel toggles removed.
+
+## 2026-07-26 — v1.5.163 Analytics graph / table view toggle
+**Author:** Auto (Cursor agent)  
+**Impact:** Every Analytics chart panel (web + mobile) has a **Graph | Table** toggle. Table view shows the same period/series values in a compact table. Product/customer performance catalogs stay tables-only (no chart toggle).
+
+## 2026-07-26 — v1.5.162 Analytics order status & payment mix charts
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics adds stacked **% order status** (includes Cancelled) and **% payment mode** (Cash / Consignment / Delayed; non-cancelled) charts on the Weekly / Monthly / Quarterly / Annual timeline. Web + mobile. API attaches `statusShares` / `paymentShares` on period points.
+
+## 2026-07-26 — v1.5.161 Analytics invoice duration chart
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics Lead times adds **Invoice duration** (avg days order → invoice) on summary, weekly/monthly/quarterly/annual series, lens KPI, and chart. Web + mobile.
+
+## 2026-07-26 — v1.5.160 Analytics combine repeat columns
+**Author:** Auto (Cursor agent)  
+**Impact:** Product/customer **1st repeat** and **Avg repeat** share one **Repeat** column (primary = first gap; subline = avg). Web cards + mobile metrics match.
+
+## 2026-07-26 — v1.5.159 Analytics first repeat order duration
+**Author:** Auto (Cursor agent)  
+**Impact:** Product and customer tables add **1st repeat** (`firstRepeatOrderDays`) — UTC days from first → second order; `—` when fewer than two orders. Shown beside avg repeat. Web + mobile.
+
+## 2026-07-26 — v1.5.158 Analytics avg repeat order duration
+**Author:** Auto (Cursor agent)  
+**Impact:** Product and customer performance tables include **avg repeat order duration** (`avgRepeatOrderDays`) — mean UTC days between consecutive orders for that product/customer; `—` when fewer than two orders. Web + mobile.
+
+## 2026-07-26 — v1.5.157 Analytics rank tooltips: AOV + UPT
+**Author:** Auto (Cursor agent)  
+**Impact:** Top/Bottom 5 product & customer tooltips (web) and rank row details (mobile) include **AOV** and **UPT** (packs ÷ orders). APF is omitted at this grain (needs unique buyers, not available per product/customer row).
+
+## 2026-07-26 — v1.5.156 Analytics Quarterly view
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics adds **Quarterly** alongside Weekly / Monthly / Annual. `GET /analytics` returns `quarterly[]` (UTC Q1–Q4; targets = sum of the three monthly plan amounts). Charts omit empty quarters. Web + mobile.
+
+## 2026-07-26 — v1.5.155 Analytics compact pack & qty figures
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics pack counts, order counts, and related product quantities use the same compact magnitude style as money (e.g. `1.00 trillion`). Product/customer lists show packs sold; rank tooltips and lens KPIs match. Web + mobile.
+
+## 2026-07-26 — v1.5.154 Analytics rank tooltips: orders + packs
+**Author:** Auto (Cursor agent)  
+**Impact:** Top/Bottom 5 product & customer ranking tooltips (web) and rank row details (mobile) show **order count** and **packs sold** alongside revenue. API `products[]` / `customers[]` now include `packsSold`.
+
+## 2026-07-26 — v1.5.153 Analytics rank axis abbreviations
+**Author:** Auto (Cursor agent)  
+**Impact:** Top/Bottom 5 product & customer chart axes use compact abbreviations (e.g. `D.S.Ten 1000`, `B. Santoso`); full names remain in tooltips (web) / muted subtitle (mobile).
+
+## 2026-07-26 — v1.5.152 Analytics charts skip empty periods
+**Author:** Auto (Cursor agent)  
+**Impact:** Weekly / Monthly / Annual Analytics charts omit timeline slots with **zero orders** so sparse timelines no longer stretch graphs with blank points. Web + mobile.
+
+## 2026-07-26 — v1.5.151 Sandbox: balanced sell-down to 1Tn packs
+**Author:** Auto (Cursor agent)  
+**Impact:** One-time data: reassigned customers on ~44k existing orders (round-robin across 18 accounts) and created new balanced multi-line orders so every product sold down to **1,000,000,000,000 packs** on hand. Script: `apps/api/scripts/seed-sell-down-balanced.ts`.
+
+## 2026-07-26 — v1.5.150 Sandbox: high-profile customers
+**Author:** Auto (Cursor agent)  
+**Impact:** One-time data: upgraded 3 existing customers to fuller high-profile CRM cards (IDs kept for order history) and added **15** new hotel / restaurant / store accounts across major Indonesian cities. Script: `apps/api/scripts/seed-high-profile-customers.ts`.
+
+## 2026-07-26 — v1.5.149 Sandbox: Kambing SKUs + 2Tn packs
+**Author:** Auto (Cursor agent)  
+**Impact:** One-time data: added **Daging Kambing** Giling / Paha / Tenderloin (1000 g) with sell/cost between Ayam and Sapi analogs; set **all 14** catalog products to **2,000,000,000,000 packs** on hand. Script: `apps/api/scripts/seed-kambing-and-restock-packs.ts`.
+
+## 2026-07-26 — v1.5.148 Analytics bottom-5 rankings
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics adds **Bottom 5 products by revenue** and **Bottom 5 customers by LTV** beside Top 5. Rankings sit in their own row (so they no longer stretch beside tall average charts). Lowest-first order; muted bar color. Web + mobile.
+
+## 2026-07-26 — v1.5.147 Analytics top-5 rankings
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics ranking charts show **Top 5 products by revenue** and **Top 5 customers by LTV** (was 8). Chart height scales with row count to cut empty space when fewer than five ranks exist. Web + mobile.
+
+## 2026-07-26 — v1.5.146 Section density (less dead space)
+**Author:** Auto (Cursor agent)  
+**Impact:** Shared web section chrome no longer caps titles in a narrow band inside wide panels. Prose uses `--measure-prose` / `--measure-prose-wide`; solo headers tighten; tables/charts fill the body; lone Analytics charts span full width. Mobile section intros/empty states denser. Design Guidelines updated.
+
+## 2026-07-26 — v1.5.145 Dictionary copy & sections
+**Author:** Auto (Cursor agent)  
+**Impact:** Dictionary terms and feature sections rewritten into fuller plain-English explanations (what is counted, what is left out, why it matters). Web/mobile group terms under feature intros; formulas labeled “How it is calculated.”
+
+## 2026-07-26 — v1.5.144 Dictionary / Glossary
+**Author:** Auto (Cursor agent)  
+**Impact:** New **Dictionary** feature with plain-English metric definitions and formulas across Dashboard, Products, Warehouse, Customers, Orders, Targets, and Analytics. Web: `/glossary` + nav. Mobile: Profile → Dictionary. Search and feature filters included.
+
+## 2026-07-26 — v1.5.143 Analytics timeline-aligned weeks/months
+**Author:** Auto (Cursor agent)  
+**Impact:** Weekly and Monthly charts now cover the full Timeline filter (every ISO week / calendar month in the selected years, or the full app timeline when All)—no more last-52 / last-24 truncation. Weekly series bucketing kept O(n).
+
+## 2026-07-26 — v1.5.142 Analytics weekly target distribution
+**Author:** Auto (Cursor agent)  
+**Impact:** Weekly Analytics now shows targets and attainment when a 12-month plan exists. Each ISO week gets a day-weighted share of the monthly amounts it intersects (web + mobile).
+
+## 2026-07-26 — v1.5.141 Orders summary bind-limit fix
+**Author:** Auto (Cursor agent)  
+**Impact:** `GET /orders/summary` no longer loads every matching order id into `IN (...)`. That hit Postgres’ ~32k bind limit on large seeded catalogs and left the Orders stage stuck on `···`. Summary now filters via shared WHERE/SQL predicates.
+
+## 2026-07-26 — v1.5.140 Summary UX & filter correctness
+**Author:** Auto (Cursor agent)  
+**Impact:** Stage KPIs no longer flash to empty while reloading. Catalog counts show “Showing X of Y” from `meta.total`. Products pack-ready no longer overwrites search; warehouse stock status is applied server-side on `/products`. Orders stage tips clarify non-cancelled volume vs list totals.
+
+## 2026-07-26 — v1.5.139 Filter-aware server summaries
+**Author:** Auto (Cursor agent)  
+**Impact:** Products, Customers, and Warehouse stage KPIs now come from filter-aware `GET …/summary` APIs (full filtered set), not the current page of rows. List and summary share the same search/chip filters with request sequencing; removed client `feature-summary` recompute.
+
+## 2026-07-26 — v1.5.138 Stability: stale KPIs & filter races
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed cross-feature races: AppTooltip no longer opens after disable; Products stage follows committed search; Dashboard/Analytics/Orders clear stale KPIs while reloading; Orders list/summary ignore out-of-order responses; chart qty axes keep decimals; nested Paid tips use embedded mode; warehouse filtered stage no longer shows unfiltered restock dates.
+
+## 2026-07-26 — v1.5.137 Readable magnitude labels
+**Author:** Auto (Cursor agent)  
+**Impact:** Compact KPI chips use plain English (**million / billion / trillion / quadrillion**) instead of cryptic **Mn/Bn/Qd**. Hover tips show full digits; chart axes keep short labels for space. Magnitude chips restyled as calm readable pills.
+
+## 2026-07-26 — v1.5.136 Tooltip polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Metric tips use value-first layout, formula pills, tone accent bars, trigger-aligned carets, hover bridge to the bubble, single-open behavior, loading disable, and clearer dotted cues on inline figures. Chart cards match the same visual language.
+
+## 2026-07-26 — v1.5.135 Metric tooltips UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Replaced native `title` metric hints with shared **AppTooltip** (label, exact value, plain-English description, optional formula). Wired across FeatureStage, Dashboard, Orders/Products/Customers/Warehouse/Targets/Analytics lens + chart hovers. Touch/focus friendly; forest-teal bubble styling.
+
+## 2026-07-26 — v1.5.134 Stability: customers labels + mobile smoke test
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed Customers status filter TypeScript error (`label` could be null). Replaced stale Flutter counter widget test with an UMKM Hub app smoke test.
+
+## 2026-07-26 — v1.5.133 Orders payment status filter
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders list/summary accept `paymentStatus` (Cash / Consignment / Delayed payment) via multi-select, matching Status filter behavior.
+
+## 2026-07-26 — v1.5.132 Order payment math alignment
+**Author:** Auto (Cursor agent)  
+**Impact:** List **Paid %** and stage **Paid in full** share the same fully-paid rule (`paid ≥ total − 0.00005`). Unit tests cover the 3/12 → 25% case and cancelled exclusion from the denominator.
+
+## 2026-07-26 — v1.5.131 Orders table payment rate
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders catalog table and cards show **Paid** (installments ÷ total × 100) with a compact meter; hover title shows paid vs total money.
+
+## 2026-07-26 — v1.5.130 Filter-aware feature summaries
+**Author:** Auto (Cursor agent)  
+**Impact:** Feature stage KPIs now follow active filters. **Orders** reloads `/orders/summary` with the same search/status/date windows as the list. **Products / Customers / Warehouse** recompute stage metrics from the filtered in-view rows. Dashboard period presets use the local calendar (matching order dates).
+
+## 2026-07-26 — v1.5.129 Dashboard compact quantities
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard KPIs (packs, on-hand stock, order counts) use compact Mn/Bn/Tn/Qd/Qn figures like money; hover/`title` still shows full digits.
+
+## 2026-07-26 — v1.5.128 Dashboard composition polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard stage focuses on period-scoped **Revenue / Orders / Packs** and order-health rates. Period control is a grouped panel (Near term / Months & quarters / Longer). Workspace board uses a featured Fulfillment panel + lean Catalog/Pipeline panels (hero + side stats + one spotlight rate) and a slim text rail for Warehouse / Targets / Analytics.
+
+## 2026-07-26 — v1.5.127 Dashboard layout UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard UX refresh: stage + period caption, three clickable domain panels (Fulfillment / Catalog / Pipeline) with open metrics and slim rate meters, and a quiet secondary strip for Warehouse / Targets / Analytics. Less nested chrome; stronger hierarchy and motion; stacks cleanly on narrow viewports.
+
+## 2026-07-26 — v1.5.126 Dashboard period filter
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard stage CTA is a **Period** select (All time / Today / Tomorrow / This week / This month / Next month / This quarter / Next quarter / This year). Order metrics use `GET /orders/summary?orderDateFrom&orderDateTo`; product and customer bands stay workspace-wide. Default: This month. Weeks are ISO Mon–Sun (UTC).
+
+## 2026-07-26 — v1.5.125 Dashboard stage CTA cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard stage keeps only **New order**; the secondary Analytics button was removed as redundant with nav and quick links.
+
+## 2026-07-26 — v1.5.124 Dashboard product/customer/order metrics
+**Author:** Auto (Cursor agent)  
+**Impact:** Dashboard loads `/orders/summary`, `/products/summary`, and `/customers/summary` in parallel. Feature stage shows Revenue / Orders / Customers plus workspace health rates. Three bands surface volume tiles and rate meters for fulfillment, catalog & stock, and CRM pipeline; quick links show live snippets.
+
+## 2026-07-26 — v1.5.123 Average purchase frequency
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics adds **Average purchase frequency (APF)** = linked orders ÷ unique customers. Summary/weekly/monthly/annual series, Performance chart, and lens **APF** KPI (web + mobile). Requires customers linked on orders.
+
+## 2026-07-26 — v1.5.122 Revenue target line fix
+**Author:** Auto (Cursor agent)  
+**Impact:** Restored the amber **Target** line on the Analytics Revenue chart. A stacked Area+Line on the same `target` series prevented Recharts from drawing the line; now a single Line plots with `null`-safe values.
+
+## 2026-07-26 — v1.5.121 Analytics chart polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Revenue chart uses distinct **teal bars** vs **amber target line**, gradient fills, series swatches, richer tooltips, and smoother animation. Orders / AOV / UPT share the clearer palette; mobile target rods use amber instead of muted grey.
+
+## 2026-07-26 — v1.5.120 UPT uses product packs
+**Author:** Auto (Cursor agent)  
+**Impact:** Units Per Transaction now averages **pack counts** (`Σ packCount ÷ orders`), not stock units (`productQty`). Matches order pack economics (`productQty = packSize × packCount`).
+
+## 2026-07-26 — v1.5.119 Units Per Transaction graph
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics Performance chart and lens KPI rename **Average basket size → Units Per Transaction (UPT)** — average packs sold per order. Same API field `avgBasketSize`; web + mobile copy updated.
+
+## 2026-07-26 — v1.5.118 Targets plan surface UX
+**Author:** Auto (Cursor agent)  
+**Impact:** Targets replaces dual Monthly/Annual sections with one **plan surface**: Year + **By month / By year** chips, live sync caption, month edit grid, and a real annual read view (year total + monthly shape spark). Switching views animates; Edit/Clear stay on the stage.
+
+## 2026-07-26 — v1.5.117 Analytics multi-timeline filter
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics timeline accepts **multiple years** (`years=2024,2025,2026` or `years=all`). Summary/products/customers aggregate the selection; monthly spans those years; weekly uses last 52 weeks when multi/all; annual shows selected years (or rolling window for a single year). Web `TimelineFilter` stays open while toggling years, with Last 3 / This year / Done. Legacy `year` query still works.
+
+## 2026-07-26 — v1.5.116 Analytics timeline filter
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics replaces the plain year `<select>` with a **TimelineFilter**: prev/next steppers, custom panel with All timelines + year grid + “This year”, and an inline caption for rolling window / all-scope. Targets keep `YearSelect`.
+
+## 2026-07-26 — v1.5.115 Targets plan actions consolidated
+**Author:** Auto (Cursor agent)  
+**Impact:** Targets no longer shows duplicate **Edit/Clear monthly** and **Edit/Clear annual** pairs (both clears removed the same plan). One **Edit plan / Clear plan** on the stage; **Set from annual** remains a quiet alternate entry. Monthly and annual sections are display/edit surfaces for the same synced plan.
+
+## 2026-07-26 — v1.5.114 Analytics lens grouping polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics lens simplified to controls-first toolbar + three metric bands (Order quality / Lifetime value / Lead times). Values use figure+unit compact parts; removed redundant Period title.
+
+## 2026-07-26 — v1.5.113 Analytics period: Weekly + All timelines
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics lens redesigned (Period title + controls). Adds **Weekly** charts (ISO weeks; last 52 when All). Timeline select includes **All timelines** (`year=all`): lifetime summary KPIs, trailing 24 months / 52 weeks / full year range. Avg basket uses compact qty formatting.
+
+## 2026-07-26 — v1.5.112 Average basket size
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics adds **average basket size** (stock units ÷ orders) on summary/monthly/annual, with a Performance line chart on web + mobile and an Avg basket lens/KPI tile. Formula lives in `basket-series.ts`.
+
+## 2026-07-26 — v1.5.111 Analytics lens (period + snapshot)
+**Author:** Auto (Cursor agent)  
+**Impact:** Merged Analytics Focus toolbar and Snapshot into one **lens** section (`.umkm-analytics-lens`): compact Monthly/Annual + year controls with a dense 7-metric strip (orders, AOV, LTV, product, ship, first/last pay). Removes redundant “Monthly · year” title and card grid; stacks 7→4→2 columns.
+
+## 2026-07-26 — v1.5.110 Targets & Analytics feature stages
+**Author:** Auto (Cursor agent)  
+**Impact:** Targets and Analytics list homes use the shared **feature stage** (volume + rate meters). Targets: annual target/actual/next year + attainment/on-plan/pace/coverage. Analytics: revenue/target/profit + attainment/margin/YoY/pace. Snapshot tiles trimmed to avoid duplicating stage KPIs.
+
+## 2026-07-26 — v1.5.109 Filter dropdown clipping fix
+**Author:** Auto (Cursor agent)  
+**Impact:** Multi-select and date-range filter panels portal to `document.body` with fixed anchoring so labels/menus are no longer clipped by catalog toolbar overflow. Mobile filter row wraps instead of horizontal scroll.
+
+## 2026-07-26 — v1.5.108 Catalog count cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Catalog toolbars no longer echo active filter labels in the count line (Orders / Products / Warehouse / Customers). Count stays; filters speak for themselves.
+
+## 2026-07-26 — v1.5.107 Warehouse stock status filter
+**Author:** Auto (Cursor agent)  
+**Impact:** Warehouse inventory filters add **In stock** / **Out of stock** (stockQty > 0), aligned with Warehouse stage rates.
+
+## 2026-07-26 — v1.5.106 Products cost & pack filters
+**Author:** Auto (Cursor agent)  
+**Impact:** Products catalog filters add **Cost set** (cost set / no cost) and **Pack ready** (pack ready / not ready), aligned with Products stage health rates.
+
+## 2026-07-26 — v1.5.105 Analytics product revenue charts
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics now mirrors customer LTV with a **Product value** block: average product revenue trend + top products by revenue (web + mobile). Summary adds `avgProductRevenue` / `productSaleCount`.
+
+## 2026-07-26 — v1.5.104 Feature stages (Products / Warehouse / Customers)
+**Author:** Auto (Cursor agent)  
+**Impact:** Products, Warehouse, and Customers list homes now use the same **feature stage** composition as Orders (title + CTA + volume + rate meters). New summary endpoints: `GET /products/summary`, `GET /warehouse/summary`, `GET /customers/summary`. Shared CSS class `.umkm-stage` (was Orders-only).
+
+## 2026-07-26 — v1.5.103 Orders date filters
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders list filters by **Order date**, **Shipment date**, and **Invoice date** (inclusive from/to). API accepts `orderDateFrom`/`To`, `shipmentDateFrom`/`To`, `invoiceDateFrom`/`To` on `GET /orders`. Web uses compact date-range dropdowns next to Status.
+
+## 2026-07-26 — v1.5.102 Orders stage (single section)
+**Author:** Auto (Cursor agent)  
+**Impact:** Merged Orders page title + Order pulse into one **Orders stage** composition (brand title, date span subtitle, CTA, volume, health rates). Removed the separate Overview header for a simpler list home.
+
+## 2026-07-26 — v1.5.101 Orders list pagination
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders list no longer stops at the first 50/100 rows. API supports search/status/sort paging (`GET /orders`); web shows page controls with “Showing X–Y of Z”; mobile adds **Load more**. Order pulse summary was already full-catalog.
+
+## 2026-07-26 — v1.5.100 Multi-select filter fixes
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed catalog multi-select bugs: selecting every option no longer hides blank statuses; **Show all** replaces ambiguous Clear/all; null-safe matching; panel overflow/z-index polish.
+
+## 2026-07-26 — v1.5.99 Multi-select catalog filters
+**Author:** Auto (Cursor agent)  
+**Impact:** Replaced chip strip filters with a multi-select dropdown (`MultiSelectFilter`) on Orders/Customers (status) and Products/Warehouse (unit). Empty selection = all; checkboxes allow combining values.
+
+## 2026-07-26 — v1.5.98 Order pulse meters
+**Author:** Auto (Cursor agent)  
+**Impact:** Order pulse denser volume band + animated rate meters (label/value + fill) and labeled active span; responsive 2×2 rates under ~1100px (web + mobile).
+
+## 2026-07-26 — v1.5.97 Order pulse health rates
+**Author:** Auto (Cursor agent)  
+**Impact:** Order pulse now includes **cancellation**, **profit margin**, **discount**, and **full-payment** rates from `GET /orders/summary` (web + mobile). Formulas: cancelled÷all; (revenue−COGS)÷revenue; discount÷line totals; fully paid÷active.
+
+## 2026-07-26 — v1.5.96 Order pulse refinement
+**Author:** Auto (Cursor agent)  
+**Impact:** Tightened Order pulse into a card-free ribbon: split magnitude typography (e.g. `407.84` + `Qd`), hairline-separated orders/packs, and a full-width animated date rail — less dead space, clearer hierarchy (web + mobile).
+
+## 2026-07-26 — v1.5.95 Orders “Order pulse” overview
+**Author:** Auto (Cursor agent)  
+**Impact:** Replaced the five flat Orders KPI cards with a single **Order pulse** composition (hero revenue, date span track, orders + packs facts). Compact qty/date labels for huge volumes; responsive stack on narrow viewports; matching mobile pulse card.
+
+## 2026-07-26 — v1.5.94 Packs in stock label
+**Author:** Auto (Cursor agent)  
+**Impact:** Warehouse now states **Packs in stock** explicitly (count × pack size) on product view, inventory list/cards, and mobile — not only a quiet `N × size` hint under On hand.
+
+## 2026-07-26 — v1.5.93 Warehouse pack information
+**Author:** Auto (Cursor agent)  
+**Impact:** Warehouse surfaces active pack everywhere it was missing: mobile inventory/view/restock (incl. by-pack entry) and web restock history pack size + packs-added/before/after sublines. Inventory list on web already had a Pack column.
+
+## 2026-07-26 — v1.5.92 Chart domain matches 20% min/max rule
+**Author:** Auto (Cursor agent)  
+**Impact:** Restored Analytics Y-axis domain to exactly 20% below the series minimum value and 20% above the maximum (e.g. 11→8.8, 31→37.2), with even tick marks — no longer using range-based padding that drifted from the requirement.
+
+## 2026-07-26 — v1.5.91 Chart axis readability
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed buggy Analytics axes (uneven/repeated % ticks) by padding 20% of the data *range* with nice tick bounds; replaced Unicode ÷/− in chart formulas with ASCII so subtitles render correctly.
+
+## 2026-07-26 — v1.5.90 Chart Y-axis padding
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics charts use a standardized value-axis domain: 20% below the series minimum and 20% above the maximum (web + mobile), so lead-time and rate charts share consistent headroom.
+
+## 2026-07-26 — v1.5.89 Clarify % of target labels
+**Author:** Auto (Cursor agent)  
+**Impact:** Replaced vague “Attainment” UI copy with “% of target” / “% of revenue target” and explicit actual ÷ target hints on Analytics and Targets (web + mobile).
+
 ## 2026-07-25 — v1.5.88 Documentation suite refresh
 **Author:** Auto (Cursor agent)  
 **Impact:** Full audit of monorepo vs product docs. Refreshed README, PRODUCT, PRD (fixed duplicate FR-C3; added FR-C4/O12–O13/A11/UX3–UX4/NFRs), PERSONAS, USER_STORIES (E8), VARIABLES (ERD + formula relationship charts), METRICS/OKRs, DESIGN_GUIDELINES (Manrope-only; full token tables), TRACEABILITY, GUARDRAILS, CONTRIBUTING; added ARCHITECTURE.md; replaced stale apps/api and apps/web READMEs. Version stamps aligned to changelog tip.

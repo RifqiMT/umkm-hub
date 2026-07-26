@@ -15,9 +15,17 @@ export function calculateRemainingAmount(
   totalOrderValue: number,
   installments: Array<{ amount: number }>,
 ): number {
-  return roundMoney(
-    Math.max(0, totalOrderValue - sumInstallmentAmounts(installments)),
+  return calculateRemainingFromPaid(
+    totalOrderValue,
+    sumInstallmentAmounts(installments),
   );
+}
+
+export function calculateRemainingFromPaid(
+  totalOrderValue: number,
+  paidAmount: number,
+): number {
+  return roundMoney(Math.max(0, totalOrderValue - (Number(paidAmount) || 0)));
 }
 
 export function assertInstallmentsWithinTotal(

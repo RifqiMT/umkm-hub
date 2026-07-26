@@ -74,18 +74,50 @@ enum RevenueTargetMonthSource {
   GENERATED
 }
 
-model Profile {
-  id           String   @id @default(uuid())
-  profileName  String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+enum LocationSource {
+  MANUAL
+  IP
+}
 
-  products         Product[]
-  customers        Customer[]
-  orders           Order[]
-  restocks         WarehouseRestock[]
-  revenueTargetPlans RevenueTargetPlan[]
+model Profile {
+  id                String          @id @default(uuid())
+  profileName       String          @unique
+  passwordHash      String
+  firstName         String?
+  lastName          String?
+  /// Required unique identity email (stored lowercased); 1:1 with profileName.
+  email             String          @unique
+  emailVerifiedAt   DateTime?
+  accountVerifiedAt DateTime?
+  /// City/country: AES-GCM sealed (`loc1:…`). IP: HMAC (`h1:…`). Never plaintext IP.
+  locationCity      String?
+  locationCountry   String?
+  locationIpHash    String?
+  locationSource    LocationSource?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  products               Product[]
+  customers              Customer[]
+  orders                 Order[]
+  restocks               WarehouseRestock[]
+  revenueTargetPlans     RevenueTargetPlan[]
+  emailVerificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  profileId  String
+  email      String
+  /// HMAC-SHA256 of the raw token — raw token is never stored.
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
 }
 
 model Product {
@@ -95,7 +127,7 @@ model Product {
   /// Human product code: {INITIALS}_{PACK}_ e.g. CB_100_
   sku          String      @default("")
   unit         ProductUnit @default(PCS)
-  stockQty     Decimal     @db.Decimal(18, 4)
+  stockQty     Decimal     @db.Decimal(28, 4)
   /// Valuation / order base price per 1 unit (pcs, gram, liter, or qty).
   /// For non-PCS units this is derived from pack prices when saved.
   pricePerUnit Decimal     @db.Decimal(18, 4)
@@ -128,6 +160,8 @@ model Product {
   @@index([profileId])
   @@index([profileId, name])
   @@index([profileId, unit])
+  @@index([profileId, updatedAt])
+  @@index([profileId, stockQty])
 }
 
 model Customer {
@@ -171,6 +205,7 @@ model Customer {
   @@index([profileId, city])
   @@index([profileId, province])
   @@index([profileId, country])
+  @@index([profileId, updatedAt])
 }
 
 model Order {
@@ -194,7 +229,7 @@ model Order {
   packCount         Decimal       @db.Decimal(18, 4) @default(1)
   unitSnapshot      ProductUnit   @default(PCS)
   unitPriceSnapshot Decimal       @db.Decimal(18, 4)
-  stockQtySnapshot  Decimal       @db.Decimal(18, 4)
+  stockQtySnapshot  Decimal       @db.Decimal(28, 4)
   /// Sum of line totals before order-level discount.
   lineTotal         Decimal       @db.Decimal(18, 4)
   discountType      DiscountType
@@ -221,6 +256,10 @@ model Order {
   @@index([profileId, status])
   @@index([profileId, orderDate])
   @@index([profileId, invoiceStatus])
+  @@index([profileId, orderDate, status])
+  @@index([profileId, updatedAt])
+  @@index([profileId, shipmentDate])
+  @@index([profileId, invoiceDate])
 }
 
 /// One product/pack row on an order. Orders may have multiple lines.
@@ -236,7 +275,7 @@ model OrderLine {
   packCount         Decimal     @db.Decimal(18, 4) @default(1)
   unitSnapshot      ProductUnit @default(PCS)
   unitPriceSnapshot Decimal     @db.Decimal(18, 4)
-  stockQtySnapshot  Decimal     @db.Decimal(18, 4)
+  stockQtySnapshot  Decimal     @db.Decimal(28, 4)
   lineTotal         Decimal     @db.Decimal(18, 4)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
@@ -267,12 +306,12 @@ model WarehouseRestock {
   id            String      @id @default(uuid())
   profileId     String
   productId     String
-  qtyAdded      Decimal     @db.Decimal(18, 4)
+  qtyAdded      Decimal     @db.Decimal(28, 4)
   restockDate   DateTime    @db.Date
   notes         String      @default("")
   unitSnapshot  ProductUnit @default(PCS)
-  stockBefore   Decimal     @db.Decimal(18, 4)
-  stockAfter    Decimal     @db.Decimal(18, 4)
+  stockBefore   Decimal     @db.Decimal(28, 4)
+  stockAfter    Decimal     @db.Decimal(28, 4)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -292,13 +331,13 @@ model RevenueTargetPlan {
   monthlyMode           RevenueTargetMode @default(MANUAL)
   annualMode            RevenueTargetMode @default(MANUAL)
   /// January (month 1) target when monthlyMode = SYSTEMATIC.
-  baseMonthAmount       Decimal?          @db.Decimal(18, 4)
+  baseMonthAmount       Decimal?          @db.Decimal(28, 4)
   /// Month-over-month growth percent (e.g. 5 = +5% each month).
   monthlyGrowthPercent  Decimal?          @db.Decimal(18, 4)
   /// Annual target when annualMode = MANUAL.
-  annualAmount          Decimal?          @db.Decimal(18, 4)
+  annualAmount          Decimal?          @db.Decimal(28, 4)
   /// This year's annual target when annualMode = SYSTEMATIC.
-  baseAnnualAmount      Decimal?          @db.Decimal(18, 4)
+  baseAnnualAmount      Decimal?          @db.Decimal(28, 4)
   /// Year-over-year growth percent for systematic annual planning.
   annualGrowthPercent   Decimal?          @db.Decimal(18, 4)
   createdAt             DateTime          @default(now())
@@ -315,7 +354,7 @@ model RevenueTargetMonth {
   id        String                   @id @default(uuid())
   planId    String
   month     Int
-  amount    Decimal                  @db.Decimal(18, 4)
+  amount    Decimal                  @db.Decimal(28, 4)
   source    RevenueTargetMonthSource @default(MANUAL)
   createdAt DateTime                 @default(now())
   updatedAt DateTime                 @updatedAt

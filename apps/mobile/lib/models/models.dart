@@ -466,6 +466,74 @@ class OrderItem {
   }
 }
 
+class PaginatedOrders {
+  PaginatedOrders({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.limit,
+    required this.totalPages,
+  });
+
+  final List<OrderItem> items;
+  final int total;
+  final int page;
+  final int limit;
+  final int totalPages;
+
+  bool get hasMore => page < totalPages;
+
+  factory PaginatedOrders.fromJson(Map<String, dynamic> json) {
+    final meta = (json['meta'] as Map<String, dynamic>?) ?? const {};
+    final rawItems = json['items'] as List<dynamic>? ?? const [];
+    return PaginatedOrders(
+      items: rawItems
+          .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      total: (meta['total'] as num?)?.toInt() ?? rawItems.length,
+      page: (meta['page'] as num?)?.toInt() ?? 1,
+      limit: (meta['limit'] as num?)?.toInt() ?? 50,
+      totalPages: (meta['totalPages'] as num?)?.toInt() ?? 1,
+    );
+  }
+}
+
+class OrderSummary {
+  OrderSummary({
+    required this.earliestOrderDate,
+    required this.latestOrderDate,
+    required this.orderCount,
+    required this.productsSold,
+    required this.totalRevenue,
+    this.cancellationRate,
+    this.profitMarginRate,
+    this.discountRate,
+    this.fullPaymentRate,
+  });
+
+  final String? earliestOrderDate;
+  final String? latestOrderDate;
+  final int orderCount;
+  final double productsSold;
+  final double totalRevenue;
+  final double? cancellationRate;
+  final double? profitMarginRate;
+  final double? discountRate;
+  final double? fullPaymentRate;
+
+  factory OrderSummary.fromJson(Map<String, dynamic> json) => OrderSummary(
+        earliestOrderDate: json['earliestOrderDate'] as String?,
+        latestOrderDate: json['latestOrderDate'] as String?,
+        orderCount: (json['orderCount'] as num?)?.toInt() ?? 0,
+        productsSold: (json['productsSold'] as num?)?.toDouble() ?? 0,
+        totalRevenue: (json['totalRevenue'] as num?)?.toDouble() ?? 0,
+        cancellationRate: (json['cancellationRate'] as num?)?.toDouble(),
+        profitMarginRate: (json['profitMarginRate'] as num?)?.toDouble(),
+        discountRate: (json['discountRate'] as num?)?.toDouble(),
+        fullPaymentRate: (json['fullPaymentRate'] as num?)?.toDouble(),
+      );
+}
+
 class WarehouseRestock {
   WarehouseRestock({
     required this.id,
@@ -507,6 +575,129 @@ class WarehouseRestock {
   }
 }
 
+/// % distribution of orders by status / payment mode on Analytics timeline points.
+class AnalyticsMixShares {
+  AnalyticsMixShares({
+    required this.statusShares,
+    required this.statusOrderCount,
+    required this.paymentShares,
+    required this.paymentOrderCount,
+  });
+
+  final Map<String, double> statusShares;
+  final int statusOrderCount;
+  final Map<String, double> paymentShares;
+  final int paymentOrderCount;
+
+  static AnalyticsMixShares empty() => AnalyticsMixShares(
+        statusShares: const {
+          'PENDING': 0,
+          'CONFIRMED': 0,
+          'SHIPPED': 0,
+          'DELIVERED': 0,
+          'CANCELLED': 0,
+        },
+        statusOrderCount: 0,
+        paymentShares: const {
+          'CASH': 0,
+          'CONSIGNMENT': 0,
+          'DELAYED_PAYMENT': 0,
+        },
+        paymentOrderCount: 0,
+      );
+
+  factory AnalyticsMixShares.fromJson(Map<String, dynamic> json) {
+    Map<String, double> readShares(String key, Map<String, double> fallback) {
+      final raw = json[key];
+      if (raw is! Map) return Map<String, double>.from(fallback);
+      final out = Map<String, double>.from(fallback);
+      raw.forEach((k, v) {
+        if (v is num) out[k.toString()] = v.toDouble();
+      });
+      return out;
+    }
+
+    final defaults = AnalyticsMixShares.empty();
+    return AnalyticsMixShares(
+      statusShares: readShares('statusShares', defaults.statusShares),
+      statusOrderCount: (json['statusOrderCount'] as num?)?.toInt() ?? 0,
+      paymentShares: readShares('paymentShares', defaults.paymentShares),
+      paymentOrderCount: (json['paymentOrderCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class AnalyticsWeekPoint {
+  AnalyticsWeekPoint({
+    required this.isoYear,
+    required this.week,
+    required this.label,
+    required this.revenue,
+    required this.orderCount,
+    this.avgOrderValue,
+    this.target,
+    this.attainmentPercent,
+    this.cost,
+    this.profit,
+    this.marginPercent,
+    this.avgShipmentDays,
+    this.avgInvoiceDays,
+    this.avgFirstPaymentDays,
+    this.avgPaymentDays,
+    this.avgLtv,
+    this.avgProductRevenue,
+    this.avgBasketSize,
+    this.avgPurchaseFrequency,
+    AnalyticsMixShares? mix,
+  }) : mix = mix ?? AnalyticsMixShares.empty();
+
+  final int isoYear;
+  final int week;
+  final String label;
+  final double revenue;
+  final int orderCount;
+  final double? avgOrderValue;
+  final double? target;
+  final double? attainmentPercent;
+  final double? cost;
+  final double? profit;
+  final double? marginPercent;
+  final double? avgShipmentDays;
+  final double? avgInvoiceDays;
+  final double? avgFirstPaymentDays;
+  final double? avgPaymentDays;
+  final double? avgLtv;
+  final double? avgProductRevenue;
+  final double? avgBasketSize;
+  final double? avgPurchaseFrequency;
+  final AnalyticsMixShares mix;
+
+  factory AnalyticsWeekPoint.fromJson(Map<String, dynamic> json) {
+    return AnalyticsWeekPoint(
+      isoYear: json['isoYear'] as int,
+      week: json['week'] as int,
+      label: json['label'] as String,
+      revenue: (json['revenue'] as num).toDouble(),
+      orderCount: json['orderCount'] as int,
+      avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
+      target: (json['target'] as num?)?.toDouble(),
+      attainmentPercent: (json['attainmentPercent'] as num?)?.toDouble(),
+      cost: (json['cost'] as num?)?.toDouble(),
+      profit: (json['profit'] as num?)?.toDouble(),
+      marginPercent: (json['marginPercent'] as num?)?.toDouble(),
+      avgShipmentDays: (json['avgShipmentDays'] as num?)?.toDouble(),
+      avgInvoiceDays: (json['avgInvoiceDays'] as num?)?.toDouble(),
+      avgFirstPaymentDays: (json['avgFirstPaymentDays'] as num?)?.toDouble(),
+      avgPaymentDays: (json['avgPaymentDays'] as num?)?.toDouble(),
+      avgLtv: (json['avgLtv'] as num?)?.toDouble(),
+      avgProductRevenue: (json['avgProductRevenue'] as num?)?.toDouble(),
+      avgBasketSize: (json['avgBasketSize'] as num?)?.toDouble(),
+      avgPurchaseFrequency: (json['avgPurchaseFrequency'] as num?)?.toDouble(),
+      mix: AnalyticsMixShares.fromJson(json),
+    );
+  }
+}
+
 class AnalyticsMonthPoint {
   AnalyticsMonthPoint({
     required this.month,
@@ -521,12 +712,18 @@ class AnalyticsMonthPoint {
     this.marginPercent,
     this.avgShipmentDays,
     this.shipmentSampleSize = 0,
+    this.avgInvoiceDays,
+    this.invoiceSampleSize = 0,
     this.avgFirstPaymentDays,
     this.firstPaymentSampleSize = 0,
     this.avgPaymentDays,
     this.paymentSampleSize = 0,
     this.avgLtv,
-  });
+    this.avgProductRevenue,
+    this.avgBasketSize,
+    this.avgPurchaseFrequency,
+    AnalyticsMixShares? mix,
+  }) : mix = mix ?? AnalyticsMixShares.empty();
 
   final int month;
   final String label;
@@ -540,11 +737,17 @@ class AnalyticsMonthPoint {
   final double? marginPercent;
   final double? avgShipmentDays;
   final int shipmentSampleSize;
+  final double? avgInvoiceDays;
+  final int invoiceSampleSize;
   final double? avgFirstPaymentDays;
   final int firstPaymentSampleSize;
   final double? avgPaymentDays;
   final int paymentSampleSize;
   final double? avgLtv;
+  final double? avgProductRevenue;
+  final double? avgBasketSize;
+  final double? avgPurchaseFrequency;
+  final AnalyticsMixShares mix;
 
   factory AnalyticsMonthPoint.fromJson(Map<String, dynamic> json) {
     return AnalyticsMonthPoint(
@@ -560,11 +763,100 @@ class AnalyticsMonthPoint {
       marginPercent: (json['marginPercent'] as num?)?.toDouble(),
       avgShipmentDays: (json['avgShipmentDays'] as num?)?.toDouble(),
       shipmentSampleSize: (json['shipmentSampleSize'] as int?) ?? 0,
+      avgInvoiceDays: (json['avgInvoiceDays'] as num?)?.toDouble(),
+      invoiceSampleSize: (json['invoiceSampleSize'] as int?) ?? 0,
       avgFirstPaymentDays: (json['avgFirstPaymentDays'] as num?)?.toDouble(),
       firstPaymentSampleSize: (json['firstPaymentSampleSize'] as int?) ?? 0,
       avgPaymentDays: (json['avgPaymentDays'] as num?)?.toDouble(),
       paymentSampleSize: (json['paymentSampleSize'] as int?) ?? 0,
       avgLtv: (json['avgLtv'] as num?)?.toDouble(),
+      avgProductRevenue: (json['avgProductRevenue'] as num?)?.toDouble(),
+      avgBasketSize: (json['avgBasketSize'] as num?)?.toDouble(),
+      avgPurchaseFrequency: (json['avgPurchaseFrequency'] as num?)?.toDouble(),
+      mix: AnalyticsMixShares.fromJson(json),
+    );
+  }
+}
+
+class AnalyticsQuarterPoint {
+  AnalyticsQuarterPoint({
+    required this.year,
+    required this.quarter,
+    required this.label,
+    required this.revenue,
+    required this.orderCount,
+    this.avgOrderValue,
+    this.target,
+    this.attainmentPercent,
+    this.cost,
+    this.profit,
+    this.marginPercent,
+    this.avgShipmentDays,
+    this.shipmentSampleSize = 0,
+    this.avgInvoiceDays,
+    this.invoiceSampleSize = 0,
+    this.avgFirstPaymentDays,
+    this.firstPaymentSampleSize = 0,
+    this.avgPaymentDays,
+    this.paymentSampleSize = 0,
+    this.avgLtv,
+    this.avgProductRevenue,
+    this.avgBasketSize,
+    this.avgPurchaseFrequency,
+    AnalyticsMixShares? mix,
+  }) : mix = mix ?? AnalyticsMixShares.empty();
+
+  final int year;
+  final int quarter;
+  final String label;
+  final double revenue;
+  final int orderCount;
+  final double? avgOrderValue;
+  final double? target;
+  final double? attainmentPercent;
+  final double? cost;
+  final double? profit;
+  final double? marginPercent;
+  final double? avgShipmentDays;
+  final int shipmentSampleSize;
+  final double? avgInvoiceDays;
+  final int invoiceSampleSize;
+  final double? avgFirstPaymentDays;
+  final int firstPaymentSampleSize;
+  final double? avgPaymentDays;
+  final int paymentSampleSize;
+  final double? avgLtv;
+  final double? avgProductRevenue;
+  final double? avgBasketSize;
+  final double? avgPurchaseFrequency;
+  final AnalyticsMixShares mix;
+
+  factory AnalyticsQuarterPoint.fromJson(Map<String, dynamic> json) {
+    return AnalyticsQuarterPoint(
+      year: json['year'] as int,
+      quarter: json['quarter'] as int,
+      label: json['label'] as String,
+      revenue: (json['revenue'] as num).toDouble(),
+      orderCount: json['orderCount'] as int,
+      avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
+      target: (json['target'] as num?)?.toDouble(),
+      attainmentPercent: (json['attainmentPercent'] as num?)?.toDouble(),
+      cost: (json['cost'] as num?)?.toDouble(),
+      profit: (json['profit'] as num?)?.toDouble(),
+      marginPercent: (json['marginPercent'] as num?)?.toDouble(),
+      avgShipmentDays: (json['avgShipmentDays'] as num?)?.toDouble(),
+      shipmentSampleSize: (json['shipmentSampleSize'] as int?) ?? 0,
+      avgInvoiceDays: (json['avgInvoiceDays'] as num?)?.toDouble(),
+      invoiceSampleSize: (json['invoiceSampleSize'] as int?) ?? 0,
+      avgFirstPaymentDays: (json['avgFirstPaymentDays'] as num?)?.toDouble(),
+      firstPaymentSampleSize: (json['firstPaymentSampleSize'] as int?) ?? 0,
+      avgPaymentDays: (json['avgPaymentDays'] as num?)?.toDouble(),
+      paymentSampleSize: (json['paymentSampleSize'] as int?) ?? 0,
+      avgLtv: (json['avgLtv'] as num?)?.toDouble(),
+      avgProductRevenue: (json['avgProductRevenue'] as num?)?.toDouble(),
+      avgBasketSize: (json['avgBasketSize'] as num?)?.toDouble(),
+      avgPurchaseFrequency: (json['avgPurchaseFrequency'] as num?)?.toDouble(),
+      mix: AnalyticsMixShares.fromJson(json),
     );
   }
 }
@@ -582,12 +874,18 @@ class AnalyticsYearPoint {
     this.marginPercent,
     this.avgShipmentDays,
     this.shipmentSampleSize = 0,
+    this.avgInvoiceDays,
+    this.invoiceSampleSize = 0,
     this.avgFirstPaymentDays,
     this.firstPaymentSampleSize = 0,
     this.avgPaymentDays,
     this.paymentSampleSize = 0,
     this.avgLtv,
-  });
+    this.avgProductRevenue,
+    this.avgBasketSize,
+    this.avgPurchaseFrequency,
+    AnalyticsMixShares? mix,
+  }) : mix = mix ?? AnalyticsMixShares.empty();
 
   final int year;
   final double revenue;
@@ -600,11 +898,17 @@ class AnalyticsYearPoint {
   final double? marginPercent;
   final double? avgShipmentDays;
   final int shipmentSampleSize;
+  final double? avgInvoiceDays;
+  final int invoiceSampleSize;
   final double? avgFirstPaymentDays;
   final int firstPaymentSampleSize;
   final double? avgPaymentDays;
   final int paymentSampleSize;
   final double? avgLtv;
+  final double? avgProductRevenue;
+  final double? avgBasketSize;
+  final double? avgPurchaseFrequency;
+  final AnalyticsMixShares mix;
 
   factory AnalyticsYearPoint.fromJson(Map<String, dynamic> json) {
     return AnalyticsYearPoint(
@@ -619,11 +923,17 @@ class AnalyticsYearPoint {
       marginPercent: (json['marginPercent'] as num?)?.toDouble(),
       avgShipmentDays: (json['avgShipmentDays'] as num?)?.toDouble(),
       shipmentSampleSize: (json['shipmentSampleSize'] as int?) ?? 0,
+      avgInvoiceDays: (json['avgInvoiceDays'] as num?)?.toDouble(),
+      invoiceSampleSize: (json['invoiceSampleSize'] as int?) ?? 0,
       avgFirstPaymentDays: (json['avgFirstPaymentDays'] as num?)?.toDouble(),
       firstPaymentSampleSize: (json['firstPaymentSampleSize'] as int?) ?? 0,
       avgPaymentDays: (json['avgPaymentDays'] as num?)?.toDouble(),
       paymentSampleSize: (json['paymentSampleSize'] as int?) ?? 0,
       avgLtv: (json['avgLtv'] as num?)?.toDouble(),
+      avgProductRevenue: (json['avgProductRevenue'] as num?)?.toDouble(),
+      avgBasketSize: (json['avgBasketSize'] as num?)?.toDouble(),
+      avgPurchaseFrequency: (json['avgPurchaseFrequency'] as num?)?.toDouble(),
+      mix: AnalyticsMixShares.fromJson(json),
     );
   }
 }
@@ -635,8 +945,11 @@ class AnalyticsProductRow {
     required this.unit,
     required this.orderCount,
     required this.qtySold,
+    required this.packsSold,
     required this.revenue,
     this.avgOrderValue,
+    this.firstRepeatOrderDays,
+    this.avgRepeatOrderDays,
     required this.discount,
     this.discountPercent,
     this.cost,
@@ -650,8 +963,11 @@ class AnalyticsProductRow {
   final String unit;
   final int orderCount;
   final double qtySold;
+  final double packsSold;
   final double revenue;
   final double? avgOrderValue;
+  final double? firstRepeatOrderDays;
+  final double? avgRepeatOrderDays;
   final double discount;
   final double? discountPercent;
   final double? cost;
@@ -666,8 +982,11 @@ class AnalyticsProductRow {
       unit: json['unit'] as String,
       orderCount: json['orderCount'] as int,
       qtySold: (json['qtySold'] as num).toDouble(),
+      packsSold: (json['packsSold'] as num?)?.toDouble() ?? 0,
       revenue: (json['revenue'] as num).toDouble(),
       avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
+      firstRepeatOrderDays: (json['firstRepeatOrderDays'] as num?)?.toDouble(),
+      avgRepeatOrderDays: (json['avgRepeatOrderDays'] as num?)?.toDouble(),
       discount: (json['discount'] as num?)?.toDouble() ?? 0,
       discountPercent: (json['discountPercent'] as num?)?.toDouble(),
       cost: (json['cost'] as num?)?.toDouble(),
@@ -685,8 +1004,11 @@ class AnalyticsCustomerRow {
     required this.companyName,
     required this.companyType,
     required this.orderCount,
+    required this.packsSold,
     required this.revenue,
     this.avgOrderValue,
+    this.firstRepeatOrderDays,
+    this.avgRepeatOrderDays,
     required this.discount,
     this.discountPercent,
     this.cost,
@@ -700,8 +1022,11 @@ class AnalyticsCustomerRow {
   final String companyName;
   final String companyType;
   final int orderCount;
+  final double packsSold;
   final double revenue;
   final double? avgOrderValue;
+  final double? firstRepeatOrderDays;
+  final double? avgRepeatOrderDays;
   final double discount;
   final double? discountPercent;
   final double? cost;
@@ -716,8 +1041,11 @@ class AnalyticsCustomerRow {
       companyName: (json['companyName'] as String?) ?? '',
       companyType: (json['companyType'] as String?) ?? '',
       orderCount: json['orderCount'] as int,
+      packsSold: (json['packsSold'] as num?)?.toDouble() ?? 0,
       revenue: (json['revenue'] as num).toDouble(),
       avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
+      firstRepeatOrderDays: (json['firstRepeatOrderDays'] as num?)?.toDouble(),
+      avgRepeatOrderDays: (json['avgRepeatOrderDays'] as num?)?.toDouble(),
       discount: (json['discount'] as num?)?.toDouble() ?? 0,
       discountPercent: (json['discountPercent'] as num?)?.toDouble(),
       cost: (json['cost'] as num?)?.toDouble(),
@@ -730,7 +1058,9 @@ class AnalyticsCustomerRow {
 
 class AnalyticsOverview {
   AnalyticsOverview({
-    required this.year,
+    this.year,
+    this.years,
+    this.scope = 'year',
     required this.revenue,
     required this.orderCount,
     this.avgOrderValue,
@@ -740,17 +1070,26 @@ class AnalyticsOverview {
     this.profit,
     this.marginPercent,
     this.avgShipmentDays,
+    this.avgInvoiceDays,
     this.avgFirstPaymentDays,
     this.avgPaymentDays,
     this.avgLtv,
     this.ltvCustomerCount = 0,
+    this.avgProductRevenue,
+    this.productSaleCount = 0,
+    this.avgBasketSize,
+    this.avgPurchaseFrequency,
+    required this.weekly,
     required this.monthly,
+    required this.quarterly,
     required this.annual,
     required this.products,
     required this.customers,
   });
 
-  final int year;
+  final int? year;
+  final List<int>? years;
+  final String scope;
   final double revenue;
   final int orderCount;
   final double? avgOrderValue;
@@ -760,11 +1099,18 @@ class AnalyticsOverview {
   final double? profit;
   final double? marginPercent;
   final double? avgShipmentDays;
+  final double? avgInvoiceDays;
   final double? avgFirstPaymentDays;
   final double? avgPaymentDays;
   final double? avgLtv;
   final int ltvCustomerCount;
+  final double? avgProductRevenue;
+  final int productSaleCount;
+  final double? avgBasketSize;
+  final double? avgPurchaseFrequency;
+  final List<AnalyticsWeekPoint> weekly;
   final List<AnalyticsMonthPoint> monthly;
+  final List<AnalyticsQuarterPoint> quarterly;
   final List<AnalyticsYearPoint> annual;
   final List<AnalyticsProductRow> products;
   final List<AnalyticsCustomerRow> customers;
@@ -772,7 +1118,12 @@ class AnalyticsOverview {
   factory AnalyticsOverview.fromJson(Map<String, dynamic> json) {
     final summary = json['summary'] as Map<String, dynamic>;
     return AnalyticsOverview(
-      year: json['year'] as int,
+      year: json['year'] as int?,
+      years: (json['years'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
+      scope: (json['scope'] as String?) ??
+          ((json['year'] == null) ? 'all' : 'year'),
       revenue: (summary['revenue'] as num).toDouble(),
       orderCount: summary['orderCount'] as int,
       avgOrderValue: (summary['avgOrderValue'] as num?)?.toDouble(),
@@ -782,14 +1133,25 @@ class AnalyticsOverview {
       profit: (summary['profit'] as num?)?.toDouble(),
       marginPercent: (summary['marginPercent'] as num?)?.toDouble(),
       avgShipmentDays: (summary['avgShipmentDays'] as num?)?.toDouble(),
+      avgInvoiceDays: (summary['avgInvoiceDays'] as num?)?.toDouble(),
       avgFirstPaymentDays: (summary['avgFirstPaymentDays'] as num?)?.toDouble(),
       avgPaymentDays: (summary['avgPaymentDays'] as num?)?.toDouble(),
       avgLtv: (summary['avgLtv'] as num?)?.toDouble(),
       ltvCustomerCount: (summary['ltvCustomerCount'] as int?) ?? 0,
-      monthly: (json['monthly'] as List<dynamic>)
+      avgProductRevenue: (summary['avgProductRevenue'] as num?)?.toDouble(),
+      productSaleCount: (summary['productSaleCount'] as int?) ?? 0,
+      avgBasketSize: (summary['avgBasketSize'] as num?)?.toDouble(),
+      avgPurchaseFrequency: (summary['avgPurchaseFrequency'] as num?)?.toDouble(),
+      weekly: (json['weekly'] as List<dynamic>? ?? const [])
+          .map((e) => AnalyticsWeekPoint.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      monthly: (json['monthly'] as List<dynamic>? ?? const [])
           .map((e) => AnalyticsMonthPoint.fromJson(e as Map<String, dynamic>))
           .toList(),
-      annual: (json['annual'] as List<dynamic>)
+      quarterly: (json['quarterly'] as List<dynamic>? ?? const [])
+          .map((e) => AnalyticsQuarterPoint.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      annual: (json['annual'] as List<dynamic>? ?? const [])
           .map((e) => AnalyticsYearPoint.fromJson(e as Map<String, dynamic>))
           .toList(),
       products: (json['products'] as List<dynamic>? ?? const [])
@@ -799,5 +1161,75 @@ class AnalyticsOverview {
           .map((e) => AnalyticsCustomerRow.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
+  }
+
+  /// Merge progressive `/analytics` responses (core / series / tables).
+  AnalyticsOverview mergeWith(
+    AnalyticsOverview next, {
+    required String mode,
+  }) {
+    if (mode == 'tables') {
+      return AnalyticsOverview(
+        year: year,
+        years: years,
+        scope: scope,
+        revenue: revenue,
+        orderCount: orderCount,
+        avgOrderValue: avgOrderValue,
+        target: target,
+        attainmentPercent: attainmentPercent,
+        cost: cost,
+        profit: profit,
+        marginPercent: marginPercent,
+        avgShipmentDays: avgShipmentDays,
+        avgInvoiceDays: avgInvoiceDays,
+        avgFirstPaymentDays: avgFirstPaymentDays,
+        avgPaymentDays: avgPaymentDays,
+        avgLtv: avgLtv,
+        ltvCustomerCount: ltvCustomerCount,
+        avgProductRevenue: avgProductRevenue,
+        productSaleCount: productSaleCount,
+        avgBasketSize: avgBasketSize,
+        avgPurchaseFrequency: avgPurchaseFrequency,
+        weekly: weekly,
+        monthly: monthly,
+        quarterly: quarterly,
+        annual: annual,
+        products: next.products,
+        customers: next.customers,
+      );
+    }
+    if (mode == 'series') {
+      return AnalyticsOverview(
+        year: year,
+        years: years,
+        scope: scope,
+        revenue: revenue,
+        orderCount: orderCount,
+        avgOrderValue: avgOrderValue,
+        target: target,
+        attainmentPercent: attainmentPercent,
+        cost: cost,
+        profit: profit,
+        marginPercent: marginPercent,
+        avgShipmentDays: avgShipmentDays,
+        avgInvoiceDays: avgInvoiceDays,
+        avgFirstPaymentDays: avgFirstPaymentDays,
+        avgPaymentDays: avgPaymentDays,
+        avgLtv: avgLtv,
+        ltvCustomerCount: ltvCustomerCount,
+        avgProductRevenue: avgProductRevenue,
+        productSaleCount: productSaleCount,
+        avgBasketSize: avgBasketSize,
+        avgPurchaseFrequency: avgPurchaseFrequency,
+        weekly: next.weekly.isNotEmpty ? next.weekly : weekly,
+        monthly: next.monthly.isNotEmpty ? next.monthly : monthly,
+        quarterly: next.quarterly.isNotEmpty ? next.quarterly : quarterly,
+        annual: next.annual.isNotEmpty ? next.annual : annual,
+        products: products,
+        customers: customers,
+      );
+    }
+    return next;
   }
 }

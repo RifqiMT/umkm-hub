@@ -1,9 +1,23 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { api, ApiError } from '@/lib/api';
 import { ContentSection, EmptyState, FormSection, PageHeader } from '@/components/PageHeader';
 import { OptionChips } from '@/components/OptionChips';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import {
+  DateRangeFilter,
+  type DateRangeValue,
+} from '@/components/DateRangeFilter';
+import { EMPTY_DATE_RANGE, isDateRangeActive } from '@/lib/date-range-filter';
 import {
   ViewBlock,
   ViewChip,
@@ -11,6 +25,7 @@ import {
   ViewIdentity,
   ViewSheetBody,
 } from '@/components/ViewSheet';
+import { AppTooltip } from '@/components/AppTooltip';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
   DISCOUNT_TYPES,
@@ -23,10 +38,27 @@ import {
   todayDateInput,
   type ProductPackOption,
 } from '@/lib/enums';
-import type { Customer, Order, OrderLine, Paginated, Product } from '@/lib/types';
-import { formatMoney } from '@/lib/format-money';
+import type {
+  Customer,
+  Order,
+  OrderLine,
+  OrderSummary,
+  Paginated,
+  Product,
+} from '@/lib/types';
+import {
+  formatCompactQtyParts,
+  formatDateLabel,
+  formatMoney,
+  formatMoneyParts,
+  formatRatePercent,
+  formatMoneyExact,
+} from '@/lib/format-money';
+import {
+  orderPaidAmount,
+  orderPaymentRatePercent,
+} from '@/lib/order-payment-rate';
 
-type StatusFilter = 'ALL' | (typeof ORDER_STATUSES)[number];
 type SortKey = 'date' | 'product' | 'status' | 'total' | 'payment';
 type SortDir = 'asc' | 'desc';
 
@@ -76,6 +108,21 @@ function formatPct(value: number) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+}
+
+/** CSS variable for Order pulse rate meters (0–100). */
+function rateMeterStyle(
+  value: number | null | undefined,
+  loading = false,
+): CSSProperties | undefined {
+  if (loading || value == null || !Number.isFinite(value)) {
+    return { ['--rate' as string]: '0%' };
+  }
+  if (value < 0) {
+    return { ['--rate' as string]: '8%' };
+  }
+  const clamped = Math.max(0, Math.min(100, value));
+  return { ['--rate' as string]: `${clamped}%` };
 }
 
 function orderStatusLabel(status?: string | null) {
@@ -231,6 +278,44 @@ function resolvedInstallmentRows(
 function percentOfTotal(amount: number, total: number) {
   if (total <= 0) return 0;
   return Math.round((amount / total) * 1000) / 10;
+}
+
+function PaidRateCell({
+  rate,
+  paidLabel,
+  totalLabel,
+}: {
+  rate: number | null;
+  paidLabel?: string;
+  totalLabel?: string;
+}) {
+  const width =
+    rate == null || !Number.isFinite(rate)
+      ? '0%'
+      : `${Math.max(0, Math.min(100, rate))}%`;
+  return (
+    <AppTooltip
+      className="umkm-tip-block"
+      embedded
+      tone="paid"
+      label="Paid"
+      value={rate == null ? undefined : formatRatePercent(rate)}
+      description="How much of this order’s total has been collected so far."
+      detail={
+        paidLabel && totalLabel ? `${paidLabel} of ${totalLabel}` : undefined
+      }
+    >
+      <div
+        className="umkm-paid-rate"
+        style={{ ['--rate' as string]: width }}
+      >
+        <strong>{rate == null ? '—' : formatRatePercent(rate)}</strong>
+        <span className="umkm-paid-rate-meter" aria-hidden>
+          <i />
+        </span>
+      </div>
+    </AppTooltip>
+  );
 }
 
 /** Running remaining after each payment, chronologically by date. */
@@ -403,6 +488,7 @@ function lineFormFromSnapshot(
 
 export default function OrdersPage() {
   const [items, setItems] = useState<Order[]>([]);
+  const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState<OrderForm>(emptyForm());
@@ -411,10 +497,34 @@ export default function OrdersPage() {
   const [viewing, setViewing] = useState<Order | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const listSeq = useRef(0);
+  const summarySeq = useRef(0);
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [paymentFilters, setPaymentFilters] = useState<string[]>([]);
+  const [orderDateRange, setOrderDateRange] =
+    useState<DateRangeValue>(EMPTY_DATE_RANGE);
+  const [shipmentDateRange, setShipmentDateRange] =
+    useState<DateRangeValue>(EMPTY_DATE_RANGE);
+  const [invoiceDateRange, setInvoiceDateRange] =
+    useState<DateRangeValue>(EMPTY_DATE_RANGE);
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(1);
+  const [listMeta, setListMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+  });
+
+  const hasDateFilters =
+    isDateRangeActive(orderDateRange) ||
+    isDateRangeActive(shipmentDateRange) ||
+    isDateRangeActive(invoiceDateRange);
 
   const resolvedLines = useMemo(() => {
     return form.lines.map((line) => {
@@ -496,71 +606,20 @@ export default function OrdersPage() {
     resolvedLines.length > 0 &&
     resolvedLines.every((line) => Boolean(line.product && line.pack));
 
-  const fulfillment = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = items;
-    if (q) {
-      list = list.filter((o) => {
-        const name = (o.product?.name ?? o.productId).toLowerCase();
-        const lineNames = (o.lines ?? [])
-          .map((line) => (line.product?.name ?? line.productId).toLowerCase())
-          .join(' ');
-        const status = orderStatusLabel(o.status).toLowerCase();
-        const payment = paymentStatusLabel(o.paymentStatus).toLowerCase();
-        return (
-          name.includes(q) ||
-          lineNames.includes(q) ||
-          status.includes(q) ||
-          payment.includes(q) ||
-          (o.orderDate ?? '').includes(q)
-        );
-      });
-    }
-    if (statusFilter !== 'ALL') {
-      list = list.filter((o) => o.status === statusFilter);
-    }
-    return [...list].sort((a, b) => {
-      let cmp = 0;
-      switch (sortKey) {
-        case 'date':
-          cmp = (a.orderDate ?? '').localeCompare(b.orderDate ?? '');
-          break;
-        case 'product':
-          cmp = (a.product?.name ?? a.productId).localeCompare(
-            b.product?.name ?? b.productId,
-            undefined,
-            { sensitivity: 'base' },
-          );
-          break;
-        case 'status':
-          cmp = orderStatusLabel(a.status).localeCompare(
-            orderStatusLabel(b.status),
-            undefined,
-            { sensitivity: 'base' },
-          );
-          break;
-        case 'total':
-          cmp = a.totalOrderValue - b.totalOrderValue;
-          break;
-        case 'payment':
-          cmp = paymentStatusLabel(a.paymentStatus).localeCompare(
-            paymentStatusLabel(b.paymentStatus),
-            undefined,
-            { sensitivity: 'base' },
-          );
-          break;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [items, search, statusFilter, sortKey, sortDir]);
+  const fulfillment = items;
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-      return;
+    } else {
+      setSortKey(key);
+      setSortDir(
+        key === 'product' || key === 'status' || key === 'payment'
+          ? 'asc'
+          : 'desc',
+      );
     }
-    setSortKey(key);
-    setSortDir(key === 'product' || key === 'status' || key === 'payment' ? 'asc' : 'desc');
+    setPage(1);
   }
 
   function sortMark(key: SortKey) {
@@ -585,26 +644,118 @@ export default function OrdersPage() {
     form.discountValue,
   ]);
 
-  async function load() {
+  async function loadCatalog() {
+    const [productList, customerList] = await Promise.all([
+      api<Paginated<Product>>('/products', { searchParams: { limit: 100 } }),
+      api<Paginated<Customer>>('/customers', {
+        searchParams: { limit: 100 },
+      }),
+    ]);
+    setProducts(productList.items);
+    setCustomers(customerList.items);
+    return {
+      products: productList.items,
+      customers: customerList.items,
+    };
+  }
+
+  /** Catalog is only needed for create/edit — not for browsing the list. */
+  async function ensureCatalog() {
+    if (products.length > 0 && customers.length > 0) {
+      return { products, customers };
+    }
+    return loadCatalog();
+  }
+
+  async function loadSummary() {
+    const seq = ++summarySeq.current;
+    setSummaryLoading(true);
     try {
-      const [orders, productList, customerList] = await Promise.all([
-        api<Paginated<Order>>('/orders', { searchParams: { limit: 50 } }),
-        api<Paginated<Product>>('/products', { searchParams: { limit: 100 } }),
-        api<Paginated<Customer>>('/customers', {
-          searchParams: { limit: 100 },
-        }),
-      ]);
-      setItems(orders.items);
-      setProducts(productList.items);
-      setCustomers(customerList.items);
+      const orderSummary = await api<OrderSummary>('/orders/summary', {
+        searchParams: {
+          search: debouncedSearch.trim() || undefined,
+          status: statusFilters.length > 0 ? statusFilters : undefined,
+          paymentStatus: paymentFilters.length > 0 ? paymentFilters : undefined,
+          orderDateFrom: orderDateRange.from || undefined,
+          orderDateTo: orderDateRange.to || undefined,
+          shipmentDateFrom: shipmentDateRange.from || undefined,
+          shipmentDateTo: shipmentDateRange.to || undefined,
+          invoiceDateFrom: invoiceDateRange.from || undefined,
+          invoiceDateTo: invoiceDateRange.to || undefined,
+        },
+      });
+      if (seq !== summarySeq.current) return;
+      setSummary(orderSummary);
     } catch (err) {
+      if (seq !== summarySeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load orders');
+    } finally {
+      if (seq === summarySeq.current) setSummaryLoading(false);
     }
   }
 
+  async function loadOrders(nextPage = page) {
+    const seq = ++listSeq.current;
+    setListLoading(true);
+    try {
+      const orders = await api<Paginated<Order>>('/orders', {
+        searchParams: {
+          page: nextPage,
+          limit: listMeta.limit || 20,
+          search: debouncedSearch.trim() || undefined,
+          status: statusFilters.length > 0 ? statusFilters : undefined,
+          paymentStatus: paymentFilters.length > 0 ? paymentFilters : undefined,
+          orderDateFrom: orderDateRange.from || undefined,
+          orderDateTo: orderDateRange.to || undefined,
+          shipmentDateFrom: shipmentDateRange.from || undefined,
+          shipmentDateTo: shipmentDateRange.to || undefined,
+          invoiceDateFrom: invoiceDateRange.from || undefined,
+          invoiceDateTo: invoiceDateRange.to || undefined,
+          sort: sortKey,
+          dir: sortDir,
+        },
+      });
+      if (seq !== listSeq.current) return;
+      setItems(orders.items);
+      setListMeta(orders.meta);
+      setPage(orders.meta.page);
+      setError('');
+    } catch (err) {
+      if (seq !== listSeq.current) return;
+      setError(err instanceof Error ? err.message : 'Failed to load orders');
+    } finally {
+      if (seq === listSeq.current) setListLoading(false);
+    }
+  }
+
+  async function load() {
+    await Promise.all([loadSummary(), loadOrders(page)]);
+  }
+
   useEffect(() => {
-    void load();
-  }, []);
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    void loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional summary filter deps
+  }, [
+    debouncedSearch,
+    statusFilters,
+    paymentFilters,
+    orderDateRange,
+    shipmentDateRange,
+    invoiceDateRange,
+  ]);
+
+  useEffect(() => {
+    void loadOrders(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional list query deps
+  }, [page, debouncedSearch, statusFilters, paymentFilters, orderDateRange, shipmentDateRange, invoiceDateRange, sortKey, sortDir]);
 
   function updateLine(
     key: string,
@@ -659,51 +810,75 @@ export default function OrdersPage() {
     });
   }
 
-  function startEdit(order: Order) {
-    setViewing(null);
-    const lines =
-      order.lines && order.lines.length > 0
-        ? order.lines.map((line) => lineFormFromSnapshot(line, products))
-        : [lineFormFromSnapshot(order, products)];
-    setFormOpen(true);
-    setEditingId(order.id);
-    setForm({
-      lines,
-      customerId: order.customerId ?? order.customer?.id ?? '',
-      orderDate: order.orderDate?.slice(0, 10) ?? todayDateInput(),
-      shipmentDate: order.shipmentDate?.slice(0, 10) ?? '',
-      status: order.status ?? 'PENDING',
-      discountType: order.discountType as 'PERCENTAGE' | 'AMOUNT',
-      discountValue: order.discountValue,
-      paymentStatus: order.paymentStatus,
-      invoiceStatus: order.invoiceStatus ?? 'CREATED',
-      invoiceDate:
-        order.invoiceDate?.slice(0, 10) ??
-        order.orderDate?.slice(0, 10) ??
-        todayDateInput(),
-      installments: cascadeInstallmentDates(
-        (order.installments ?? []).map((row) => ({
-          amount: row.amount,
-          percentValue: 0,
-          entryMode: 'AMOUNT' as const,
-          installmentDate: row.installmentDate.slice(0, 10),
-        })),
-        0,
-      ),
-    });
+  async function startEdit(order: Order) {
+    setError('');
+    try {
+      const [catalog, full] = await Promise.all([
+        ensureCatalog(),
+        api<Order>(`/orders/${order.id}`),
+      ]);
+      setViewing(null);
+      const lines =
+        full.lines && full.lines.length > 0
+          ? full.lines.map((line) =>
+              lineFormFromSnapshot(line, catalog.products),
+            )
+          : [lineFormFromSnapshot(full, catalog.products)];
+      setFormOpen(true);
+      setEditingId(full.id);
+      setForm({
+        lines,
+        customerId: full.customerId ?? full.customer?.id ?? '',
+        orderDate: full.orderDate?.slice(0, 10) ?? todayDateInput(),
+        shipmentDate: full.shipmentDate?.slice(0, 10) ?? '',
+        status: full.status ?? 'PENDING',
+        discountType: full.discountType as 'PERCENTAGE' | 'AMOUNT',
+        discountValue: full.discountValue,
+        paymentStatus: full.paymentStatus,
+        invoiceStatus: full.invoiceStatus ?? 'CREATED',
+        invoiceDate:
+          full.invoiceDate?.slice(0, 10) ??
+          full.orderDate?.slice(0, 10) ??
+          todayDateInput(),
+        installments: cascadeInstallmentDates(
+          (full.installments ?? []).map((row) => ({
+            amount: row.amount,
+            percentValue: 0,
+            entryMode: 'AMOUNT' as const,
+            installmentDate: row.installmentDate.slice(0, 10),
+          })),
+          0,
+        ),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load order');
+    }
   }
 
-  function startCreate() {
-    setViewing(null);
-    setEditingId(null);
-    setForm(emptyForm(products[0]));
-    setFormOpen(true);
+  async function startCreate() {
+    setError('');
+    try {
+      const catalog = await ensureCatalog();
+      setViewing(null);
+      setEditingId(null);
+      setForm(emptyForm(catalog.products[0]));
+      setFormOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load catalog');
+    }
   }
 
-  function startView(order: Order) {
+  async function startView(order: Order) {
     setFormOpen(false);
     setEditingId(null);
     setViewing(order);
+    setError('');
+    try {
+      const full = await api<Order>(`/orders/${order.id}`);
+      setViewing(full);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load order');
+    }
   }
 
   function resetForm() {
@@ -788,13 +963,50 @@ export default function OrdersPage() {
     }
   }
 
+  const pulseRevenue = summary
+    ? formatMoneyParts(summary.totalRevenue)
+    : null;
+  const pulsePacks = summary
+    ? formatCompactQtyParts(summary.productsSold)
+    : null;
+
   return (
     <section>
-      <PageHeader
-        title="Orders"
-        description="Create orders from catalog packs, track invoices, and record installment payments."
-        actions={
-          !formOpen && !viewing ? (
+      {formOpen || viewing ? (
+        <PageHeader
+          title="Orders"
+          description="Create orders from catalog packs, track invoices, and record installment payments."
+        />
+      ) : (
+        <header
+          className={`umkm-stage${summaryLoading && !summary ? ' is-loading' : ''}`}
+          aria-busy={(summaryLoading && !summary) || undefined}
+        >
+          <div className="umkm-stage-top">
+            <div className="umkm-stage-copy">
+              <h1>Orders</h1>
+              <p>
+                {summary ? (
+                  <>
+                    <time dateTime={summary.earliestOrderDate ?? undefined}>
+                      {formatDateLabel(summary.earliestOrderDate)}
+                    </time>
+                    <span className="umkm-stage-dash" aria-hidden>
+                      –
+                    </span>
+                    <time dateTime={summary.latestOrderDate ?? undefined}>
+                      {formatDateLabel(summary.latestOrderDate)}
+                    </time>
+                    <span className="umkm-stage-sep" aria-hidden>
+                      ·
+                    </span>
+                    Non-cancelled volume and health
+                  </>
+                ) : (
+                  'Create orders from catalog packs, track invoices, and payments.'
+                )}
+              </p>
+            </div>
             <button
               type="button"
               className="umkm-btn"
@@ -803,9 +1015,146 @@ export default function OrdersPage() {
             >
               Add order
             </button>
-          ) : null
-        }
-      />
+          </div>
+
+          <div className="umkm-stage-body">
+            <dl className="umkm-stage-volume">
+              <div className="umkm-stage-stat is-hero">
+                <dt>Revenue</dt>
+                <dd>
+                  <AppTooltip
+                    label="Revenue"
+                    value={
+                      summary ? formatMoneyExact(summary.totalRevenue) : undefined
+                    }
+                    description="Total sales from non-cancelled orders in the current filter."
+                  >
+                    {pulseRevenue ? (
+                      <>
+                        <b>{pulseRevenue.figure}</b>
+                        {pulseRevenue.unit ? (
+                          <small>{pulseRevenue.unit}</small>
+                        ) : null}
+                      </>
+                    ) : (
+                      <b>···</b>
+                    )}
+                  </AppTooltip>
+                </dd>
+              </div>
+              <div className="umkm-stage-stat">
+                <dt>Orders</dt>
+                <dd>
+                  <AppTooltip
+                    label="Orders"
+                    description="How many non-cancelled orders match the current filter. Cancelled orders still appear in the list and Cancel rate."
+                  >
+                    {summary
+                      ? summary.orderCount.toLocaleString('en-US')
+                      : '···'}
+                  </AppTooltip>
+                </dd>
+              </div>
+              <div className="umkm-stage-stat">
+                <dt>Packs sold</dt>
+                <dd>
+                  <AppTooltip
+                    label="Packs sold"
+                    value={
+                      summary
+                        ? formatQty(summary.productsSold)
+                        : undefined
+                    }
+                    description="Total pack quantity sold across non-cancelled orders in the current filter."
+                  >
+                    {pulsePacks ? (
+                      <>
+                        <b>{pulsePacks.figure}</b>
+                        {pulsePacks.unit ? (
+                          <small>{pulsePacks.unit}</small>
+                        ) : null}
+                      </>
+                    ) : (
+                      <b>···</b>
+                    )}
+                  </AppTooltip>
+                </dd>
+              </div>
+            </dl>
+
+            <dl className="umkm-stage-rates" aria-label="Order rates">
+              {(
+                [
+                  [
+                    'tone-cancel',
+                    'Cancel',
+                    'Share of filtered orders that were cancelled.',
+                    'Cancelled ÷ all orders in the current filter',
+                    summary?.cancellationRate,
+                  ],
+                  [
+                    'tone-margin',
+                    'Margin',
+                    'Estimated profit as a share of revenue when cost is known.',
+                    'Profit ÷ revenue on non-cancelled orders with cost',
+                    summary?.profitMarginRate,
+                  ],
+                  [
+                    'tone-discount',
+                    'Discount',
+                    'How much of the list price was given away as discounts.',
+                    'Discount ÷ pre-discount line totals on non-cancelled orders',
+                    summary?.discountRate,
+                  ],
+                  [
+                    'tone-paid',
+                    'Paid in full',
+                    'Share of active filtered orders already paid in full.',
+                    'Fully paid ÷ non-cancelled orders in the current filter',
+                    summary?.fullPaymentRate,
+                  ],
+                ] as const
+              ).map(([tone, shortLabel, description, detail, value]) => (
+                <AppTooltip
+                  key={tone}
+                  className="umkm-tip-block"
+                  disabled={!summary}
+                  tone={
+                    tone === 'tone-paid'
+                      ? 'paid'
+                      : tone === 'tone-margin'
+                        ? 'margin'
+                        : tone === 'tone-discount'
+                          ? 'discount'
+                          : 'cancel'
+                  }
+                  label={shortLabel}
+                  value={
+                    summary ? formatRatePercent(value) : undefined
+                  }
+                  description={description}
+                  detail={detail}
+                >
+                  <div
+                    className={`umkm-stage-rate ${tone}`}
+                    style={rateMeterStyle(value, summaryLoading)}
+                  >
+                    <div className="umkm-stage-rate-row">
+                      <dt>{shortLabel}</dt>
+                      <dd>
+                        {summary ? formatRatePercent(value) : '···'}
+                      </dd>
+                    </div>
+                    <span className="umkm-stage-meter" aria-hidden>
+                      <i />
+                    </span>
+                  </div>
+                </AppTooltip>
+              ))}
+            </dl>
+          </div>
+        </header>
+      )}
       {error ? <div className="umkm-error">{error}</div> : null}
 
       {viewing ? (
@@ -1836,7 +2185,7 @@ export default function OrdersPage() {
       <ContentSection
         eyebrow="Fulfillment"
         title="Orders"
-        description="Search and sort pack-based orders by date, status, and total."
+        description="Search and sort pack-based orders by date, status, payment, and total."
       >
         <div className="umkm-catalog-toolbar">
           <div className="umkm-field umkm-catalog-search">
@@ -1849,47 +2198,98 @@ export default function OrdersPage() {
               autoComplete="off"
             />
           </div>
-          <div
-            className="umkm-catalog-filters"
-            role="group"
-            aria-label="Filter by status"
+          <CollapsibleFilters
+            activeCount={
+              (statusFilters.length > 0 ? 1 : 0) +
+              (paymentFilters.length > 0 ? 1 : 0) +
+              (isDateRangeActive(orderDateRange) ? 1 : 0) +
+              (isDateRangeActive(shipmentDateRange) ? 1 : 0) +
+              (isDateRangeActive(invoiceDateRange) ? 1 : 0)
+            }
           >
-            <button
-              type="button"
-              className={`umkm-filter-chip${statusFilter === 'ALL' ? ' is-active' : ''}`}
-              onClick={() => setStatusFilter('ALL')}
-              aria-pressed={statusFilter === 'ALL'}
-            >
-              All
-            </button>
-            {ORDER_STATUSES.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={`umkm-filter-chip${statusFilter === status ? ' is-active' : ''}`}
-                onClick={() => setStatusFilter(status)}
-                aria-pressed={statusFilter === status}
-              >
-                {orderStatusLabel(status)}
-              </button>
-            ))}
-          </div>
+            <MultiSelectFilter
+              id="order-status-filter"
+              label="Status"
+              allLabel="All statuses"
+              value={statusFilters}
+              onChange={(next) => {
+                setStatusFilters(next);
+                setPage(1);
+              }}
+              options={ORDER_STATUSES.map((status) => ({
+                value: status,
+                label: orderStatusLabel(status),
+              }))}
+            />
+            <MultiSelectFilter
+              id="order-payment-filter"
+              label="Payment"
+              allLabel="All payments"
+              value={paymentFilters}
+              onChange={(next) => {
+                setPaymentFilters(next);
+                setPage(1);
+              }}
+              options={PAYMENT_STATUSES.map((status) => ({
+                value: status,
+                label: paymentStatusLabel(status),
+              }))}
+            />
+            <DateRangeFilter
+              id="order-date-filter"
+              label="Order date"
+              allLabel="All order dates"
+              value={orderDateRange}
+              onChange={(next) => {
+                setOrderDateRange(next);
+                setPage(1);
+              }}
+            />
+            <DateRangeFilter
+              id="shipment-date-filter"
+              label="Shipment date"
+              allLabel="All shipment dates"
+              value={shipmentDateRange}
+              onChange={(next) => {
+                setShipmentDateRange(next);
+                setPage(1);
+              }}
+            />
+            <DateRangeFilter
+              id="invoice-date-filter"
+              label="Invoice date"
+              allLabel="All invoice dates"
+              value={invoiceDateRange}
+              onChange={(next) => {
+                setInvoiceDateRange(next);
+                setPage(1);
+              }}
+            />
+          </CollapsibleFilters>
           <p className="umkm-catalog-count">
-            {fulfillment.length} order{fulfillment.length === 1 ? '' : 's'}
-            {statusFilter !== 'ALL' ? ` · ${orderStatusLabel(statusFilter)}` : ''}
+            {listLoading
+              ? 'Loading…'
+              : listMeta.total === 0
+                ? '0 orders'
+                : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
-        {items.length === 0 ? (
-          <EmptyState
-            title="No orders yet"
-            description="Create an order from a product pack to track fulfillment and stock."
-          />
-        ) : fulfillment.length === 0 ? (
-          <EmptyState
-            title="No matches"
-            description="Try another search or clear the status filter."
-          />
+        {listMeta.total === 0 && !listLoading ? (
+          debouncedSearch ||
+          statusFilters.length > 0 ||
+          paymentFilters.length > 0 ||
+          hasDateFilters ? (
+            <EmptyState
+              title="No matches"
+              description="Try another search or clear the filters."
+            />
+          ) : (
+            <EmptyState
+              title="No orders yet"
+              description="Create an order from a product pack to track fulfillment and stock."
+            />
+          )
         ) : (
           <>
             <div className="umkm-table-wrap umkm-catalog-table-wrap">
@@ -1947,6 +2347,9 @@ export default function OrdersPage() {
                         Payment
                       </button>
                     </th>
+                    <th className="is-num">
+                      <span className="umkm-th-label">Paid</span>
+                    </th>
                     <th className="is-actions">
                       <span className="umkm-th-label">Actions</span>
                     </th>
@@ -1961,6 +2364,8 @@ export default function OrdersPage() {
                     const packPrice =
                       o.packPriceSnapshot ?? o.price ?? o.unitPriceSnapshot;
                     const extra = orderExtraLineCount(o);
+                    const paid = orderPaidAmount(o);
+                    const paymentRate = orderPaymentRatePercent(o);
                     return (
                       <tr
                         key={o.id}
@@ -2043,6 +2448,13 @@ export default function OrdersPage() {
                             {paymentStatusLabel(o.paymentStatus)}
                           </span>
                         </td>
+                        <td className="is-num">
+                          <PaidRateCell
+                            rate={paymentRate}
+                            paidLabel={formatMoney(paid)}
+                            totalLabel={formatMoney(o.totalOrderValue)}
+                          />
+                        </td>
                         <td className="is-actions">
                           <div
                             className="umkm-row-actions umkm-icon-actions"
@@ -2088,6 +2500,8 @@ export default function OrdersPage() {
                     o.totalOrderValue,
                     o.installments ?? [],
                   );
+                const paymentRate = orderPaymentRatePercent(o);
+                const paid = orderPaidAmount(o);
                 return (
                   <li key={o.id} className="umkm-catalog-card">
                     <button
@@ -2135,14 +2549,28 @@ export default function OrdersPage() {
                           </strong>
                         </div>
                         <div>
-                          <span>Left</span>
-                          <strong>{formatMoney(remaining)}</strong>
+                          <span>Paid</span>
+                          <strong>
+                            <AppTooltip
+                              embedded
+                              label="Paid"
+                              value={
+                                paymentRate == null
+                                  ? undefined
+                                  : formatRatePercent(paymentRate)
+                              }
+                              description="How much of this order’s total has been collected so far."
+                              detail={`${formatMoney(paid)} of ${formatMoney(o.totalOrderValue)}`}
+                            >
+                              {paymentRate == null
+                                ? '—'
+                                : formatRatePercent(paymentRate)}
+                            </AppTooltip>
+                          </strong>
                         </div>
                         <div>
-                          <span>Invoice</span>
-                          <strong className="umkm-catalog-metric-text">
-                            {invoiceStatusLabel(o.invoiceStatus)}
-                          </strong>
+                          <span>Left</span>
+                          <strong>{formatMoney(remaining)}</strong>
                         </div>
                       </div>
                     </button>
@@ -2170,6 +2598,33 @@ export default function OrdersPage() {
                 );
               })}
             </ul>
+            {listMeta.totalPages > 1 ? (
+              <div className="umkm-list-pager" aria-label="Orders pages">
+                <button
+                  type="button"
+                  className="umkm-btn ghost"
+                  disabled={listLoading || listMeta.page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="umkm-list-pager-status">
+                  Page {listMeta.page} of {listMeta.totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="umkm-btn ghost"
+                  disabled={
+                    listLoading || listMeta.page >= listMeta.totalPages
+                  }
+                  onClick={() =>
+                    setPage((p) => Math.min(listMeta.totalPages, p + 1))
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </ContentSection>

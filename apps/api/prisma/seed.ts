@@ -22,6 +22,9 @@ const SANDBOX_PROFILE =
   process.env.SEED_PROFILE_NAME?.trim() || 'rifqi_tjahyono';
 const SANDBOX_PASSWORD =
   process.env.SEED_PROFILE_PASSWORD?.trim() || '12041994';
+const SANDBOX_EMAIL =
+  process.env.SEED_PROFILE_EMAIL?.trim().toLowerCase() ||
+  'rifqi.m.tjahjono@gmail.com';
 const BCRYPT_ROUNDS = 12;
 
 /** Fixed UUIDs so re-seeding is idempotent. */
@@ -50,11 +53,12 @@ async function main() {
     profile = await prisma.profile.create({
       data: {
         profileName: SANDBOX_PROFILE,
+        email: SANDBOX_EMAIL,
         passwordHash,
       },
     });
     created = true;
-    console.log(`Created sandbox profile: ${SANDBOX_PROFILE}`);
+    console.log(`Created sandbox profile: ${SANDBOX_PROFILE} <${SANDBOX_EMAIL}>`);
   } else if (process.env.SEED_RESET_PASSWORD === 'true') {
     const passwordHash = await bcrypt.hash(SANDBOX_PASSWORD, BCRYPT_ROUNDS);
     profile = await prisma.profile.update({

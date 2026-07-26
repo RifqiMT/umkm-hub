@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.88 |
-| **Date** | 2026-07-25 |
+| **Version** | 1.5.217 |
+| **Date** | 2026-07-26 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
 
@@ -53,10 +53,15 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | ID | Requirement |
 |----|-------------|
 | FR-P1 | System generates profile UUID |
-| FR-P2 | User can register with profile name + password (≥8) |
-| FR-P3 | User can login and receive access + refresh JWT |
-| FR-P4 | User can update profile name and/or password |
+| FR-P2 | User can register with unique username + unique email + password (≥8); usernames/emails unique case-insensitively (API field `profileName`). Live check via `POST /auth/register-availability` (both fields required) returns only available/taken with one unified message (anti-enumeration); register 409 uses the same copy |
+| FR-P2b | Each username stays bound to exactly one unique email (required); email is immutable after registration; Profile UI shows email read-only; `PATCH /profiles/me` rejects email changes |
+| FR-P3 | User can login with username or email (+ password) and receive access + refresh JWT |
+| FR-P4 | User can update password; username is immutable after registration (unique at create) |
 | FR-P5 | User can delete profile (cascade owned data) |
+| FR-P6 | Profile UI shows identity metadata, workspace snapshot (catalog/CRM/orders summaries), credential helpers (confirm + strength), and shortcuts to Dictionary/Analytics (web also Targets/Dashboard) |
+| FR-P7 | User can set optional first name, last name, and location city/country; location may be detected from client IP (with browser fallback on private networks); city/country sealed at rest, IP hashed; owner can read back city/country. Email is covered by FR-P2b (required + immutable)—not editable here |
+| FR-P8 | User can verify the locked email (and account) via emailed one-time link; login remains allowed while unverified; verify endpoint is idempotent for already-verified accounts (handles double-submit / Strict Mode) |
+| FR-P9 | Anti-enumeration: register and register-availability never reveal whether username or email collided; one unified taken message + Sign in CTA |
 
 ### FR-Product
 
@@ -88,10 +93,11 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-O7 | status: pending, confirmed, shipped, delivered, cancelled; cancelling restores stock for all lines |
 | FR-O8 | invoiceStatus: created, sent; optional invoiceDate (defaults to order date on create) |
 | FR-O9 | Installments: amount + date; UI may enter amount or % of order total (stored as amount); dates non-decreasing; replaceable on update; sum ≤ totalOrderValue |
-| FR-O10 | remainingAmount = totalOrderValue − sum(installments); paidAmount = sum(installments); both computed on read |
+| FR-O10 | remainingAmount = totalOrderValue − sum(installments); paidAmount = sum(installments); both computed on read; list shows Paid % (paid ÷ total) |
 | FR-O11 | Stock draw/restore applies per product across all lines in one transaction |
 | FR-O12 | Optional customerId link to CRM customer; unlinked orders remain valid |
 | FR-O13 | Live stock shortage UX: highlight oversold lines and block save until fixed |
+| FR-O14 | List filterable by order date, shipment date, invoice date (inclusive from/to ranges), fulfillment status, and payment status |
 
 ### FR-Warehouse
 
@@ -112,23 +118,43 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-T2 | Monthly: Manual (12 amounts) or Systematic (January base + MoM growth % → generated months). Saving months syncs annual target to month sum |
 | FR-T3 | Annual: Manual or Systematic (+ optional YoY growth for next-year projection). Saving annual evenly distributes into 12 months (Dec absorbs remainder). Displayed annual always equals month sum when months exist |
 | FR-T4 | Actuals = SUM(Order.totalOrderValue) for orderDate in period where status ≠ CANCELLED |
-| FR-T5 | Clearing monthly or annual removes the whole year plan so month and annual never diverge |
+| FR-T5 | One Clear plan removes the whole year (months + annual) so they never diverge; UI is a single plan surface with **By month / By year** view switch and one Edit/Clear |
+| FR-T6 | Targets FeatureStage KPIs: Annual target, Annual actual, Next year projection; rates **Attainment**, **On plan** (months with attainment ≥ 100 ÷ months with target > 0), **Pace** (YTD actual ÷ sum of targets for elapsed UTC months), **Coverage** (months with target ÷ 12) |
 
 ### FR-Analytics
 
 | ID | Requirement |
 |----|-------------|
-| FR-A1 | Profile-scoped analytics overview for a calendar year |
-| FR-A2 | Monthly series: revenue, order count, AOV, optional monthly target + attainment |
-| FR-A3 | Annual series: rolling 5-year window ending at selected year |
+| FR-A1 | Profile-scoped analytics overview for a calendar year, multiple years (`years=2024,2025`), or all timelines (`years=all`) |
+| FR-A2 | Monthly series: revenue, order count, AOV, optional monthly target + attainment for every month in the Timeline filter (selected year(s) or full app timeline when All); **charts omit months with zero orders** |
+| FR-A2b | Quarterly series: revenue, order count, AOV, optional quarterly target (sum of the three monthly plan amounts) + attainment for every UTC calendar quarter in the Timeline filter; **charts omit quarters with zero orders** |
+| FR-A3 | Annual series: rolling window ending at selected year; multi-year shows selected years only; **All timelines** loads full app year range; **charts omit years with zero orders** |
 | FR-A4 | Actuals use the same rules as FR-T4 (shared aggregation helper) |
 | FR-A5 | Web `/analytics` + Flutter Analytics screen (entry from Profile) |
-| FR-A6 | Product performance for selected year: revenue, order count, qty sold, discount (+%), estimated cost/profit/margin (+%), AOV |
-| FR-A7 | Attainment rate and profit margin rate charts (monthly or annual view) |
-| FR-A8 | Shipment duration, first payment duration, last payment duration (avg days), and AOV charts |
-| FR-A9 | UX: focus toolbar, KPI snapshot, sectioned chart groups (Performance / Rates / Lead times / Lifetime value); year filter only in Monthly view |
-| FR-A10 | Customer LTV: avg LTV on summary/monthly/annual; Average LTV trend + Top customers by LTV (web + mobile) |
-| FR-A11 | Customer performance table for linked orders (same metrics family as products) |
+| FR-A6 | Product performance for selected scope: revenue, order count, qty sold, packs sold, discount (+%), estimated cost/profit/margin (+%), AOV, first/avg repeat order days |
+| FR-A6b | Customer performance: same metric family as products, including first repeat days (1st→2nd order) and avg repeat days (mean consecutive gaps); null when fewer than 2 orders |
+| FR-A7 | Attainment rate and profit margin rate charts (weekly, monthly, quarterly, or annual view) |
+| FR-A8 | Shipment duration, invoice duration, first/last payment duration, AOV, UPT, and average purchase frequency charts |
+| FR-A9 | UX: analytics lens (Weekly/Monthly/Quarterly/Annual + TimelineFilter multi-select years / All), sectioned chart groups |
+| FR-A10 | Customer LTV: avg LTV on summary/series; Average LTV trend + Top **and Bottom** 5 customers by LTV (web + mobile) |
+| FR-A11 | Customer performance table for linked orders (same metrics family as products, including packs sold) |
+| FR-A12 | Product revenue: avg product revenue on summary/series; Average product revenue trend + Top **and Bottom** 5 products by revenue (web + mobile) |
+| FR-A13 | Units Per Transaction (UPT): Σ(packCount) ÷ orders; Performance chart + lens KPI (API field `avgBasketSize`) |
+| FR-A14 | Weekly series: every ISO week in the Timeline filter (selected year(s) or full app timeline when All); day-weighted monthly target distribution + attainment when a 12-month plan exists; **charts omit weeks with zero orders** |
+| FR-A15 | Average purchase frequency (APF): linked orders ÷ distinct customers; Performance chart + lens KPI |
+| FR-A16 | Order status % mix (includes CANCELLED) and payment mode % mix (CASH / CONSIGNMENT / DELAYED_PAYMENT on non-cancelled orders) on weekly/monthly/quarterly/annual timeline charts (web + mobile) |
+| FR-A17 | Single Graph \| Table control in the Analytics lens / Period header switches all chart panels (web + mobile); table shows the same metric values as the graph |
+| FR-A18 | Fullscreen focuses Analytics chart/table panels only: web Fullscreen API on a stable charts host + chart-first cinema UI with period + Graph/Table toggles, bottom Previous/Next + scrubber; prev/next swaps panels without re-entering FS; mobile immersive with matching controls; Esc/close exits |
+| FR-A19 | Progressive analytics load: `GET /analytics` accepts `include` + `granularity` to skip unused work; clients fetch summary+active series first, then product/customer tables; remaining series on period change; web code-splits Recharts and lazy-mounts panels; mobile lazy-builds charts near the viewport |
+
+### FR-Dashboard
+
+| ID | Requirement |
+|----|-------------|
+| FR-D1 | Web `/dashboard` loads order, product, and customer summary endpoints in parallel |
+| FR-D2 | Feature stage shows period-scoped Revenue, Orders, Packs plus order-health rates (margin, paid-in-full, discount, cancelled) |
+| FR-D3 | Workspace board with interactive domain panels for Orders (featured), Products, and Customers; slim rail links Warehouse / Targets / Analytics |
+| FR-D4 | Period filter (All time / Today / Tomorrow / This week / This month / Next month / This quarter / Next quarter / This year) scopes order summary by `orderDate`; catalog and CRM summaries remain workspace-wide |
 
 ### FR-UX
 
@@ -137,7 +163,9 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-UX1 | Every delete or clear of persisted data requires an explicit in-app confirmation (not native browser). Show entity context; warn that the action cannot be undone |
 | FR-UX2 | On narrow viewports and mobile app, list actions use full-width labeled touch targets (≥44px); create/edit forms keep actions reachable with keyboard open |
 | FR-UX3 | Catalog identity polish: Products show name + unit chip + soft SKU; Orders show date + soft order ID; details/shipment live in View sheets |
-| FR-UX4 | Money uses compact `formatMoney` (Mn/Bn/Tn/Qd/Qn); quantities use `formatQty` (full digits) |
+| FR-UX4 | Money uses compact `formatMoney` (million/billion/…); tooltips use `formatMoneyExact`; chart axes use `formatCompactAxis`; quantities use `formatQty` (full digits) or compact words for large KPIs |
+| FR-UX5 | Dictionary / Glossary: searchable plain-English definitions and formulas for user-facing metrics across Dashboard, Products, Warehouse, Customers, Orders, Targets, Analytics; feature browse + expandable term detail (web nav + mobile Profile entry) |
+| FR-UX6 | Responsive chrome: tablet icon rail (901–1100); phone bottom tabs (Home / Orders / Products / Stock / More) + drawer; filter panels open as bottom sheets ≤900px; filter rows collapsible (collapsed by default ≤1100 + mobile); sticky form actions clear bottom nav + safe areas; touch targets ≥44px |
 
 ---
 

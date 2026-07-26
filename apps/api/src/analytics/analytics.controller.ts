@@ -1,9 +1,8 @@
 import {
   Controller,
-  DefaultValuePipe,
   Get,
-  ParseIntPipe,
   Query,
+  BadRequestException,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -12,6 +11,8 @@ import {
   type AuthUser,
 } from '../common/decorators/current-user.decorator';
 import { AnalyticsService } from './analytics.service';
+import { parseAnalyticsTimeline } from './analytics-period';
+import { parseAnalyticsOverviewOptions } from './analytics-query';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
@@ -21,9 +22,23 @@ export class AnalyticsController {
   @Get()
   overview(
     @CurrentUser() user: AuthUser,
-    @Query('year', new DefaultValuePipe(new Date().getUTCFullYear()), ParseIntPipe)
-    year: number,
+    @Query('year') yearRaw?: string,
+    @Query('years') yearsRaw?: string,
+    @Query('include') includeRaw?: string,
+    @Query('granularity') granularityRaw?: string,
   ) {
-    return this.analyticsService.getOverview(user.profileId, year);
+    try {
+      const timeline = parseAnalyticsTimeline(yearRaw, yearsRaw);
+      const options = parseAnalyticsOverviewOptions(includeRaw, granularityRaw);
+      return this.analyticsService.getOverview(
+        user.profileId,
+        timeline,
+        options,
+      );
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Invalid analytics query',
+      );
+    }
   }
 }

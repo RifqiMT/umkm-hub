@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../format_money.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
+import '../services/product_packs.dart';
+import '../timeline.dart';
 import '../widgets/ui.dart';
 
 String _todayDate() {
@@ -11,6 +13,13 @@ String _todayDate() {
   final m = now.month.toString().padLeft(2, '0');
   final d = now.day.toString().padLeft(2, '0');
   return '${now.year}-$m-$d';
+}
+
+Product? _productById(List<Product> products, String productId) {
+  for (final p in products) {
+    if (p.id == productId) return p;
+  }
+  return null;
 }
 
 class WarehouseScreen extends StatefulWidget {
@@ -33,16 +42,26 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   }
 
   Future<void> _load() async {
+    final hasData = items.isNotEmpty || products.isNotEmpty;
     setState(() {
-      loading = true;
+      // Keep previous lists visible while refreshing.
+      loading = !hasData;
       error = null;
     });
     try {
       final api = context.read<ApiService>();
-      items = await api.listWarehouseRestocks();
-      products = await api.listProducts();
+      final results = await Future.wait([
+        api.listWarehouseRestocks(),
+        api.listProducts(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        items = results[0] as List<WarehouseRestock>;
+        products = results[1] as List<Product>;
+      });
     } catch (e) {
-      error = e.toString();
+      if (!mounted) return;
+      setState(() => error = e.toString());
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -89,7 +108,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
-      firstDate: DateTime(2020),
+      firstDate: AppTimeline.firstDate,
       lastDate: DateTime(2100),
       helpText: 'Restock date',
     );
@@ -99,6 +118,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
       onPicked('${picked.year}-$m-$d');
     }
   }
+
 
   Future<void> _openForm({Product? product}) async {
     if (products.isEmpty) {
@@ -110,39 +130,87 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
 
     String productId = product?.id ?? products.first.id;
     final qtyCtrl = TextEditingController(text: '1');
+    final packsCtrl = TextEditingController(text: '1');
     final notesCtrl = TextEditingController();
     String restockDate = _todayDate();
+    var entryByPack = false;
+
+    void syncFromProduct(Product p, void Function(VoidCallback) setLocal) {
+      final pack = getActivePack(p);
+      entryByPack = pack != null && pack.size > 1;
+      if (entryByPack && pack != null) {
+        packsCtrl.text = '1';
+        qtyCtrl.text = qtyFromPackCount(1, pack.size).toString();
+      } else {
+        qtyCtrl.text = '1';
+        packsCtrl.text =
+            pack != null ? (packsOnHand(1, pack) ?? 1).toString() : '1';
+      }
+      setLocal(() {});
+    }
+
+    final initial = products.firstWhere((p) => p.id == productId);
+    final initialPack = getActivePack(initial);
+    entryByPack = initialPack != null && initialPack.size > 1;
+    if (entryByPack && initialPack != null) {
+      packsCtrl.text = '1';
+      qtyCtrl.text = qtyFromPackCount(1, initialPack.size).toString();
+    }
 
     final saved = await showAppFormSheet<bool>(
       context: context,
       title: 'Add restock',
       body: (context, setLocal) {
         final product = products.firstWhere((p) => p.id == productId);
+        final pack = getActivePack(product);
+        final packModeAvailable = pack != null && pack.size > 1;
         final qty = double.tryParse(qtyCtrl.text) ?? 0;
+        final packs = double.tryParse(packsCtrl.text) ?? 0;
+        final packsNow = formatPacksOnHand(product.stockQty, pack);
+        final packsAfter = formatPacksOnHand(product.stockQty + qty, pack);
+        final packsAddedLabel = formatPacksOnHand(qty, pack);
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             FormSection(
               title: 'Restock',
-              description: 'Add stock for a product in your catalog.',
+              description: pack != null
+                  ? 'Active pack ${pack.sizeLabel}. Add by pack count or unit qty.'
+                  : 'Add stock for a product in your catalog.',
               child: Column(
                 children: [
                   DropdownButtonFormField<String>(
                     value: productId,
-                    items: products
-                        .map(
-                          (p) => DropdownMenuItem(
-                            value: p.id,
-                            child: Text(
-                              '${p.name} (${p.stockQty} ${p.unit.toLowerCase()})',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) =>
-                        setLocal(() => productId = v ?? productId),
+                    items: products.map((p) {
+                      final pPack = getActivePack(p);
+                      return DropdownMenuItem(
+                        value: p.id,
+                        child: Text(
+                          pPack != null
+                              ? '${p.name} (${formatQty(p.stockQty)} ${p.unit.toLowerCase()} · ${pPack.sizeLabel})'
+                              : '${p.name} (${formatQty(p.stockQty)} ${p.unit.toLowerCase()})',
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      final nextId = v ?? productId;
+                      productId = nextId;
+                      final next = products.firstWhere((p) => p.id == nextId);
+                      syncFromProduct(next, setLocal);
+                    },
                     decoration: const InputDecoration(labelText: 'Product'),
                   ),
+                  if (pack != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: StatusChip(
+                        label: 'Pack ${pack.sizeLabel}',
+                        tone: StatusTone.brand,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -154,15 +222,82 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                       onPicked: (v) => setLocal(() => restockDate = v),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: qtyCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Qty to add (${product.unit.toLowerCase()})',
+                  if (packModeAvailable) ...[
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Enter by pack (${pack!.sizeLabel})'),
+                      value: entryByPack,
+                      onChanged: (v) {
+                        setLocal(() {
+                          entryByPack = v;
+                          if (v) {
+                            if ((double.tryParse(packsCtrl.text) ?? 0) <= 0) {
+                              packsCtrl.text = '1';
+                            }
+                            qtyCtrl.text = qtyFromPackCount(
+                              double.tryParse(packsCtrl.text) ?? 1,
+                              pack.size,
+                            ).toString();
+                          } else {
+                            packsCtrl.text =
+                                (packsOnHand(qty, pack) ?? 0).toString();
+                          }
+                        });
+                      },
                     ),
-                    onChanged: (_) => setLocal(() {}),
-                  ),
+                  ],
+                  const SizedBox(height: 8),
+                  if (entryByPack && packModeAvailable)
+                    TextField(
+                      controller: packsCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Packs to add (${pack!.sizeLabel})',
+                      ),
+                      onChanged: (v) {
+                        final pCount = double.tryParse(v) ?? 0;
+                        qtyCtrl.text =
+                            qtyFromPackCount(pCount, pack.size).toString();
+                        setLocal(() {});
+                      },
+                    )
+                  else
+                    TextField(
+                      controller: qtyCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText:
+                            'Qty to add (${product.unit.toLowerCase()})',
+                      ),
+                      onChanged: (v) {
+                        if (pack != null) {
+                          final nextQty = double.tryParse(v) ?? 0;
+                          packsCtrl.text =
+                              (packsOnHand(nextQty, pack) ?? 0).toString();
+                        }
+                        setLocal(() {});
+                      },
+                    ),
+                  if (entryByPack && packModeAvailable) ...[
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '= ${formatQty(qty)} ${product.unit.toLowerCase()}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ),
+                  ] else if (pack != null && packs > 0) ...[
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${formatQty(packs)} × ${pack.sizeLabel}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   TextField(
                     controller: notesCtrl,
@@ -179,17 +314,24 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Stock ${product.stockQty} → ${product.stockQty + qty} ${product.unit.toLowerCase()}',
+                    'Stock ${formatQty(product.stockQty)} → ${formatQty(product.stockQty + qty)} ${product.unit.toLowerCase()}',
                   ),
-                  Text('Sell value now: ${formatMoney(product.potentialRevenue)}'),
+                  if (packsNow != null || packsAfter != null)
+                    Text(
+                      'Packs ${packsNow ?? '—'} → ${packsAfter ?? '—'}'
+                      '${packsAddedLabel != null ? ' (+$packsAddedLabel)' : ''}',
+                    ),
+                  Text(
+                    'Sell value now: ${formatMoney(product.potentialRevenue)}',
+                  ),
                   Text(
                     product.potentialCost != null
-                        ? 'Cost value now: ${product.potentialCost}'
+                        ? 'Cost value now: ${formatMoney(product.potentialCost!)}'
                         : 'Cost value now: —',
                   ),
                   Text(
                     product.potentialProfit != null
-                        ? 'Profit value now: ${product.potentialProfit}'
+                        ? 'Profit value now: ${formatMoney(product.potentialProfit!)}'
                         : 'Profit value now: —',
                   ),
                   Text(
@@ -236,6 +378,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   }
 
   Future<void> _openViewProduct(Product product) async {
+    final pack = getActivePack(product);
+    final packsLabel = formatPacksOnHand(product.stockQty, pack);
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -249,17 +393,48 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               children: [
                 DetailRow(label: 'Unit', value: product.unit),
                 DetailRow(
-                  label: 'Stock',
-                  value: '${product.stockQty} ${product.unit.toLowerCase()}',
+                  label: 'Pack',
+                  value: pack != null ? pack.sizeLabel : 'No pack',
                 ),
-                DetailRow(label: 'Unit sell', value: formatMoney(product.pricePerUnit)),
+                DetailRow(
+                  label: 'Stock',
+                  value: '${formatQty(product.stockQty)} ${product.unit.toLowerCase()}',
+                ),
+                DetailRow(
+                  label: 'Packs in stock',
+                  value: packsLabel ?? '—',
+                ),
+                if (pack != null) ...[
+                  DetailRow(
+                    label: 'Pack sell',
+                    value: formatMoney(pack.price),
+                  ),
+                  DetailRow(
+                    label: 'Pack cost',
+                    value: pack.cost != null ? formatMoney(pack.cost!) : '—',
+                  ),
+                  DetailRow(
+                    label: 'Pack profit',
+                    value: pack.cost != null
+                        ? formatMoney(pack.price - pack.cost!)
+                        : '—',
+                  ),
+                ],
+                DetailRow(
+                  label: 'Unit sell',
+                  value: formatMoney(product.pricePerUnit),
+                ),
                 DetailRow(
                   label: 'Unit cost',
-                  value: product.costPerUnit != null ? formatMoney(product.costPerUnit!) : '—',
+                  value: product.costPerUnit != null
+                      ? formatMoney(product.costPerUnit!)
+                      : '—',
                 ),
                 DetailRow(
                   label: 'Unit profit',
-                  value: product.unitProfit != null ? formatMoney(product.unitProfit!) : '—',
+                  value: product.unitProfit != null
+                      ? formatMoney(product.unitProfit!)
+                      : '—',
                 ),
                 DetailRow(
                   label: 'Margin',
@@ -273,11 +448,15 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 ),
                 DetailRow(
                   label: 'Cost value',
-                  value: product.potentialCost != null ? formatMoney(product.potentialCost!) : '—',
+                  value: product.potentialCost != null
+                      ? formatMoney(product.potentialCost!)
+                      : '—',
                 ),
                 DetailRow(
                   label: 'Profit value',
-                  value: product.potentialProfit != null ? formatMoney(product.potentialProfit!) : '—',
+                  value: product.potentialProfit != null
+                      ? formatMoney(product.potentialProfit!)
+                      : '—',
                 ),
               ],
             ),
@@ -294,6 +473,12 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   }
 
   Future<void> _openViewRestock(WarehouseRestock restock) async {
+    final product = _productById(products, restock.productId);
+    final pack = product != null ? getActivePack(product) : null;
+    final u = (restock.unitSnapshot ?? product?.unit ?? '').toLowerCase();
+    final packsAdded = formatPacksOnHand(restock.qtyAdded, pack);
+    final packsBefore = formatPacksOnHand(restock.stockBefore, pack);
+    final packsAfter = formatPacksOnHand(restock.stockAfter, pack);
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -307,13 +492,19 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               children: [
                 DetailRow(label: 'Restock date', value: restock.restockDate),
                 DetailRow(
+                  label: 'Pack',
+                  value: pack != null ? pack.sizeLabel : '—',
+                ),
+                DetailRow(
                   label: 'Qty added',
-                  value:
-                      '+${restock.qtyAdded} ${(restock.unitSnapshot ?? '').toLowerCase()}',
+                  value: '+${formatQty(restock.qtyAdded)} $u'
+                      '${packsAdded != null ? ' · $packsAdded' : ''}',
                 ),
                 DetailRow(
                   label: 'Before → after',
-                  value: '${restock.stockBefore} → ${restock.stockAfter}',
+                  value:
+                      '${formatQty(restock.stockBefore)} → ${formatQty(restock.stockAfter)}'
+                      '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
                 ),
                 DetailRow(
                   label: 'Notes',
@@ -354,11 +545,11 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
           children: [
             const PageIntro(
               subtitle:
-                  'Stock levels, sell, cost, profit, margin, and restock history.',
+                  'Stock by pack, inventory value, and restock history.',
             ),
             const SectionLabel(
               'Inventory',
-              subtitle: 'Stock on hand with sell, cost, profit, and margin.',
+              subtitle: 'Stock, active pack, and inventory value from catalog rates.',
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -415,11 +606,17 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 message: 'Create products first, then restock here.',
               )
             else
-              ...products.map(
-                (p) => EntityCard(
+              ...products.map((p) {
+                final pack = getActivePack(p);
+                final packsLabel = formatPacksOnHand(p.stockQty, pack);
+                return EntityCard(
                   title: p.name,
                   chips: [
                     StatusChip(label: p.unit, tone: StatusTone.neutral),
+                    StatusChip(
+                      label: pack != null ? 'Pack ${pack.sizeLabel}' : 'No pack',
+                      tone: pack != null ? StatusTone.brand : StatusTone.neutral,
+                    ),
                     if (p.profitMarginPercent != null)
                       StatusChip(
                         label: '${p.profitMarginPercent}%',
@@ -427,7 +624,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                       ),
                   ],
                   details: [
-                    'Stock ${p.stockQty} ${p.unit.toLowerCase()}',
+                    'Stock ${formatMoney(p.stockQty)} ${p.unit.toLowerCase()}',
+                    if (packsLabel != null) 'Packs in stock · $packsLabel',
                   ],
                   metrics: [
                     ('Sell', formatMoney(p.potentialRevenue)),
@@ -437,7 +635,9 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     ),
                     (
                       'Profit',
-                      p.potentialProfit != null ? formatMoney(p.potentialProfit!) : '—',
+                      p.potentialProfit != null
+                          ? formatMoney(p.potentialProfit!)
+                          : '—',
                     ),
                     if (p.profitMarginPercent != null)
                       ('Margin', '${p.profitMarginPercent}%'),
@@ -455,8 +655,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                       onPressed: () => _openForm(product: p),
                     ),
                   ],
-                ),
-              ),
+                );
+              }),
             const SectionLabel(
               'Restock history',
               subtitle: 'Every stock addition with before and after quantities.',
@@ -467,27 +667,48 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 child: Text('No restocks yet.'),
               )
             else
-              ...items.map(
-                (r) => EntityCard(
+              ...items.map((r) {
+                final product = _productById(products, r.productId);
+                final pack = product != null ? getActivePack(product) : null;
+                final packsAdded = formatPacksOnHand(r.qtyAdded, pack);
+                final packsBefore = formatPacksOnHand(r.stockBefore, pack);
+                final packsAfter = formatPacksOnHand(r.stockAfter, pack);
+                final u = (r.unitSnapshot ?? product?.unit ?? '').toLowerCase();
+                return EntityCard(
                   title: r.productName ?? r.productId,
                   chips: [
                     StatusChip(
-                      label:
-                          '+${r.qtyAdded} ${(r.unitSnapshot ?? '').toLowerCase()}',
+                      label: '+${formatQty(r.qtyAdded)} $u',
                       tone: StatusTone.brand,
                     ),
+                    if (pack != null)
+                      StatusChip(
+                        label: 'Pack ${pack.sizeLabel}',
+                        tone: StatusTone.neutral,
+                      ),
                   ],
                   details: [
                     if (r.restockDate.isNotEmpty) r.restockDate,
+                    if (packsAdded != null) 'Added $packsAdded',
                     if (r.notes.isNotEmpty) r.notes,
                   ],
                   metrics: [
-                    ('Before', '${r.stockBefore}'),
-                    ('After', '${r.stockAfter}'),
+                    (
+                      'Before',
+                      packsBefore != null
+                          ? '${formatQty(r.stockBefore)} · $packsBefore'
+                          : formatQty(r.stockBefore),
+                    ),
+                    (
+                      'After',
+                      packsAfter != null
+                          ? '${formatQty(r.stockAfter)} · $packsAfter'
+                          : formatQty(r.stockAfter),
+                    ),
                   ],
                   onTap: () => _openViewRestock(r),
-                ),
-              ),
+                );
+              }),
           ],
         ),
       ),

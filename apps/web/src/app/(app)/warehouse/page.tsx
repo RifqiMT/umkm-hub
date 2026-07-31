@@ -2,18 +2,28 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { dedupeById } from '@/lib/dedupe-by-id';
 import {
   ContentSection,
   EmptyState,
+  FieldLabel,
   FormSection,
   PageHeader,
 } from '@/components/PageHeader';
+import { WarehouseStatisticsSection } from '@/app/(app)/warehouse/WarehouseStatisticsSection';
+import { ListPager } from '@/components/ListPager';
+import type { ListPageSize } from '@/lib/list-page-size';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
 import { OptionChips } from '@/components/OptionChips';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import {
+  FeatureDataTransfer,
+  FeatureDataTransferToggle,
+} from '@/components/FeatureDataTransfer';
 import { FeatureStage } from '@/components/FeatureStage';
-import { LABELS, PRODUCT_UNITS, todayDateInput } from '@/lib/enums';
+import { PRODUCT_UNITS, todayDateInput } from '@/lib/enums';
+import { useLabels } from '@/hooks/useLabels';
 import {
   formatPacksOnHand,
   getActivePack,
@@ -22,7 +32,11 @@ import {
   qtyFromPackCount,
   type ActivePack,
 } from '@/lib/product-pack';
-import { STOCK_STATUS_FILTER_OPTIONS } from '@/lib/product-readiness';
+import {
+  COST_SET_FILTER_OPTIONS,
+  PACK_READY_FILTER_OPTIONS,
+  STOCK_STATUS_FILTER_OPTIONS,
+} from '@/lib/product-readiness';
 import type {
   Paginated,
   Product,
@@ -33,7 +47,7 @@ import {
   formatDateLabel,
   formatMoney,
   formatMoneyParts,
-  formatQty,
+  formatCompactQty,
   formatMoneyExact,
 } from '@/lib/format-money';
 
@@ -42,11 +56,6 @@ type InvSortKey = 'name' | 'stock' | 'sell' | 'cost' | 'profit' | 'margin';
 type HistSortKey = 'date' | 'product' | 'qty' | 'after';
 type SortDir = 'asc' | 'desc';
 type RestockEntryMode = 'QTY' | 'PACK';
-
-function unitLabel(unit?: string) {
-  if (!unit) return '';
-  return LABELS.productUnit[unit as keyof typeof LABELS.productUnit] ?? unit;
-}
 
 function unitShort(unit?: string) {
   switch (unit) {
@@ -77,6 +86,20 @@ function IconView() {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+function IconEdit() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M12.5 7.5 16.5 11.5" stroke="currentColor" strokeWidth="1.75" />
     </svg>
   );
 }
@@ -264,35 +287,79 @@ function emptyForm(product?: Product): RestockForm {
   };
 }
 
+function formFromRestock(
+  restock: WarehouseRestock,
+  product?: Product | null,
+): RestockForm {
+  const p = product ?? restock.product ?? undefined;
+  const pack = p ? getActivePack(p) : null;
+  const qtyAdded = restock.qtyAdded;
+  const packsFromQty = pack ? packsOnHand(qtyAdded, pack) ?? 0 : 0;
+  const entryMode =
+    pack && pack.size > 1 && packsFromQty > 0 ? 'PACK' : 'QTY';
+  return {
+    productId: restock.productId,
+    qtyAdded,
+    packsAdded: entryMode === 'PACK' ? packsFromQty || 1 : packsFromQty,
+    restockDate: restock.restockDate?.slice(0, 10) ?? todayDateInput(),
+    notes: restock.notes ?? '',
+    entryMode,
+  };
+}
+
 export default function WarehousePage() {
+  const { productUnit } = useLabels();
+  const unitLabel = (unit?: string) => {
+    if (!unit) return '';
+    return productUnit[unit as keyof typeof productUnit] ?? unit;
+  };
   const [items, setItems] = useState<WarehouseRestock[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [summary, setSummary] = useState<WarehouseSummary | null>(null);
   const [form, setForm] = useState<RestockForm>(emptyForm());
   const [formOpen, setFormOpen] = useState(false);
+  const [editingRestockId, setEditingRestockId] = useState<string | null>(null);
+  const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [viewingRestock, setViewingRestock] =
     useState<WarehouseRestock | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+  const [invPage, setInvPage] = useState(1);
+  const [invPageSize, setInvPageSize] = useState<ListPageSize>(20);
   const [listMeta, setListMeta] = useState({
     total: 0,
     page: 1,
-    limit: 50,
+    limit: 20,
     totalPages: 0,
   });
+  const [histPage, setHistPage] = useState(1);
+  const [histPageSize, setHistPageSize] = useState<ListPageSize>(20);
+  const [histMeta, setHistMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 0,
+  });
+  const [histLoading, setHistLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [unitFilters, setUnitFilters] = useState<string[]>([]);
   const [stockStatusFilters, setStockStatusFilters] = useState<string[]>([]);
+  const [costSetFilters, setCostSetFilters] = useState<string[]>([]);
+  const [packReadyFilters, setPackReadyFilters] = useState<string[]>([]);
   const [invSortKey, setInvSortKey] = useState<InvSortKey>('name');
   const [invSortDir, setInvSortDir] = useState<SortDir>('asc');
   const [histSortKey, setHistSortKey] = useState<HistSortKey>('date');
   const [histSortDir, setHistSortDir] = useState<SortDir>('desc');
-  const loadSeq = useRef(0);
+  const invLoadSeq = useRef(0);
+  const histLoadSeq = useRef(0);
 
   const selected = products.find((p) => p.id === form.productId);
+  const editingRestock = editingRestockId
+    ? items.find((r) => r.id === editingRestockId) ?? null
+    : null;
 
   const inventory = useMemo(() => {
     // Products are already filter-scoped by the API; only sort locally.
@@ -353,67 +420,112 @@ export default function WarehousePage() {
     });
   }, [items, histSortKey, histSortDir]);
 
-  async function loadInventory(searchTerm = debouncedSearch) {
-    const seq = ++loadSeq.current;
+  async function loadSummary(searchTerm = debouncedSearch) {
+    const filterParams = {
+      search: searchTerm.trim() || undefined,
+      unit: unitFilters.length > 0 ? unitFilters : undefined,
+      stockStatus:
+        stockStatusFilters.length > 0 ? stockStatusFilters : undefined,
+      costSet: costSetFilters.length > 0 ? costSetFilters : undefined,
+      packReady: packReadyFilters.length > 0 ? packReadyFilters : undefined,
+    };
+    try {
+      const warehouseSummary = await api<WarehouseSummary>('/warehouse/summary', {
+        searchParams: filterParams,
+      });
+      setSummary(warehouseSummary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load warehouse');
+    }
+  }
+
+  async function loadInventory(searchTerm = debouncedSearch, nextPage = invPage) {
+    const seq = ++invLoadSeq.current;
     setListLoading(true);
     const filterParams = {
       search: searchTerm.trim() || undefined,
       unit: unitFilters.length > 0 ? unitFilters : undefined,
       stockStatus:
         stockStatusFilters.length > 0 ? stockStatusFilters : undefined,
+      costSet: costSetFilters.length > 0 ? costSetFilters : undefined,
+      packReady: packReadyFilters.length > 0 ? packReadyFilters : undefined,
     };
     try {
-      const [productList, warehouseSummary] = await Promise.all([
-        api<Paginated<Product>>('/products', {
-          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
-        }),
-        api<WarehouseSummary>('/warehouse/summary', {
-          searchParams: filterParams,
-        }),
-      ]);
-      if (seq !== loadSeq.current) return;
+      const productList = await api<Paginated<Product>>('/products', {
+        searchParams: {
+          ...filterParams,
+          page: nextPage,
+          limit: invPageSize,
+        },
+      });
+      if (seq !== invLoadSeq.current) return;
       setProducts(productList.items);
       setListMeta(productList.meta);
-      setSummary(warehouseSummary);
+      setInvPage(productList.meta.page);
       setError('');
     } catch (err) {
-      if (seq !== loadSeq.current) return;
+      if (seq !== invLoadSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load warehouse');
     } finally {
-      if (seq === loadSeq.current) setListLoading(false);
+      if (seq === invLoadSeq.current) setListLoading(false);
     }
   }
 
   /** Restock history is search-scoped only — skip on unit/stock filter changes. */
-  async function loadRestocks(searchTerm = debouncedSearch) {
+  async function loadRestocks(searchTerm = debouncedSearch, nextPage = histPage) {
+    const seq = ++histLoadSeq.current;
+    setHistLoading(true);
     try {
       const restocks = await api<Paginated<WarehouseRestock>>('/warehouse', {
-        searchParams: { limit: 50, search: searchTerm.trim() || undefined },
+        searchParams: {
+          page: nextPage,
+          limit: histPageSize,
+          search: searchTerm.trim() || undefined,
+        },
       });
-      setItems(restocks.items);
+      if (seq !== histLoadSeq.current) return;
+      setItems(dedupeById(restocks.items));
+      setHistMeta(restocks.meta);
+      setHistPage(restocks.meta.page);
     } catch (err) {
+      if (seq !== histLoadSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load warehouse');
+    } finally {
+      if (seq === histLoadSeq.current) setHistLoading(false);
     }
   }
 
-  async function load(searchTerm = debouncedSearch) {
-    await Promise.all([loadInventory(searchTerm), loadRestocks(searchTerm)]);
+  async function reloadAll(searchTerm = debouncedSearch) {
+    await Promise.all([
+      loadSummary(searchTerm),
+      loadInventory(searchTerm, invPage),
+      loadRestocks(searchTerm, histPage),
+    ]);
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search), 280);
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+      setInvPage(1);
+      setHistPage(1);
+    }, 280);
     return () => window.clearTimeout(timer);
   }, [search]);
 
   useEffect(() => {
-    void loadInventory(debouncedSearch);
+    void loadSummary(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, unitFilters, stockStatusFilters]);
+  }, [debouncedSearch, unitFilters, stockStatusFilters, costSetFilters, packReadyFilters]);
 
   useEffect(() => {
-    void loadRestocks(debouncedSearch);
+    void loadInventory(debouncedSearch, invPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
+  }, [invPage, invPageSize, debouncedSearch, unitFilters, stockStatusFilters, costSetFilters, packReadyFilters]);
+
+  useEffect(() => {
+    void loadRestocks(debouncedSearch, histPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histPage, histPageSize, debouncedSearch]);
 
   function toggleInvSort(key: InvSortKey) {
     if (invSortKey === key) {
@@ -446,6 +558,7 @@ export default function WarehousePage() {
   function startCreate() {
     setViewingProduct(null);
     setViewingRestock(null);
+    setEditingRestockId(null);
     setForm(emptyForm(products[0]));
     setFormOpen(true);
   }
@@ -453,7 +566,18 @@ export default function WarehousePage() {
   function startRestock(product: Product) {
     setViewingProduct(null);
     setViewingRestock(null);
+    setEditingRestockId(null);
     setForm(emptyForm(product));
+    setFormOpen(true);
+  }
+
+  function startEditRestock(restock: WarehouseRestock) {
+    const product =
+      products.find((p) => p.id === restock.productId) ?? restock.product ?? null;
+    setViewingProduct(null);
+    setViewingRestock(null);
+    setEditingRestockId(restock.id);
+    setForm(formFromRestock(restock, product));
     setFormOpen(true);
   }
 
@@ -473,6 +597,7 @@ export default function WarehousePage() {
     setFormOpen(false);
     setViewingProduct(null);
     setViewingRestock(null);
+    setEditingRestockId(null);
     setForm(emptyForm(products[0]));
   }
 
@@ -486,17 +611,27 @@ export default function WarehousePage() {
     setError('');
     setLoading(true);
     try {
-      await api('/warehouse', {
-        method: 'POST',
-        body: {
-          productId: form.productId,
-          qtyAdded: form.qtyAdded,
-          restockDate: form.restockDate,
-          notes: form.notes.trim() || undefined,
-        },
-      });
+      const body = {
+        qtyAdded: form.qtyAdded,
+        restockDate: form.restockDate,
+        notes: form.notes.trim() || undefined,
+      };
+      if (editingRestockId) {
+        await api(`/warehouse/${editingRestockId}`, {
+          method: 'PATCH',
+          body,
+        });
+      } else {
+        await api('/warehouse', {
+          method: 'POST',
+          body: {
+            productId: form.productId,
+            ...body,
+          },
+        });
+      }
       resetForm();
-      await load();
+      await reloadAll();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Restock failed');
     } finally {
@@ -508,8 +643,11 @@ export default function WarehousePage() {
   const filtersActive =
     debouncedSearch.trim().length > 0 ||
     unitFilters.length > 0 ||
-    stockStatusFilters.length > 0;
+    stockStatusFilters.length > 0 ||
+    costSetFilters.length > 0 ||
+    packReadyFilters.length > 0;
   const stageSummary = summary;
+  const statisticsLoading = listLoading && !stageSummary?.statistics;
   const pulseSell = stageSummary
     ? formatMoneyParts(stageSummary.inventorySellValue)
     : null;
@@ -523,6 +661,7 @@ export default function WarehousePage() {
   return (
     <section>
       {!focusMode ? (
+        <>
         <FeatureStage
           title="Warehouse"
           loading={listLoading && !stageSummary}
@@ -560,14 +699,21 @@ export default function WarehousePage() {
             )
           }
           action={
-            <button
-              type="button"
-              className="umkm-btn"
-              onClick={startCreate}
-              disabled={products.length === 0}
-            >
-              Add restock
-            </button>
+            <div className="umkm-stage-actions">
+              <FeatureDataTransferToggle
+                open={dataSyncOpen}
+                controlsId="feature-sync-warehouse"
+                onClick={() => setDataSyncOpen((open) => !open)}
+              />
+              <button
+                type="button"
+                className="umkm-btn"
+                onClick={startCreate}
+                disabled={products.length === 0}
+              >
+                Add restock
+              </button>
+            </div>
           }
           stats={[
             {
@@ -666,6 +812,14 @@ export default function WarehousePage() {
             },
           ]}
         />
+        {dataSyncOpen ? (
+          <FeatureDataTransfer
+            entity="warehouse"
+            label="Warehouse"
+            onImported={() => void reloadAll()}
+          />
+        ) : null}
+        </>
       ) : (
         <PageHeader
           title="Warehouse"
@@ -788,7 +942,7 @@ export default function WarehousePage() {
                       showHeader={false}
                       badge={
                         packsLabel ??
-                        `${formatQty(viewingProduct.stockQty)} ${unitShort(viewingProduct.unit)}`
+                        `${formatCompactQty(viewingProduct.stockQty)} ${unitShort(viewingProduct.unit)}`
                       }
                       ariaLabel="Inventory value"
                       tiles={[
@@ -864,6 +1018,13 @@ export default function WarehousePage() {
               <button
                 type="button"
                 className="umkm-btn secondary"
+                onClick={() => startEditRestock(viewingRestock)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className="umkm-btn secondary"
                 onClick={closeView}
               >
                 Close
@@ -910,7 +1071,7 @@ export default function WarehousePage() {
                           <ViewChip>No pack</ViewChip>
                         )}
                         <ViewChip tone="added">
-                          +{formatQty(viewingRestock.qtyAdded)} {u}
+                          +{formatCompactQty(viewingRestock.qtyAdded)} {u}
                           {packsAdded ? ` · ${packsAdded}` : ''}
                         </ViewChip>
                       </>
@@ -918,12 +1079,12 @@ export default function WarehousePage() {
                     metricLabel="Stock after"
                     metricValue={
                       <>
-                        {formatQty(viewingRestock.stockAfter)} {u}
+                        {formatCompactQty(viewingRestock.stockAfter)} {u}
                       </>
                     }
                     metricHint={
                       <>
-                        From {formatQty(viewingRestock.stockBefore)}
+                        From {formatCompactQty(viewingRestock.stockBefore)}
                         {packsAfter ? ` · ${packsAfter}` : ''}
                       </>
                     }
@@ -956,20 +1117,20 @@ export default function WarehousePage() {
                         {
                           key: 'before',
                           label: 'Before',
-                          value: formatQty(viewingRestock.stockBefore),
+                          value: formatCompactQty(viewingRestock.stockBefore),
                           sub: packsBefore ?? u,
                         },
                         {
                           key: 'added',
                           label: 'Added',
-                          value: `+${formatQty(viewingRestock.qtyAdded)}`,
+                          value: `+${formatCompactQty(viewingRestock.qtyAdded)}`,
                           sub: packsAdded ? `+${packsAdded}` : u,
                           accent: 'added',
                         },
                         {
                           key: 'after',
                           label: 'After',
-                          value: formatQty(viewingRestock.stockAfter),
+                          value: formatCompactQty(viewingRestock.stockAfter),
                           sub: packsAfter ?? u,
                           accent: 'profit',
                         },
@@ -987,8 +1148,12 @@ export default function WarehousePage() {
         <ContentSection
           className="umkm-form-panel"
           eyebrow="Stock"
-          title="Restock product"
-          description="Restock by manual unit qty or by pack count."
+          title={editingRestockId ? 'Edit restock' : 'Restock product'}
+          description={
+            editingRestockId
+              ? 'Update quantity, date, or notes. Product stays fixed; stock adjusts automatically.'
+              : 'Restock by manual unit qty or by pack count.'
+          }
         >
           <form onSubmit={onSubmit}>
             {(() => {
@@ -1005,7 +1170,11 @@ export default function WarehousePage() {
                     ? form.packsAdded
                     : (packsOnHand(qty, pack) ?? 0)
                   : 0;
-              const stockAfter = selected ? selected.stockQty + qty : qty;
+              const stockAfter = editingRestock
+                ? editingRestock.stockBefore + qty
+                : selected
+                  ? selected.stockQty + qty
+                  : qty;
               const packsAfter = selected
                 ? formatPacksOnHand(stockAfter, pack)
                 : null;
@@ -1079,26 +1248,38 @@ export default function WarehousePage() {
                   >
                     <div className="umkm-grid two">
                       <div className="umkm-field">
-                        <label>Product</label>
-                        <select
-                          value={form.productId}
-                          onChange={(e) => setProductId(e.target.value)}
-                          required
-                        >
-                          {products.map((p) => {
-                            const pPack = getActivePack(p);
-                            return (
-                              <option key={p.id} value={p.id}>
-                                {p.name} — {p.stockQty}{' '}
-                                {unitLabel(p.unit).toLowerCase()}
-                                {pPack ? ` · ${pPack.sizeLabel}` : ''}
-                              </option>
-                            );
-                          })}
-                        </select>
+                        <FieldLabel>Product</FieldLabel>
+                        {editingRestockId ? (
+                          <input
+                            value={
+                              selected
+                                ? `${selected.name} — ${formatCompactQty(selected.stockQty)} ${unitLabel(selected.unit).toLowerCase()}`
+                                : form.productId
+                            }
+                            readOnly
+                            aria-readonly
+                          />
+                        ) : (
+                          <select
+                            value={form.productId}
+                            onChange={(e) => setProductId(e.target.value)}
+                            required
+                          >
+                            {products.map((p) => {
+                              const pPack = getActivePack(p);
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} — {p.stockQty}{' '}
+                                  {unitLabel(p.unit).toLowerCase()}
+                                  {pPack ? ` · ${pPack.sizeLabel}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        )}
                       </div>
                       <div className="umkm-field">
-                        <label>Restock date</label>
+                        <FieldLabel>Restock date</FieldLabel>
                         <input
                           type="date"
                           value={form.restockDate}
@@ -1113,7 +1294,7 @@ export default function WarehousePage() {
                         className="umkm-field"
                         style={{ gridColumn: '1 / -1' }}
                       >
-                        <label>Entry mode</label>
+                        <FieldLabel>Entry mode</FieldLabel>
                         <OptionChips
                           aria-label="Restock entry mode"
                           value={entryMode}
@@ -1140,7 +1321,7 @@ export default function WarehousePage() {
                       {entryMode === 'PACK' && pack ? (
                         <>
                           <div className="umkm-field">
-                            <label>Packs to add</label>
+                            <FieldLabel>Packs to add</FieldLabel>
                             <input
                               type="number"
                               min={0.0001}
@@ -1160,11 +1341,11 @@ export default function WarehousePage() {
                             />
                           </div>
                           <div className="umkm-field">
-                            <label>
+                            <FieldLabel>
                               Qty added ({unitShort(selected?.unit)})
-                            </label>
+                            </FieldLabel>
                             <input
-                              value={`${formatQty(qty)} ${unitShort(selected?.unit)} (= ${formatQty(form.packsAdded)} × ${pack.sizeLabel})`}
+                              value={`${formatCompactQty(qty)} ${unitShort(selected?.unit)} (= ${formatCompactQty(form.packsAdded)} × ${pack.sizeLabel})`}
                               readOnly
                               disabled
                             />
@@ -1173,12 +1354,12 @@ export default function WarehousePage() {
                       ) : (
                         <>
                           <div className="umkm-field">
-                            <label>
+                            <FieldLabel>
                               Qty to add
                               {selected
                                 ? ` (${unitShort(selected.unit)})`
                                 : ''}
-                            </label>
+                            </FieldLabel>
                             <input
                               type="number"
                               min={0.0001}
@@ -1199,11 +1380,11 @@ export default function WarehousePage() {
                             />
                           </div>
                           <div className="umkm-field">
-                            <label>Pack equivalent</label>
+                            <FieldLabel>Pack equivalent</FieldLabel>
                             <input
                               value={
                                 pack
-                                  ? `${formatQty(packsAdded)} × ${pack.sizeLabel}`
+                                  ? `${formatCompactQty(packsAdded)} × ${pack.sizeLabel}`
                                   : 'No pack on product'
                               }
                               readOnly
@@ -1217,7 +1398,7 @@ export default function WarehousePage() {
                         className="umkm-field"
                         style={{ gridColumn: '1 / -1' }}
                       >
-                        <label>Notes</label>
+                        <FieldLabel>Notes</FieldLabel>
                         <input
                           value={form.notes}
                           onChange={(e) =>
@@ -1243,7 +1424,7 @@ export default function WarehousePage() {
                           <div className="umkm-wh-kpi">
                             <span>On hand now</span>
                             <strong>
-                              {formatQty(selected.stockQty)}{' '}
+                              {formatCompactQty(selected.stockQty)}{' '}
                               {unitShort(selected.unit)}
                             </strong>
                             {packsNow ? (
@@ -1253,18 +1434,18 @@ export default function WarehousePage() {
                           <div className="umkm-wh-kpi">
                             <span>Adding</span>
                             <strong className="umkm-wh-added">
-                              +{formatQty(qty)} {unitShort(selected.unit)}
+                              +{formatCompactQty(qty)} {unitShort(selected.unit)}
                             </strong>
                             {pack && packsAdded > 0 ? (
                               <em className="umkm-num-sub">
-                                +{formatQty(packsAdded)} × {pack.sizeLabel}
+                                +{formatCompactQty(packsAdded)} × {pack.sizeLabel}
                               </em>
                             ) : null}
                           </div>
                           <div className="umkm-wh-kpi">
                             <span>Stock after</span>
                             <strong>
-                              {formatQty(stockAfter)}{' '}
+                              {formatCompactQty(stockAfter)}{' '}
                               {unitShort(selected.unit)}
                             </strong>
                             {packsAfter ? (
@@ -1296,7 +1477,7 @@ export default function WarehousePage() {
                 type="submit"
                 disabled={loading || !form.productId}
               >
-                Save restock
+                {editingRestockId ? 'Update restock' : 'Save restock'}
               </button>
               <button
                 className="umkm-btn secondary"
@@ -1319,7 +1500,7 @@ export default function WarehousePage() {
           >
             <div className="umkm-catalog-toolbar">
               <div className="umkm-field umkm-catalog-search">
-                <label htmlFor="wh-search">Search</label>
+                <FieldLabel htmlFor="wh-search">Search</FieldLabel>
                 <input
                   id="wh-search"
                   value={search}
@@ -1331,7 +1512,9 @@ export default function WarehousePage() {
               <CollapsibleFilters
                 activeCount={
                   (unitFilters.length > 0 ? 1 : 0) +
-                  (stockStatusFilters.length > 0 ? 1 : 0)
+                  (stockStatusFilters.length > 0 ? 1 : 0) +
+                  (costSetFilters.length > 0 ? 1 : 0) +
+                  (packReadyFilters.length > 0 ? 1 : 0)
                 }
               >
                 <MultiSelectFilter
@@ -1339,7 +1522,10 @@ export default function WarehousePage() {
                   label="Unit"
                   allLabel="All units"
                   value={unitFilters}
-                  onChange={setUnitFilters}
+                  onChange={(next) => {
+                    setUnitFilters(next);
+                    setInvPage(1);
+                  }}
                   options={PRODUCT_UNITS.map((unit) => ({
                     value: unit,
                     label: unitLabel(unit),
@@ -1350,8 +1536,39 @@ export default function WarehousePage() {
                   label="Stock"
                   allLabel="Any stock"
                   value={stockStatusFilters}
-                  onChange={setStockStatusFilters}
+                  onChange={(next) => {
+                    setStockStatusFilters(next);
+                    setInvPage(1);
+                  }}
                   options={STOCK_STATUS_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
+                <MultiSelectFilter
+                  id="warehouse-cost-set-filter"
+                  label="Cost set"
+                  allLabel="Any cost"
+                  value={costSetFilters}
+                  onChange={(next) => {
+                    setCostSetFilters(next);
+                    setInvPage(1);
+                  }}
+                  options={COST_SET_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
+                <MultiSelectFilter
+                  id="warehouse-pack-ready-filter"
+                  label="Pack ready"
+                  allLabel="Any pack status"
+                  value={packReadyFilters}
+                  onChange={(next) => {
+                    setPackReadyFilters(next);
+                    setInvPage(1);
+                  }}
+                  options={PACK_READY_FILTER_OPTIONS.map((option) => ({
                     value: option.value,
                     label: option.label,
                   }))}
@@ -1360,13 +1577,13 @@ export default function WarehousePage() {
               <p className="umkm-catalog-count">
                 {listLoading
                   ? 'Loading…'
-                  : listMeta.total === 0
-                    ? filtersActive
-                      ? 'No matches'
-                      : 'No inventory yet'
-                    : inventory.length >= listMeta.total
-                      ? `${listMeta.total.toLocaleString('en-US')} item${listMeta.total === 1 ? '' : 's'}`
-                      : `Showing ${inventory.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
+                    : listMeta.total === 0
+                      ? filtersActive
+                        ? 'No matches'
+                        : 'No inventory yet'
+                      : products.length >= listMeta.total
+                        ? `Showing all ${listMeta.total.toLocaleString('en-US')} items`
+                        : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
               </p>
             </div>
 
@@ -1625,6 +1842,22 @@ export default function WarehousePage() {
                     );
                   })}
                 </ul>
+                <ListPager
+                  ariaLabel="Inventory pages"
+                  page={listMeta.page}
+                  totalPages={listMeta.totalPages}
+                  total={listMeta.total}
+                  loading={listLoading}
+                  pageSize={invPageSize}
+                  onPageSizeChange={(size) => {
+                    setInvPageSize(size);
+                    setInvPage(1);
+                  }}
+                  onPrev={() => setInvPage((p) => Math.max(1, p - 1))}
+                  onNext={() =>
+                    setInvPage((p) => Math.min(listMeta.totalPages, p + 1))
+                  }
+                />
               </>
             )}
           </ContentSection>
@@ -1634,7 +1867,7 @@ export default function WarehousePage() {
             title="Restock history"
             description="Stock additions with before → after quantities and pack equivalents."
           >
-            {history.length === 0 ? (
+            {histLoading && history.length === 0 ? null : histMeta.total === 0 ? (
               <EmptyState
                 title="No restocks yet"
                 description="Add stock to a product to start your warehouse history."
@@ -1737,7 +1970,7 @@ export default function WarehousePage() {
                             <td className="is-num">
                               <div className="umkm-num-stack">
                                 <span className="umkm-num umkm-wh-added">
-                                  +{formatQty(r.qtyAdded)} {u}
+                                  +{formatCompactQty(r.qtyAdded)} {u}
                                 </span>
                                 {packsAdded ? (
                                   <span className="umkm-num-sub">
@@ -1749,10 +1982,10 @@ export default function WarehousePage() {
                             <td className="is-num">
                               <div className="umkm-num-stack">
                                 <span className="umkm-num">
-                                  {formatQty(r.stockAfter)} {u}
+                                  {formatCompactQty(r.stockAfter)} {u}
                                 </span>
                                 <span className="umkm-num-sub">
-                                  from {formatQty(r.stockBefore)}
+                                  from {formatCompactQty(r.stockBefore)}
                                   {packsAfter
                                     ? ` · ${packsAfter}`
                                     : packsBefore
@@ -1772,6 +2005,15 @@ export default function WarehousePage() {
                                 onClick={(e) => e.stopPropagation()}
                                 onKeyDown={(e) => e.stopPropagation()}
                               >
+                                <button
+                                  className="umkm-icon-btn"
+                                  type="button"
+                                  title="Edit"
+                                  aria-label="Edit restock"
+                                  onClick={() => startEditRestock(r)}
+                                >
+                                  <IconEdit />
+                                </button>
                                 <button
                                   className="umkm-icon-btn"
                                   type="button"
@@ -1810,7 +2052,7 @@ export default function WarehousePage() {
                             </span>
                             <div className="umkm-product-meta">
                               <span className="umkm-wh-added">
-                                +{formatQty(r.qtyAdded)} {u}
+                                +{formatCompactQty(r.qtyAdded)} {u}
                               </span>
                               {pack ? (
                                 <span className="umkm-pack-size">
@@ -1832,7 +2074,7 @@ export default function WarehousePage() {
                             <div>
                               <span>Before</span>
                               <strong>
-                                {formatQty(r.stockBefore)} {u}
+                                {formatCompactQty(r.stockBefore)} {u}
                               </strong>
                               {packsBefore ? (
                                 <em className="umkm-num-sub">{packsBefore}</em>
@@ -1841,7 +2083,7 @@ export default function WarehousePage() {
                             <div>
                               <span>After</span>
                               <strong>
-                                {formatQty(r.stockAfter)} {u}
+                                {formatCompactQty(r.stockAfter)} {u}
                               </strong>
                               {packsAfter ? (
                                 <em className="umkm-num-sub">{packsAfter}</em>
@@ -1850,6 +2092,15 @@ export default function WarehousePage() {
                           </div>
                         </button>
                         <div className="umkm-row-actions umkm-icon-actions">
+                          <button
+                            className="umkm-icon-btn"
+                            type="button"
+                            title="Edit"
+                            aria-label="Edit restock"
+                            onClick={() => startEditRestock(r)}
+                          >
+                            <IconEdit />
+                          </button>
                           <button
                             className="umkm-icon-btn"
                             type="button"
@@ -1864,8 +2115,32 @@ export default function WarehousePage() {
                     );
                   })}
                 </ul>
+                <ListPager
+                  ariaLabel="Restock history pages"
+                  page={histMeta.page}
+                  totalPages={histMeta.totalPages}
+                  total={histMeta.total}
+                  loading={histLoading}
+                  pageSize={histPageSize}
+                  onPageSizeChange={(size) => {
+                    setHistPageSize(size);
+                    setHistPage(1);
+                  }}
+                  onPrev={() => setHistPage((p) => Math.max(1, p - 1))}
+                  onNext={() =>
+                    setHistPage((p) => Math.min(histMeta.totalPages, p + 1))
+                  }
+                />
               </>
             )}
+          </ContentSection>
+
+          <ContentSection eyebrow="Statistics" quiet>
+            <WarehouseStatisticsSection
+              statistics={stageSummary?.statistics}
+              productCount={stageSummary?.productCount ?? 0}
+              loading={statisticsLoading}
+            />
           </ContentSection>
         </>
       ) : null}

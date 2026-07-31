@@ -9,6 +9,7 @@
  */
 import { randomUUID } from 'crypto';
 import {
+  BillStatus,
   InvoiceStatus,
   Prisma,
   PrismaClient,
@@ -136,7 +137,7 @@ async function main() {
   type BatchOrder = {
     id: string;
     profileId: string;
-    sku: string;
+    orderId: string;
     customerId: string;
     productId: string;
     orderDate: Date;
@@ -154,6 +155,8 @@ async function main() {
     totalOrderValue: number;
     status: string;
     paymentStatus: string;
+    billStatus: BillStatus;
+    billDate: Date;
     invoiceStatus: InvoiceStatus;
     invoiceDate: Date;
     updatedAt: Date;
@@ -362,7 +365,7 @@ async function main() {
     orderBatch.push({
       id,
       profileId: profile.id,
-      sku: buildOrderSku(orderDate, id),
+      orderId: buildOrderSku(orderDate, id),
       customerId: customer.id,
       productId: primary.productId,
       orderDate,
@@ -380,7 +383,9 @@ async function main() {
       totalOrderValue: totals.totalOrderValue,
       status,
       paymentStatus,
-      invoiceStatus: InvoiceStatus.SENT,
+      billStatus: BillStatus.SENT,
+      billDate: orderDate,
+      invoiceStatus: InvoiceStatus.FULLY_PAID,
       invoiceDate: orderDate,
       updatedAt: now,
     });

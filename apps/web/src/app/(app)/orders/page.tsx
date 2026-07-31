@@ -8,16 +8,23 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { api, ApiError } from '@/lib/api';
-import { ContentSection, EmptyState, FormSection, PageHeader } from '@/components/PageHeader';
+import { api, ApiError, downloadOrderFiscalExport, downloadOrderInvoicePdf, saveDownloadedBlob } from '@/lib/api';
+import { dedupeById } from '@/lib/dedupe-by-id';
+import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
+import { OrderStatisticsSection } from '@/app/(app)/orders/OrderStatisticsSection';
 import { OptionChips } from '@/components/OptionChips';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import {
+  FeatureDataTransfer,
+  FeatureDataTransferToggle,
+} from '@/components/FeatureDataTransfer';
 import {
   DateRangeFilter,
   type DateRangeValue,
 } from '@/components/DateRangeFilter';
 import { EMPTY_DATE_RANGE, isDateRangeActive } from '@/lib/date-range-filter';
+import { type ListPageSize } from '@/lib/list-page-size';
 import {
   ViewBlock,
   ViewChip,
@@ -26,11 +33,12 @@ import {
   ViewSheetBody,
 } from '@/components/ViewSheet';
 import { AppTooltip } from '@/components/AppTooltip';
+import { ListPager } from '@/components/ListPager';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
+  BILL_STATUSES,
   DISCOUNT_TYPES,
   INVOICE_STATUSES,
-  LABELS,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   calculateMultiLineOrderTotals,
@@ -55,9 +63,16 @@ import {
   formatMoneyExact,
 } from '@/lib/format-money';
 import {
+  orderAmountDue,
   orderPaidAmount,
   orderPaymentRatePercent,
 } from '@/lib/order-payment-rate';
+import { deriveInvoiceStatusFromPayments } from '@/lib/order-invoice';
+import {
+  defaultPaymentDueDate,
+  isOrderPaymentOverdue,
+} from '@/lib/order-billing';
+import { useOrderLabelHelpers } from '@/hooks/useOrderLabelHelpers';
 
 type SortKey = 'date' | 'product' | 'status' | 'total' | 'payment';
 type SortDir = 'asc' | 'desc';
@@ -74,11 +89,6 @@ function IconTrash() {
       />
     </svg>
   );
-}
-
-function unitLabel(unit?: string) {
-  if (!unit) return '';
-  return LABELS.productUnit[unit as keyof typeof LABELS.productUnit] ?? unit;
 }
 
 function unitShort(unit?: string) {
@@ -123,25 +133,6 @@ function rateMeterStyle(
   }
   const clamped = Math.max(0, Math.min(100, value));
   return { ['--rate' as string]: `${clamped}%` };
-}
-
-function orderStatusLabel(status?: string | null) {
-  if (!status) return '—';
-  return LABELS.orderStatus[status as keyof typeof LABELS.orderStatus] ?? status;
-}
-
-function paymentStatusLabel(status?: string | null) {
-  if (!status) return '—';
-  return (
-    LABELS.paymentStatus[status as keyof typeof LABELS.paymentStatus] ?? status
-  );
-}
-
-function invoiceStatusLabel(status?: string | null) {
-  if (!status) return '—';
-  return (
-    LABELS.invoiceStatus[status as keyof typeof LABELS.invoiceStatus] ?? status
-  );
 }
 
 function roundMoney(value: number) {
@@ -394,8 +385,10 @@ type OrderForm = {
   discountType: 'PERCENTAGE' | 'AMOUNT';
   discountValue: number;
   paymentStatus: string;
-  invoiceStatus: string;
+  billStatus: string;
+  billDate: string;
   invoiceDate: string;
+  paymentDueDate: string;
   installments: InstallmentFormRow[];
 };
 
@@ -433,8 +426,10 @@ function emptyForm(product?: Product): OrderForm {
     discountType: 'PERCENTAGE',
     discountValue: 0,
     paymentStatus: 'CASH',
-    invoiceStatus: 'CREATED',
+    billStatus: 'CREATED',
+    billDate: today,
     invoiceDate: today,
+    paymentDueDate: '',
     installments: [],
   };
 }
@@ -487,24 +482,36 @@ function lineFormFromSnapshot(
 }
 
 export default function OrdersPage() {
+  const {
+    unitLabel,
+    orderStatusLabel,
+    paymentStatusLabel,
+    invoiceStatusLabel,
+    billStatusLabel,
+    labels,
+  } = useOrderLabelHelpers();
   const [items, setItems] = useState<Order[]>([]);
   const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState<OrderForm>(emptyForm());
   const [formOpen, setFormOpen] = useState(false);
+  const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Order | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const listSeq = useRef(0);
   const summarySeq = useRef(0);
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [paymentFilters, setPaymentFilters] = useState<string[]>([]);
+  const [billStatusFilters, setBillStatusFilters] = useState<string[]>([]);
+  const [invoiceStatusFilters, setInvoiceStatusFilters] = useState<string[]>([]);
   const [orderDateRange, setOrderDateRange] =
     useState<DateRangeValue>(EMPTY_DATE_RANGE);
   const [shipmentDateRange, setShipmentDateRange] =
@@ -514,6 +521,7 @@ export default function OrdersPage() {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<ListPageSize>(20);
   const [listMeta, setListMeta] = useState({
     total: 0,
     page: 1,
@@ -644,6 +652,22 @@ export default function OrdersPage() {
     form.discountValue,
   ]);
 
+  const derivedInvoiceStatus = useMemo(() => {
+    const total = preview?.totalOrderValue ?? 0;
+    const installments = resolvedInstallmentRows(
+      form.installments,
+      total,
+    );
+    const paid = roundMoney(
+      installments.reduce((sum, row) => sum + row.amount, 0),
+    );
+    return deriveInvoiceStatusFromPayments({
+      amountDue: total,
+      paidAmount: paid,
+      billStatus: form.billStatus as 'CREATED' | 'SENT',
+    });
+  }, [preview?.totalOrderValue, form.installments, form.billStatus]);
+
   async function loadCatalog() {
     const [productList, customerList] = await Promise.all([
       api<Paginated<Product>>('/products', { searchParams: { limit: 100 } }),
@@ -676,6 +700,9 @@ export default function OrdersPage() {
           search: debouncedSearch.trim() || undefined,
           status: statusFilters.length > 0 ? statusFilters : undefined,
           paymentStatus: paymentFilters.length > 0 ? paymentFilters : undefined,
+          billStatus: billStatusFilters.length > 0 ? billStatusFilters : undefined,
+          invoiceStatus:
+            invoiceStatusFilters.length > 0 ? invoiceStatusFilters : undefined,
           orderDateFrom: orderDateRange.from || undefined,
           orderDateTo: orderDateRange.to || undefined,
           shipmentDateFrom: shipmentDateRange.from || undefined,
@@ -697,26 +724,33 @@ export default function OrdersPage() {
   async function loadOrders(nextPage = page) {
     const seq = ++listSeq.current;
     setListLoading(true);
+    const listFilters = {
+      search: debouncedSearch.trim() || undefined,
+      status: statusFilters.length > 0 ? statusFilters : undefined,
+      paymentStatus: paymentFilters.length > 0 ? paymentFilters : undefined,
+      billStatus: billStatusFilters.length > 0 ? billStatusFilters : undefined,
+      invoiceStatus:
+        invoiceStatusFilters.length > 0 ? invoiceStatusFilters : undefined,
+      orderDateFrom: orderDateRange.from || undefined,
+      orderDateTo: orderDateRange.to || undefined,
+      shipmentDateFrom: shipmentDateRange.from || undefined,
+      shipmentDateTo: shipmentDateRange.to || undefined,
+      invoiceDateFrom: invoiceDateRange.from || undefined,
+      invoiceDateTo: invoiceDateRange.to || undefined,
+      sort: sortKey,
+      dir: sortDir,
+    };
+
     try {
       const orders = await api<Paginated<Order>>('/orders', {
         searchParams: {
+          ...listFilters,
           page: nextPage,
-          limit: listMeta.limit || 20,
-          search: debouncedSearch.trim() || undefined,
-          status: statusFilters.length > 0 ? statusFilters : undefined,
-          paymentStatus: paymentFilters.length > 0 ? paymentFilters : undefined,
-          orderDateFrom: orderDateRange.from || undefined,
-          orderDateTo: orderDateRange.to || undefined,
-          shipmentDateFrom: shipmentDateRange.from || undefined,
-          shipmentDateTo: shipmentDateRange.to || undefined,
-          invoiceDateFrom: invoiceDateRange.from || undefined,
-          invoiceDateTo: invoiceDateRange.to || undefined,
-          sort: sortKey,
-          dir: sortDir,
+          limit: pageSize,
         },
       });
       if (seq !== listSeq.current) return;
-      setItems(orders.items);
+      setItems(dedupeById(orders.items));
       setListMeta(orders.meta);
       setPage(orders.meta.page);
       setError('');
@@ -747,6 +781,8 @@ export default function OrdersPage() {
     debouncedSearch,
     statusFilters,
     paymentFilters,
+    billStatusFilters,
+    invoiceStatusFilters,
     orderDateRange,
     shipmentDateRange,
     invoiceDateRange,
@@ -755,7 +791,7 @@ export default function OrdersPage() {
   useEffect(() => {
     void loadOrders(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional list query deps
-  }, [page, debouncedSearch, statusFilters, paymentFilters, orderDateRange, shipmentDateRange, invoiceDateRange, sortKey, sortDir]);
+  }, [page, pageSize, debouncedSearch, statusFilters, paymentFilters, billStatusFilters, invoiceStatusFilters, orderDateRange, shipmentDateRange, invoiceDateRange, sortKey, sortDir]);
 
   function updateLine(
     key: string,
@@ -835,11 +871,16 @@ export default function OrdersPage() {
         discountType: full.discountType as 'PERCENTAGE' | 'AMOUNT',
         discountValue: full.discountValue,
         paymentStatus: full.paymentStatus,
-        invoiceStatus: full.invoiceStatus ?? 'CREATED',
         invoiceDate:
           full.invoiceDate?.slice(0, 10) ??
           full.orderDate?.slice(0, 10) ??
           todayDateInput(),
+        billStatus: full.billStatus ?? 'CREATED',
+        billDate:
+          full.billDate?.slice(0, 10) ??
+          full.orderDate?.slice(0, 10) ??
+          todayDateInput(),
+        paymentDueDate: full.paymentDueDate?.slice(0, 10) ?? '',
         installments: cascadeInstallmentDates(
           (full.installments ?? []).map((row) => ({
             amount: row.amount,
@@ -857,14 +898,21 @@ export default function OrdersPage() {
 
   async function startCreate() {
     setError('');
+    setCatalogLoading(true);
     try {
       const catalog = await ensureCatalog();
+      if (catalog.products.length === 0) {
+        setError('Add a product before creating orders.');
+        return;
+      }
       setViewing(null);
       setEditingId(null);
       setForm(emptyForm(catalog.products[0]));
       setFormOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load catalog');
+    } finally {
+      setCatalogLoading(false);
     }
   }
 
@@ -890,6 +938,52 @@ export default function OrdersPage() {
 
   function closeView() {
     setViewing(null);
+  }
+
+  async function quickMarkBillSent(order: Order) {
+    setError('');
+    setLoading(true);
+    try {
+      const updated = await api<Order>(`/orders/${order.id}`, {
+        method: 'PATCH',
+        body: {
+          billStatus: 'SENT',
+          billDate: todayDateInput(),
+        },
+      });
+      setViewing(updated);
+      await Promise.all([loadSummary(), loadOrders(page)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update bill');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function downloadPdfInvoice(order: Order) {
+    setError('');
+    setLoading(true);
+    try {
+      const { blob, filename } = await downloadOrderInvoicePdf(order.id);
+      saveDownloadedBlob(blob, filename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download PDF');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function downloadFiscalExport(order: Order, format: 'csv' | 'xml') {
+    setError('');
+    setLoading(true);
+    try {
+      const { blob, filename } = await downloadOrderFiscalExport(order.id, format);
+      saveDownloadedBlob(blob, filename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download e-Faktur file');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -927,8 +1021,13 @@ export default function OrdersPage() {
         discountType: form.discountType,
         discountValue: form.discountValue,
         paymentStatus: form.paymentStatus,
-        invoiceStatus: form.invoiceStatus,
+        billStatus: form.billStatus,
+        billDate: form.billDate || null,
         invoiceDate: form.invoiceDate || null,
+        paymentDueDate:
+          form.paymentStatus === 'DELAYED_PAYMENT' && form.paymentDueDate
+            ? form.paymentDueDate
+            : null,
         installments: resolvedInstallmentRows(
           form.installments,
           preview?.totalOrderValue ?? 0,
@@ -969,6 +1068,7 @@ export default function OrdersPage() {
   const pulsePacks = summary
     ? formatCompactQtyParts(summary.productsSold)
     : null;
+  const statisticsLoading = summaryLoading && !summary?.statistics;
 
   return (
     <section>
@@ -1007,14 +1107,21 @@ export default function OrdersPage() {
                 )}
               </p>
             </div>
-            <button
-              type="button"
-              className="umkm-btn"
-              onClick={startCreate}
-              disabled={products.length === 0}
-            >
-              Add order
-            </button>
+            <div className="umkm-stage-actions">
+              <FeatureDataTransferToggle
+                open={dataSyncOpen}
+                controlsId="feature-sync-orders"
+                onClick={() => setDataSyncOpen((open) => !open)}
+              />
+              <button
+                type="button"
+                className="umkm-btn"
+                onClick={() => void startCreate()}
+                disabled={catalogLoading}
+              >
+                {catalogLoading ? 'Loading…' : 'Add order'}
+              </button>
+            </div>
           </div>
 
           <div className="umkm-stage-body">
@@ -1155,6 +1262,15 @@ export default function OrdersPage() {
           </div>
         </header>
       )}
+      {!formOpen && !viewing && dataSyncOpen ? (
+        <FeatureDataTransfer
+          entity="orders"
+          label="Orders"
+          onImported={async () => {
+            await Promise.all([loadSummary(), loadOrders(page)]);
+          }}
+        />
+      ) : null}
       {error ? <div className="umkm-error">{error}</div> : null}
 
       {viewing ? (
@@ -1169,6 +1285,40 @@ export default function OrdersPage() {
           }
           actions={
             <>
+              {viewing.billStatus === 'CREATED' ? (
+                <button
+                  type="button"
+                  className="umkm-btn secondary"
+                  disabled={loading}
+                  onClick={() => void quickMarkBillSent(viewing)}
+                >
+                  Mark bill sent
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="umkm-btn secondary"
+                disabled={loading}
+                onClick={() => void downloadPdfInvoice(viewing)}
+              >
+                Download PDF
+              </button>
+              <button
+                type="button"
+                className="umkm-btn secondary"
+                disabled={loading}
+                onClick={() => void downloadFiscalExport(viewing, 'csv')}
+              >
+                e-Faktur CSV
+              </button>
+              <button
+                type="button"
+                className="umkm-btn secondary"
+                disabled={loading}
+                onClick={() => void downloadFiscalExport(viewing, 'xml')}
+              >
+                e-Faktur XML
+              </button>
               <button
                 type="button"
                 className="umkm-btn"
@@ -1214,17 +1364,15 @@ export default function OrdersPage() {
                   (sum, row) => sum + row.amount,
                   0,
                 );
+              const due = orderAmountDue(viewing);
               const remaining =
                 viewing.remainingAmount ??
-                remainingFromInstallments(
-                  viewing.totalOrderValue,
-                  viewing.installments ?? [],
-                );
+                remainingFromInstallments(due, viewing.installments ?? []);
               const paidPct =
-                viewing.totalOrderValue > 0
+                due > 0
                   ? Math.min(
                       100,
-                      Math.round((paid / viewing.totalOrderValue) * 1000) / 10,
+                      Math.round((paid / due) * 1000) / 10,
                     )
                   : 0;
               const extra = orderExtraLineCount(viewing);
@@ -1241,8 +1389,14 @@ export default function OrdersPage() {
                           {paymentStatusLabel(viewing.paymentStatus)}
                         </ViewChip>
                         <ViewChip>
-                          {invoiceStatusLabel(viewing.invoiceStatus)}
+                          Bill · {billStatusLabel(viewing.billStatus)}
                         </ViewChip>
+                        <ViewChip>
+                          Collection · {invoiceStatusLabel(viewing.invoiceStatus)}
+                        </ViewChip>
+                        {isOrderPaymentOverdue(viewing) ? (
+                          <ViewChip tone="warn">Payment overdue</ViewChip>
+                        ) : null}
                         {extra > 0 ? (
                           <ViewChip>+{extra} more</ViewChip>
                         ) : null}
@@ -1250,11 +1404,11 @@ export default function OrdersPage() {
                     }
                     metricLabel="Remaining to pay"
                     metricValue={formatMoney(remaining)}
-                    metricHint={`${formatMoney(paid)} paid of ${formatMoney(viewing.totalOrderValue)}`}
+                    metricHint={`${formatMoney(paid)} paid of ${formatMoney(due)}`}
                   />
 
                   <EntityIdDetail
-                    id={viewing.sku || viewing.id}
+                    id={viewing.orderId || viewing.id}
                     label="Order ID"
                   />
 
@@ -1275,6 +1429,23 @@ export default function OrdersPage() {
                             key: 'company',
                             label: 'Company',
                             value: viewing.customer.companyName || '—',
+                          },
+                          {
+                            key: 'email',
+                            label: 'Email',
+                            value: viewing.customer.email || '—',
+                          },
+                          {
+                            key: 'phone',
+                            label: 'Phone',
+                            value: viewing.customer.phone || '—',
+                          },
+                          {
+                            key: 'npwp',
+                            label: 'NPWP',
+                            value: viewing.customer.npwp?.trim()
+                              ? viewing.customer.npwp
+                              : '—',
                           },
                         ]}
                       />
@@ -1356,10 +1527,24 @@ export default function OrdersPage() {
                           value: viewing.shipmentDate?.slice(0, 10) ?? '—',
                         },
                         {
+                          key: 'bill',
+                          label: 'Bill sent',
+                          value: viewing.billDate?.slice(0, 10) ?? '—',
+                        },
+                        {
                           key: 'invoice',
-                          label: 'Invoice',
+                          label: 'First payment',
                           value: viewing.invoiceDate?.slice(0, 10) ?? '—',
                         },
+                        ...(viewing.paymentDueDate
+                          ? [
+                              {
+                                key: 'due',
+                                label: 'Payment due',
+                                value: viewing.paymentDueDate.slice(0, 10),
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   </ViewBlock>
@@ -1718,7 +1903,7 @@ export default function OrdersPage() {
             >
               <div className="umkm-grid two">
                 <div className="umkm-field" style={{ gridColumn: '1 / -1' }}>
-                  <label>Customer</label>
+                  <FieldLabel>Customer</FieldLabel>
                   <select
                     value={form.customerId}
                     onChange={(e) =>
@@ -1736,7 +1921,7 @@ export default function OrdersPage() {
                   </select>
                 </div>
                 <div className="umkm-field">
-                  <label>Order date</label>
+                  <FieldLabel>Order date</FieldLabel>
                   <input
                     type="date"
                     value={form.orderDate}
@@ -1747,7 +1932,7 @@ export default function OrdersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Shipment date</label>
+                  <FieldLabel>Shipment date</FieldLabel>
                   <input
                     type="date"
                     value={form.shipmentDate}
@@ -1757,30 +1942,42 @@ export default function OrdersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Order status</label>
+                  <FieldLabel>Order status</FieldLabel>
                   <OptionChips
                     aria-label="Order status"
                     value={form.status as (typeof ORDER_STATUSES)[number]}
                     onChange={(status) => setForm({ ...form, status })}
                     options={ORDER_STATUSES.map((t) => ({
                       value: t,
-                      label: LABELS.orderStatus[t],
+                      label: labels.orderStatus[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Payment mode</label>
+                  <FieldLabel>Payment mode</FieldLabel>
                   <OptionChips
                     aria-label="Payment mode"
                     value={
                       form.paymentStatus as (typeof PAYMENT_STATUSES)[number]
                     }
-                    onChange={(paymentStatus) =>
-                      setForm({ ...form, paymentStatus })
-                    }
+                    onChange={(paymentStatus) => {
+                      const next: Partial<OrderForm> = { paymentStatus };
+                      if (
+                        paymentStatus === 'DELAYED_PAYMENT' &&
+                        !form.paymentDueDate
+                      ) {
+                        next.paymentDueDate = defaultPaymentDueDate(
+                          form.orderDate,
+                        );
+                      }
+                      if (paymentStatus !== 'DELAYED_PAYMENT') {
+                        next.paymentDueDate = '';
+                      }
+                      setForm({ ...form, ...next });
+                    }}
                     options={PAYMENT_STATUSES.map((t) => ({
                       value: t,
-                      label: LABELS.paymentStatus[t],
+                      label: labels.paymentStatus[t],
                     }))}
                   />
                 </div>
@@ -1793,7 +1990,7 @@ export default function OrdersPage() {
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
-                  <label>Discount type</label>
+                  <FieldLabel>Discount type</FieldLabel>
                   <OptionChips
                     aria-label="Discount type"
                     value={form.discountType as (typeof DISCOUNT_TYPES)[number]}
@@ -1803,16 +2000,18 @@ export default function OrdersPage() {
                     }}
                     options={DISCOUNT_TYPES.map((t) => ({
                       value: t,
-                      label: LABELS.discountType[t],
+                      label: labels.discountType[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>
-                    {form.discountType === 'PERCENTAGE'
-                      ? 'Discount %'
-                      : 'Discount amount'}
-                  </label>
+                  <FieldLabel>
+                    {labels.tr(
+                      form.discountType === 'PERCENTAGE'
+                        ? 'Discount %'
+                        : 'Discount amount',
+                    )}
+                  </FieldLabel>
                   <input
                     type="number"
                     min={0}
@@ -1838,28 +2037,52 @@ export default function OrdersPage() {
             </FormSection>
 
             <FormSection
-              title="Invoice & payments"
-              description="Invoice and payments. Use Amt or % for each installment — remaining updates live."
+              title="Billing & collection"
+              description="Step 1: send the bill to your customer. Step 2: record each payment as it arrives — collection status updates automatically."
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
-                  <label>Invoice status</label>
+                  <FieldLabel>Customer bill</FieldLabel>
                   <OptionChips
-                    aria-label="Invoice status"
-                    value={
-                      form.invoiceStatus as (typeof INVOICE_STATUSES)[number]
-                    }
-                    onChange={(invoiceStatus) =>
-                      setForm({ ...form, invoiceStatus })
-                    }
-                    options={INVOICE_STATUSES.map((t) => ({
+                    aria-label="Customer bill status"
+                    value={form.billStatus as (typeof BILL_STATUSES)[number]}
+                    onChange={(billStatus) => {
+                      const next: Partial<OrderForm> = { billStatus };
+                      if (
+                        billStatus === 'SENT' &&
+                        form.billStatus === 'CREATED'
+                      ) {
+                        next.billDate = todayDateInput();
+                      }
+                      setForm({ ...form, ...next });
+                    }}
+                    options={BILL_STATUSES.map((t) => ({
                       value: t,
-                      label: LABELS.invoiceStatus[t],
+                      label: labels.billStatus[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Invoice date</label>
+                  <FieldLabel>Bill sent date</FieldLabel>
+                  <input
+                    type="date"
+                    value={form.billDate}
+                    onChange={(e) =>
+                      setForm({ ...form, billDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="umkm-field">
+                  <FieldLabel>Collection status</FieldLabel>
+                  <strong aria-live="polite">
+                    {invoiceStatusLabel(derivedInvoiceStatus)}
+                  </strong>
+                  <p className="umkm-product-meta-line">
+                    Updates from payments recorded below.
+                  </p>
+                </div>
+                <div className="umkm-field">
+                  <FieldLabel>First payment date</FieldLabel>
                   <input
                     type="date"
                     value={form.invoiceDate}
@@ -1868,10 +2091,25 @@ export default function OrdersPage() {
                     }
                   />
                 </div>
+                {form.paymentStatus === 'DELAYED_PAYMENT' ? (
+                  <div className="umkm-field">
+                    <FieldLabel>Payment due date</FieldLabel>
+                    <input
+                      type="date"
+                      value={form.paymentDueDate}
+                      onChange={(e) =>
+                        setForm({ ...form, paymentDueDate: e.target.value })
+                      }
+                    />
+                    <p className="umkm-product-meta-line">
+                      When you expect full payment (e.g. NET-30).
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="umkm-order-installment-head">
-                <h4>Installments</h4>
+                <h4>Payments received</h4>
                 <button
                   type="button"
                   className="umkm-btn secondary"
@@ -1879,22 +2117,24 @@ export default function OrdersPage() {
                     const lastDate =
                       form.installments[form.installments.length - 1]
                         ?.installmentDate;
-                    setForm({
-                      ...form,
-                      installments: [
-                        ...form.installments,
-                        emptyInstallmentRow(lastDate),
-                      ],
-                    });
+                    const row = emptyInstallmentRow(lastDate);
+                    const nextInstallments = [...form.installments, row];
+                    const next: Partial<OrderForm> = {
+                      installments: nextInstallments,
+                    };
+                    if (form.installments.length === 0) {
+                      next.invoiceDate = row.installmentDate;
+                    }
+                    setForm({ ...form, ...next });
                   }}
                 >
-                  Add payment
+                  Record payment
                 </button>
               </div>
 
               {form.installments.length === 0 ? (
                 <p className="umkm-sub" style={{ margin: '0.35rem 0 0' }}>
-                  No payments yet. Remaining equals the order total.
+                  No payments recorded yet. Remaining equals the order total.
                 </p>
               ) : (
                 <ul className="umkm-installment-list">
@@ -2182,6 +2422,7 @@ export default function OrdersPage() {
       ) : null}
 
       {!formOpen && !viewing ? (
+      <>
       <ContentSection
         eyebrow="Fulfillment"
         title="Orders"
@@ -2189,7 +2430,7 @@ export default function OrdersPage() {
       >
         <div className="umkm-catalog-toolbar">
           <div className="umkm-field umkm-catalog-search">
-            <label htmlFor="order-search">Search</label>
+            <FieldLabel htmlFor="order-search">Search</FieldLabel>
             <input
               id="order-search"
               value={search}
@@ -2202,6 +2443,8 @@ export default function OrdersPage() {
             activeCount={
               (statusFilters.length > 0 ? 1 : 0) +
               (paymentFilters.length > 0 ? 1 : 0) +
+              (billStatusFilters.length > 0 ? 1 : 0) +
+              (invoiceStatusFilters.length > 0 ? 1 : 0) +
               (isDateRangeActive(orderDateRange) ? 1 : 0) +
               (isDateRangeActive(shipmentDateRange) ? 1 : 0) +
               (isDateRangeActive(invoiceDateRange) ? 1 : 0)
@@ -2233,6 +2476,34 @@ export default function OrdersPage() {
               options={PAYMENT_STATUSES.map((status) => ({
                 value: status,
                 label: paymentStatusLabel(status),
+              }))}
+            />
+            <MultiSelectFilter
+              id="order-bill-status-filter"
+              label="Customer bill"
+              allLabel="All bill states"
+              value={billStatusFilters}
+              onChange={(next) => {
+                setBillStatusFilters(next);
+                setPage(1);
+              }}
+              options={BILL_STATUSES.map((status) => ({
+                value: status,
+                label: billStatusLabel(status),
+              }))}
+            />
+            <MultiSelectFilter
+              id="order-invoice-status-filter"
+              label="Collection"
+              allLabel="All collection states"
+              value={invoiceStatusFilters}
+              onChange={(next) => {
+                setInvoiceStatusFilters(next);
+                setPage(1);
+              }}
+              options={INVOICE_STATUSES.map((status) => ({
+                value: status,
+                label: invoiceStatusLabel(status),
               }))}
             />
             <DateRangeFilter
@@ -2271,7 +2542,9 @@ export default function OrdersPage() {
               ? 'Loading…'
               : listMeta.total === 0
                 ? '0 orders'
-                : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
+                : items.length >= listMeta.total
+                  ? `Showing all ${listMeta.total.toLocaleString('en-US')} orders`
+                  : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
@@ -2279,6 +2552,8 @@ export default function OrdersPage() {
           debouncedSearch ||
           statusFilters.length > 0 ||
           paymentFilters.length > 0 ||
+          billStatusFilters.length > 0 ||
+          invoiceStatusFilters.length > 0 ||
           hasDateFilters ? (
             <EmptyState
               title="No matches"
@@ -2385,8 +2660,8 @@ export default function OrdersPage() {
                               {o.orderDate?.slice(0, 10) ?? '—'}
                             </span>
                             <EntityIdBadge
-                              id={o.sku || o.id}
-                              literal={Boolean(o.sku)}
+                              id={o.orderId || o.id}
+                              literal={Boolean(o.orderId)}
                               compact
                               soft
                             />
@@ -2437,6 +2712,19 @@ export default function OrdersPage() {
                           <span className="umkm-badge">
                             {orderStatusLabel(o.status)}
                           </span>
+                          <p className="umkm-product-meta-line">
+                            <span>
+                              Bill · {billStatusLabel(o.billStatus)}
+                            </span>
+                            <span>
+                              Collection · {invoiceStatusLabel(o.invoiceStatus)}
+                            </span>
+                            {isOrderPaymentOverdue(o) ? (
+                              <span className="umkm-badge sm is-warn">
+                                Overdue
+                              </span>
+                            ) : null}
+                          </p>
                         </td>
                         <td className="is-num">
                           <span className="umkm-num">
@@ -2494,12 +2782,10 @@ export default function OrdersPage() {
                 const packSize = o.packSizeSnapshot ?? 1;
                 const packCount = o.packCount ?? 1;
                 const extra = orderExtraLineCount(o);
+                const due = orderAmountDue(o);
                 const remaining =
                   o.remainingAmount ??
-                  remainingFromInstallments(
-                    o.totalOrderValue,
-                    o.installments ?? [],
-                  );
+                  remainingFromInstallments(due, o.installments ?? []);
                 const paymentRate = orderPaymentRatePercent(o);
                 const paid = orderPaidAmount(o);
                 return (
@@ -2530,8 +2816,8 @@ export default function OrdersPage() {
                             {o.orderDate?.slice(0, 10) ?? '—'}
                           </span>
                           <EntityIdBadge
-                            id={o.sku || o.id}
-                            literal={Boolean(o.sku)}
+                            id={o.orderId || o.id}
+                            literal={Boolean(o.orderId)}
                             compact
                             soft
                           />
@@ -2560,7 +2846,7 @@ export default function OrdersPage() {
                                   : formatRatePercent(paymentRate)
                               }
                               description="How much of this order’s total has been collected so far."
-                              detail={`${formatMoney(paid)} of ${formatMoney(o.totalOrderValue)}`}
+                              detail={`${formatMoney(paid)} of ${formatMoney(due)}`}
                             >
                               {paymentRate == null
                                 ? '—'
@@ -2598,36 +2884,34 @@ export default function OrdersPage() {
                 );
               })}
             </ul>
-            {listMeta.totalPages > 1 ? (
-              <div className="umkm-list-pager" aria-label="Orders pages">
-                <button
-                  type="button"
-                  className="umkm-btn ghost"
-                  disabled={listLoading || listMeta.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </button>
-                <span className="umkm-list-pager-status">
-                  Page {listMeta.page} of {listMeta.totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="umkm-btn ghost"
-                  disabled={
-                    listLoading || listMeta.page >= listMeta.totalPages
-                  }
-                  onClick={() =>
-                    setPage((p) => Math.min(listMeta.totalPages, p + 1))
-                  }
-                >
-                  Next
-                </button>
-              </div>
-            ) : null}
+            <ListPager
+              ariaLabel="Orders pages"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              total={listMeta.total}
+              loading={listLoading}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() =>
+                setPage((p) => Math.min(listMeta.totalPages, p + 1))
+              }
+            />
           </>
         )}
       </ContentSection>
+
+      <ContentSection eyebrow="Statistics" quiet>
+        <OrderStatisticsSection
+          statistics={summary?.statistics}
+          orderCount={summary?.orderCount ?? 0}
+          loading={statisticsLoading}
+        />
+      </ContentSection>
+      </>
       ) : null}
     </section>
   );

@@ -2,11 +2,14 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { EmailVerificationService } from './email-verification.service';
+import { PasswordResetService } from './password-reset.service';
 import {
+  ForgotPasswordDto,
   LoginDto,
   RefreshDto,
   RegisterAvailabilityDto,
   RegisterDto,
+  ResetPasswordDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
 
@@ -15,6 +18,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerification: EmailVerificationService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
 
   @Post('register-availability')
@@ -48,5 +52,19 @@ export class AuthController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   verifyEmail(@Body() dto: VerifyEmailDto) {
     return this.emailVerification.verifyToken(dto.token);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.passwordReset.requestReset(dto.login);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.passwordReset.resetPassword(dto.token, dto.password);
   }
 }

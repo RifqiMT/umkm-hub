@@ -19,7 +19,7 @@ async function main() {
     );
     await prisma.customer.update({
       where: { id: customer.id },
-      data: { sku },
+      data: { customerId: sku },
     });
     // eslint-disable-next-line no-console
     console.log(`${customer.name} (${customer.companyType}) → ${sku}`);

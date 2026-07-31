@@ -13,6 +13,7 @@ import {
   type ConfirmOptions,
   type ConfirmTone,
 } from '@/lib/confirm';
+import { useTr } from '@/components/Tr';
 
 type PendingConfirm = ConfirmOptions & {
   resolve: (value: boolean) => void;
@@ -42,6 +43,7 @@ function toneDefaults(tone: ConfirmTone) {
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const tr = useTr();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -118,13 +120,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             </div>
             <div className="umkm-confirm-copy">
               <h2 id={titleId} className="umkm-confirm-title">
-                {pending.title}
+                {tr(pending.title)}
               </h2>
               <p id={descId} className="umkm-confirm-message">
-                {pending.message}
+                {tr(pending.message)}
               </p>
               {pending.detail ? (
-                <p className="umkm-confirm-detail">{pending.detail}</p>
+                <p className="umkm-confirm-detail">{tr(pending.detail)}</p>
               ) : null}
             </div>
             <div className="umkm-confirm-actions">
@@ -134,7 +136,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 className="umkm-btn secondary"
                 onClick={() => close(false)}
               >
-                {pending.cancelLabel ?? 'Cancel'}
+                {tr(pending.cancelLabel ?? 'Cancel')}
               </button>
               <button
                 ref={confirmRef}
@@ -142,7 +144,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 className={defaults.confirmClass}
                 onClick={() => close(true)}
               >
-                {pending.confirmLabel ?? defaults.confirmLabel}
+                {tr(pending.confirmLabel ?? defaults.confirmLabel)}
               </button>
             </div>
           </div>

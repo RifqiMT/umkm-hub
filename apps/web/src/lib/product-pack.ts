@@ -1,5 +1,5 @@
 import type { Product } from '@/lib/types';
-import { formatMoney, formatQty } from '@/lib/format-money';
+import { formatCompactQty } from '@/lib/format-money';
 
 export type ActivePack = {
   sizeLabel: string;
@@ -21,7 +21,7 @@ function unitShort(unit?: string) {
 }
 
 function formatPackSize(value: number) {
-  return formatQty(value);
+  return formatCompactQty(value);
 }
 
 function marginFromSellCost(
@@ -129,7 +129,7 @@ export function formatPacksOnHand(
   const count = packsOnHand(stockQty, pack);
   if (count == null || !pack) return null;
   if (pack.size === 1 && pack.shortUnit === 'pcs') {
-    return `${formatMoney(count)} pcs`;
+    return `${formatCompactQty(count)} pcs`;
   }
-  return `${formatMoney(count)} packs (${pack.sizeLabel})`;
+  return `${formatCompactQty(count)} packs (${pack.sizeLabel})`;
 }

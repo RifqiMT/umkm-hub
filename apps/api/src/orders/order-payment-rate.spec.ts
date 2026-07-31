@@ -43,6 +43,30 @@ describe('order-payment-rate', () => {
     expect(orderPaymentRatePercent({ totalOrderValue: 0, paidAmount: 0 })).toBeNull();
   });
 
+  it('uses amountDue for PKP payment progress', () => {
+    expect(
+      orderPaymentRatePercent({
+        totalOrderValue: 1_000_000,
+        amountDue: 1_110_000,
+        paidAmount: 555_000,
+      }),
+    ).toBe(50);
+    expect(
+      isOrderFullyPaid({
+        totalOrderValue: 1_000_000,
+        amountDue: 1_110_000,
+        paidAmount: 1_110_000,
+      }),
+    ).toBe(true);
+    expect(
+      isOrderFullyPaid({
+        totalOrderValue: 1_000_000,
+        amountDue: 1_110_000,
+        paidAmount: 1_000_000,
+      }),
+    ).toBe(false);
+  });
+
   it('aggregates full-payment rate like the Orders stage KPI', () => {
     const orders = [
       { status: 'CONFIRMED', totalOrderValue: 100, paidAmount: 100 },

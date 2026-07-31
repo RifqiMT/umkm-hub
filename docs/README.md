@@ -1,6 +1,6 @@
 # UMKM Hub Documentation Index
 
-Canonical product and engineering documentation for **UMKM Hub** (v1.5.217). Start with the product overview, then use the matrix below by role.
+Canonical product and engineering documentation for **UMKM Hub** (v1.5.233). Start with the product overview, then use the matrix below by role.
 
 ---
 
@@ -50,15 +50,17 @@ Canonical product and engineering documentation for **UMKM Hub** (v1.5.217). Sta
 | Topic | Covered in |
 |-------|------------|
 | Product overview & benefits | PRODUCT |
-| Features & core logics | PRODUCT, PRD, VARIABLES |
+| Features & core logics (incl. amountDue, PDF/fiscal prep, statistics) | PRODUCT, PRD, VARIABLES |
 | Business guidelines | PRODUCT, GUARDRAILS |
 | Tech guidelines & stack | PRODUCT, ARCHITECTURE, README |
 | Personas & user stories | PERSONAS, USER_STORIES |
 | Variables + formulas + charts | VARIABLES |
 | Product & OKR metrics | METRICS |
 | Design tokens & components | DESIGN_GUIDELINES |
-| Traceability | TRACEABILITY |
-| Guardrails | GUARDRAILS |
+| Traceability (FR → API/web/mobile) | TRACEABILITY |
+| Guardrails (tech + business + perf) | GUARDRAILS |
 | Changelog | CHANGELOG |
+
+**Code tip aligned:** v1.5.232 · **Docs stamp:** 1.5.233
 
 When shipping a user-visible change: update **CHANGELOG**, bump version stamps on PRODUCT/PRD if needed, and adjust VARIABLES / TRACEABILITY / DESIGN when formulas, FR coverage, or UI tokens change.

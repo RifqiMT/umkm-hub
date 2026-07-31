@@ -20,7 +20,13 @@ export const PAYMENT_STATUSES = [
   'CONSIGNMENT',
   'DELAYED_PAYMENT',
 ] as const;
-export const INVOICE_STATUSES = ['CREATED', 'SENT'] as const;
+export const BILL_STATUSES = ['CREATED', 'SENT'] as const;
+export const INVOICE_STATUSES = [
+  'CREATED',
+  'SENT',
+  'PARTIALLY_PAID',
+  'FULLY_PAID',
+] as const;
 export const ORDER_STATUSES = [
   'PENDING',
   'CONFIRMED',
@@ -76,8 +82,14 @@ export const LABELS = {
     DELAYED_PAYMENT: 'Delayed payment',
   },
   invoiceStatus: {
-    CREATED: 'Created',
-    SENT: 'Sent',
+    CREATED: 'Not billed yet',
+    SENT: 'Awaiting payment',
+    PARTIALLY_PAID: 'Partial payment',
+    FULLY_PAID: 'Paid in full',
+  },
+  billStatus: {
+    CREATED: 'Draft bill',
+    SENT: 'Sent to customer',
   },
   orderStatus: {
     PENDING: 'Pending',

@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-07-26 (v1.5.217) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-07-31 (v1.5.233) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 
@@ -315,13 +315,16 @@ Update `/docs` with:
 
 ## 11. Out of Scope (v1)
 
+> Living docs ([PRODUCT.md](./PRODUCT.md), [PRD.md](./PRD.md)) supersede outdated plan bullets. Shipped since this plan was first written: printable PDF + e-Faktur **prep**, PPN/`amountDue`, domain statistics, warehouse edit (web).
+
+Still out of scope for v1:
 - Multi-user teams under one UMKM
 - Product images
-- Invoicing / PDF
+- **Official DJP e-Faktur filing** (prep CSV/XML is in-product)
 - Push notifications
 - Offline sync
 - Role-based admin
-
+- Mobile revenue-targets UI and mobile PDF download (web-first)
 ---
 
 ## 12. Approval Checklist

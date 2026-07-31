@@ -63,3 +63,22 @@ OrderTotals calculateMultiLineOrderTotals({
 }
 
 double _round(double value) => double.parse(value.toStringAsFixed(4));
+
+const _paymentEpsilon = 0.00005;
+
+/// Derive invoice collection status from paid amount vs amount due.
+String deriveInvoiceStatusFromPayments({
+  required double amountDue,
+  required double paidAmount,
+  required String billStatus,
+}) {
+  final total = amountDue;
+  final paid = paidAmount;
+  if (paid <= _paymentEpsilon) {
+    return billStatus == 'SENT' ? 'SENT' : 'CREATED';
+  }
+  if (paid + _paymentEpsilon >= total) {
+    return 'FULLY_PAID';
+  }
+  return 'PARTIALLY_PAID';
+}

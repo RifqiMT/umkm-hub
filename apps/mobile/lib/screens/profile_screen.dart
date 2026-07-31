@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../data/ui_languages.dart';
 import '../format_money.dart';
 import '../services/api_service.dart';
 import '../services/session_controller.dart';
+import '../services/translate_service.dart';
+import '../services/ui_language_service.dart';
 import '../theme/umkm_theme.dart';
 import '../widgets/ui.dart';
 import 'analytics_screen.dart';
@@ -29,6 +32,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final emailCtrl = TextEditingController();
   final cityCtrl = TextEditingController();
   final countryCtrl = TextEditingController();
+  final businessNameCtrl = TextEditingController();
+  final businessPhoneCtrl = TextEditingController();
+  final businessAddressCtrl = TextEditingController();
+  final npwpCtrl = TextEditingController();
+  final invoicePrefixCtrl = TextEditingController();
+  final ppnCtrl = TextEditingController(text: '11');
 
   String? profileId;
   String? createdAt;
@@ -51,7 +60,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool booting = true;
   bool saving = false;
   bool savingPersonal = false;
+  bool savingBusiness = false;
   bool sendingVerify = false;
+  bool isPkp = false;
+  bool taxInclusive = false;
+  double defaultPpnPercent = 11;
   bool detecting = false;
   bool showPassword = false;
   bool snapshotLoading = true;
@@ -85,6 +98,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     emailCtrl.dispose();
     cityCtrl.dispose();
     countryCtrl.dispose();
+    businessNameCtrl.dispose();
+    businessPhoneCtrl.dispose();
+    businessAddressCtrl.dispose();
+    npwpCtrl.dispose();
+    invoicePrefixCtrl.dispose();
+    ppnCtrl.dispose();
     super.dispose();
   }
 
@@ -200,6 +219,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         emailCtrl.text = mail;
         cityCtrl.text = loadedCity ?? '';
         countryCtrl.text = loadedCountry ?? '';
+        businessNameCtrl.text = (map['businessName'] as String?) ?? '';
+        businessPhoneCtrl.text = (map['businessPhone'] as String?) ?? '';
+        businessAddressCtrl.text = (map['businessAddress'] as String?) ?? '';
+        npwpCtrl.text = (map['npwp'] as String?) ?? '';
+        invoicePrefixCtrl.text = (map['invoicePrefix'] as String?) ?? '';
+        isPkp = map['isPkp'] == true;
+        taxInclusive = map['taxInclusive'] == true;
+        defaultPpnPercent =
+            (map['defaultPpnPercent'] as num?)?.toDouble() ?? 11;
+        ppnCtrl.text = defaultPpnPercent % 1 == 0
+            ? defaultPpnPercent.toStringAsFixed(0)
+            : defaultPpnPercent.toString();
         booting = false;
       });
       _hydrating = false;
@@ -281,6 +312,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return 'Names must be at most 64 characters.';
     }
     return null;
+  }
+
+  Future<void> _saveBusiness() async {
+    setState(() {
+      error = null;
+      message = null;
+      savingBusiness = true;
+    });
+    try {
+      final ppn = double.tryParse(ppnCtrl.text.trim()) ?? defaultPpnPercent;
+      final updated = await context.read<ApiService>().request(
+            'PATCH',
+            '/profiles/me',
+            body: {
+              'businessName': businessNameCtrl.text.trim().isEmpty
+                  ? null
+                  : businessNameCtrl.text.trim(),
+              'businessPhone': businessPhoneCtrl.text.trim().isEmpty
+                  ? null
+                  : businessPhoneCtrl.text.trim(),
+              'businessAddress': businessAddressCtrl.text.trim().isEmpty
+                  ? null
+                  : businessAddressCtrl.text.trim(),
+              'npwp': npwpCtrl.text.trim().isEmpty
+                  ? null
+                  : npwpCtrl.text.trim(),
+              'isPkp': isPkp,
+              'defaultPpnPercent': ppn.round(),
+              'taxInclusive': taxInclusive,
+              'invoicePrefix': invoicePrefixCtrl.text.trim().isEmpty
+                  ? null
+                  : invoicePrefixCtrl.text.trim(),
+            },
+          );
+      final map = updated as Map<String, dynamic>;
+      if (!mounted) return;
+      _hydrating = true;
+      setState(() {
+        businessNameCtrl.text = (map['businessName'] as String?) ?? '';
+        businessPhoneCtrl.text = (map['businessPhone'] as String?) ?? '';
+        businessAddressCtrl.text = (map['businessAddress'] as String?) ?? '';
+        npwpCtrl.text = (map['npwp'] as String?) ?? '';
+        invoicePrefixCtrl.text = (map['invoicePrefix'] as String?) ?? '';
+        isPkp = map['isPkp'] == true;
+        taxInclusive = map['taxInclusive'] == true;
+        defaultPpnPercent =
+            (map['defaultPpnPercent'] as num?)?.toDouble() ?? 11;
+        ppnCtrl.text = defaultPpnPercent % 1 == 0
+            ? defaultPpnPercent.toStringAsFixed(0)
+            : defaultPpnPercent.toString();
+        message = 'Invoice profile saved.';
+        savingBusiness = false;
+      });
+      _hydrating = false;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString();
+        savingBusiness = false;
+      });
+    }
   }
 
   Future<void> _savePersonal() async {
@@ -967,6 +1059,139 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SectionLabel(
+          'Invoicing',
+          subtitle:
+              'Business details for PDF invoices and e-Faktur exports.',
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: FormSection(
+            title: 'Invoice & tax profile',
+            description:
+                'Most UMKM stay on Non-PKP. Switch to PKP only when VAT-registered.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Non-PKP'),
+                        selected: !isPkp,
+                        onSelected: booting
+                            ? null
+                            : (_) => setState(() {
+                                  isPkp = false;
+                                  taxInclusive = false;
+                                  message = null;
+                                }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('PKP'),
+                        selected: isPkp,
+                        onSelected: booting
+                            ? null
+                            : (_) => setState(() {
+                                  isPkp = true;
+                                  message = null;
+                                }),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: businessNameCtrl,
+                  enabled: !booting,
+                  decoration: const InputDecoration(
+                    labelText: 'Business name',
+                    hintText: 'Shown on invoice header',
+                  ),
+                  onChanged: (_) => setState(() => message = null),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: businessPhoneCtrl,
+                  enabled: !booting,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Business phone',
+                  ),
+                  onChanged: (_) => setState(() => message = null),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: businessAddressCtrl,
+                  enabled: !booting,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Business address',
+                    hintText: 'Street, city — shown on invoices',
+                  ),
+                  onChanged: (_) => setState(() => message = null),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: npwpCtrl,
+                  enabled: !booting,
+                  decoration: const InputDecoration(
+                    labelText: 'NPWP',
+                    hintText: '15 or 16 digits',
+                  ),
+                  onChanged: (_) => setState(() => message = null),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: invoicePrefixCtrl,
+                  enabled: !booting,
+                  decoration: const InputDecoration(
+                    labelText: 'Invoice prefix',
+                    hintText: 'e.g. INV',
+                  ),
+                  onChanged: (_) => setState(() => message = null),
+                ),
+                if (isPkp) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ppnCtrl,
+                    enabled: !booting,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Default PPN %',
+                    ),
+                    onChanged: (_) => setState(() => message = null),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Tax-inclusive pricing'),
+                    subtitle: const Text(
+                      'Catalog prices already include PPN when enabled.',
+                    ),
+                    value: taxInclusive,
+                    onChanged: booting
+                        ? null
+                        : (v) => setState(() {
+                              taxInclusive = v;
+                              message = null;
+                            }),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed:
+                      (booting || savingBusiness) ? null : _saveBusiness,
+                  child: Text(
+                    savingBusiness ? 'Saving…' : 'Save invoice profile',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SectionLabel(
           'Security',
           subtitle: 'Username is permanent. You can update your password here.',
         ),
@@ -1062,6 +1287,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: const Text('Log out'),
                 ),
               ],
+            ),
+          ),
+        ),
+        const SectionLabel(
+          'Language',
+          subtitle:
+              'Auto-translate labels across Products, Orders, Warehouse, Customers, and Profile.',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: FormSection(
+            title: 'Auto translation',
+            child: Consumer2<UiLanguageService, TranslateService>(
+              builder: (context, language, translate, _) {
+                final selected = language.code ?? '';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selected,
+                      decoration: const InputDecoration(
+                        labelText: 'Display language',
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('Original (English)'),
+                        ),
+                        ...uiLanguages.map(
+                          (lang) => DropdownMenuItem(
+                            value: lang.code,
+                            child: Text(lang.label),
+                          ),
+                        ),
+                      ],
+                      onChanged: booting || translate.loading
+                          ? null
+                          : (value) async {
+                              await language.setCode(
+                                (value == null || value.isEmpty) ? null : value,
+                              );
+                              if (!context.mounted) return;
+                              setState(() {
+                                message = language.isActive
+                                    ? 'Language updated — UI labels are translating.'
+                                    : 'Back to original English.';
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      language.isActive
+                          ? translate.loading
+                              ? 'Translating workspace… ${translate.progressPercent}%'
+                              : 'Navigation, forms, lists, analytics, dictionary, and profile labels — including numbers — are translated with Google Translate. Product names and IDs stay as entered.'
+                          : 'Pick a language to translate navigation, forms, and common labels with Google Translate across Products, Warehouse, Customers, Orders, Analytics, Dictionary, and Profile.',
+                      style: UmkmType.body(size: 13.5, color: UmkmColors.muted),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

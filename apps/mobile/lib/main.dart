@@ -5,7 +5,11 @@ import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 import 'services/session_controller.dart';
+import 'services/translate_service.dart';
+import 'services/ui_language_service.dart';
 import 'theme/umkm_theme.dart';
+import 'widgets/auto_translate_text.dart';
+import 'widgets/translation_progress_overlay.dart';
 import 'widgets/ui.dart';
 
 void main() {
@@ -21,6 +25,13 @@ class UmkmHubApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider(create: (_) => ApiService()),
+        ChangeNotifierProvider.value(value: TranslateService.instance),
+        ChangeNotifierProvider(
+          create: (context) {
+            TranslateService.instance.bindApi(context.read<ApiService>());
+            return UiLanguageService()..load();
+          },
+        ),
         ChangeNotifierProvider(
           create: (context) => SessionController(context.read<ApiService>()),
         ),
@@ -29,6 +40,15 @@ class UmkmHubApp extends StatelessWidget {
         title: 'UMKM Hub',
         debugShowCheckedModeBanner: false,
         theme: buildUmkmTheme(),
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              if (child != null) child,
+              const TranslationProgressOverlay(),
+            ],
+          );
+        },
         home: const _Root(),
       ),
     );
@@ -40,9 +60,9 @@ class _Root extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SessionController>(
-      builder: (context, session, _) {
-        if (session.loading) {
+    return Consumer2<SessionController, UiLanguageService>(
+      builder: (context, session, language, _) {
+        if (!language.ready || session.loading) {
           return SoftSurface(
             child: Scaffold(
               backgroundColor: Colors.transparent,
@@ -56,6 +76,8 @@ class _Root extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    const Tr('Checking session…'),
                   ],
                 ),
               ),

@@ -8,6 +8,29 @@ import '../format_id.dart';
 import '../services/api_service.dart';
 import '../theme/umkm_theme.dart';
 import '../widgets/ui.dart';
+import '../widgets/feature_data_transfer.dart';
+
+String _partnershipLabel(String? stage) {
+  switch (stage) {
+    case 'WHATSAPP':
+      return 'WhatsApp';
+    case 'EMAIL':
+      return 'Email';
+    case 'DIRECT_VISIT':
+      return 'Direct visit';
+    default:
+      return stage?.isNotEmpty == true ? stage! : '—';
+  }
+}
+
+String _promiseLabels(Customer customer) {
+  final tags = <String>[
+    if (customer.promiseAnnualBonus) 'Annual bonus',
+    if (customer.promiseOnTimeDelivery) 'On-time delivery',
+    if (customer.promisePackagingBox) 'Packaging box',
+  ];
+  return tags.isEmpty ? '—' : tags.join(', ');
+}
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -20,6 +43,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   List<Customer> items = [];
   String? error;
   bool loading = true;
+  bool _dataSyncOpen = false;
 
   @override
   void initState() {
@@ -47,6 +71,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final company = TextEditingController(text: existing?.companyName ?? '');
     final email = TextEditingController(text: existing?.email ?? '');
     final phone = TextEditingController(text: existing?.phone ?? '');
+    final npwp = TextEditingController(text: existing?.npwp ?? '');
     final address = TextEditingController(text: existing?.address ?? '');
     final additionalAddress =
         TextEditingController(text: existing?.additionalAddress ?? '');
@@ -129,6 +154,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   controller: phone,
                   decoration:
                       const InputDecoration(labelText: 'Phone (optional)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: npwp,
+                  decoration: const InputDecoration(
+                    labelText: 'NPWP (buyer)',
+                    helperText: 'Optional — for B2B invoices & e-Faktur',
+                  ),
                 ),
               ],
             ),
@@ -315,6 +348,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     };
     final emailValue = email.text.trim();
     final phoneValue = phone.text.trim();
+    final npwpValue = npwp.text.trim();
     final addressValue = address.text.trim();
     final additionalAddressValue = additionalAddress.text.trim();
     final postalCodeValue = postalCode.text.trim();
@@ -326,6 +360,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final remarksValue = remarks.text.trim();
     if (emailValue.isNotEmpty) body['email'] = emailValue;
     if (phoneValue.isNotEmpty) body['phone'] = phoneValue;
+    if (npwpValue.isNotEmpty) body['npwp'] = npwpValue;
     if (addressValue.isNotEmpty) body['address'] = addressValue;
     if (additionalAddressValue.isNotEmpty) {
       body['additionalAddress'] = additionalAddressValue;
@@ -409,16 +444,50 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 DetailRow(label: 'Title', value: customer.title),
                 DetailRow(label: 'Company', value: customer.companyName),
                 DetailRow(label: 'Company type', value: customer.companyType),
-                DetailRow(label: 'Email', value: customer.email),
-                DetailRow(label: 'Phone', value: customer.phone),
-                DetailRow(label: 'Address', value: customer.address),
+                DetailRow(
+                  label: 'NPWP',
+                  value: customer.npwp.isNotEmpty ? customer.npwp : '—',
+                ),
+                DetailRow(
+                  label: 'Email',
+                  value: customer.email.isNotEmpty ? customer.email : '—',
+                ),
+                DetailRow(
+                  label: 'Phone',
+                  value: customer.phone.isNotEmpty ? customer.phone : '—',
+                ),
+                DetailRow(
+                  label: 'Address',
+                  value: customer.address.isNotEmpty ? customer.address : '—',
+                ),
                 DetailRow(
                   label: 'Additional address',
-                  value: customer.additionalAddress,
+                  value: customer.additionalAddress.isNotEmpty
+                      ? customer.additionalAddress
+                      : '—',
                 ),
-                DetailRow(label: 'City', value: customer.city),
-                DetailRow(label: 'Province', value: customer.province),
-                DetailRow(label: 'Country', value: customer.country),
+                DetailRow(
+                  label: 'Postal code',
+                  value: customer.postalCode.isNotEmpty
+                      ? customer.postalCode
+                      : '—',
+                ),
+                DetailRow(
+                  label: 'City',
+                  value: customer.city.isNotEmpty ? customer.city : '—',
+                ),
+                DetailRow(
+                  label: 'Province',
+                  value: customer.province.isNotEmpty ? customer.province : '—',
+                ),
+                DetailRow(
+                  label: 'Country',
+                  value: customer.country.isNotEmpty ? customer.country : '—',
+                ),
+                DetailRow(
+                  label: 'Partnership stage',
+                  value: _partnershipLabel(customer.partnershipStage),
+                ),
                 DetailRow(
                   label: 'Status',
                   value: customer.status ?? '—',
@@ -431,8 +500,26 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   label: 'Approval',
                   value: '${customer.approvalPercentage}%',
                 ),
-                DetailRow(label: 'Needs', value: customer.customerNeeds),
-                DetailRow(label: 'Remarks', value: customer.remarks),
+                DetailRow(
+                  label: 'Needs',
+                  value: customer.customerNeeds.isNotEmpty
+                      ? customer.customerNeeds
+                      : '—',
+                ),
+                DetailRow(
+                  label: 'Standards',
+                  value: customer.desiredStandards.isNotEmpty
+                      ? customer.desiredStandards
+                      : '—',
+                ),
+                DetailRow(
+                  label: 'Promises',
+                  value: _promiseLabels(customer),
+                ),
+                DetailRow(
+                  label: 'Remarks',
+                  value: customer.remarks.isNotEmpty ? customer.remarks : '—',
+                ),
               ],
             ),
           ),
@@ -458,6 +545,16 @@ class _CustomersScreenState extends State<CustomersScreen> {
     if (action == 'delete') await _delete(customer);
   }
 
+  Widget _buildDataSyncSection() {
+    return FeatureDataSyncSection(
+      open: _dataSyncOpen,
+      onToggle: () => setState(() => _dataSyncOpen = !_dataSyncOpen),
+      entity: FeatureExportEntity.customers,
+      label: 'Customers',
+      onImported: _load,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
@@ -475,11 +572,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
         onRefresh: _load,
         child: items.isEmpty
             ? ListView(
-                children: const [
-                  PageIntro(
+                children: [
+                  const PageIntro(
                     subtitle: 'CRM contacts and partnership pipeline.',
                   ),
-                  SectionLabel(
+                  _buildDataSyncSection(),
+                  const SectionLabel(
                     'Directory',
                     subtitle: 'Companies and contacts in your pipeline.',
                   ),
@@ -495,13 +593,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 itemCount: items.length + 1,
                 itemBuilder: (context, i) {
                   if (i == 0) {
-                    return const Column(
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        PageIntro(
+                        const PageIntro(
                           subtitle: 'CRM contacts and partnership pipeline.',
                         ),
-                        SectionLabel(
+                        _buildDataSyncSection(),
+                        const SectionLabel(
                           'Directory',
                           subtitle: 'Companies and contacts in your pipeline.',
                         ),
@@ -521,7 +620,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     ],
                     chips: [
                       StatusChip(
-                        label: c.sku.isNotEmpty ? c.sku : entityIdLabel(c.id),
+                        label: c.customerId.isNotEmpty ? c.customerId : entityIdLabel(c.id),
                         tone: StatusTone.neutral,
                       ),
                       if (c.status != null)

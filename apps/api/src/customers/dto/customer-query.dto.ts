@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import {
   CompanyType,
   CustomerStatus,
+  PartnershipStage,
   RelationshipLevel,
 } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -22,6 +23,31 @@ function toCustomerStatusList(value: unknown): CustomerStatus[] {
     );
 }
 
+function toCompanyTypeList(value: unknown): CompanyType[] {
+  const allowed = new Set(Object.values(CompanyType));
+  return toStringList(value)
+    .map((part) => part.toUpperCase())
+    .filter((part): part is CompanyType => allowed.has(part as CompanyType));
+}
+
+function toRelationshipLevelList(value: unknown): RelationshipLevel[] {
+  const allowed = new Set(Object.values(RelationshipLevel));
+  return toStringList(value)
+    .map((part) => part.toUpperCase())
+    .filter((part): part is RelationshipLevel =>
+      allowed.has(part as RelationshipLevel),
+    );
+}
+
+function toPartnershipStageList(value: unknown): PartnershipStage[] {
+  const allowed = new Set(Object.values(PartnershipStage));
+  return toStringList(value)
+    .map((part) => part.toUpperCase())
+    .filter((part): part is PartnershipStage =>
+      allowed.has(part as PartnershipStage),
+    );
+}
+
 export class CustomerQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => toCustomerStatusList(value))
@@ -29,12 +55,19 @@ export class CustomerQueryDto extends PaginationQueryDto {
   status?: CustomerStatus[];
 
   @IsOptional()
-  @IsEnum(CompanyType)
-  companyType?: CompanyType;
+  @Transform(({ value }) => toCompanyTypeList(value))
+  @IsEnum(CompanyType, { each: true })
+  companyType?: CompanyType[];
 
   @IsOptional()
-  @IsEnum(RelationshipLevel)
-  relationshipLevel?: RelationshipLevel;
+  @Transform(({ value }) => toRelationshipLevelList(value))
+  @IsEnum(RelationshipLevel, { each: true })
+  relationshipLevel?: RelationshipLevel[];
+
+  @IsOptional()
+  @Transform(({ value }) => toPartnershipStageList(value))
+  @IsEnum(PartnershipStage, { each: true })
+  partnershipStage?: PartnershipStage[];
 }
 
 export class CustomerSummaryQueryDto {
@@ -48,10 +81,17 @@ export class CustomerSummaryQueryDto {
   status?: CustomerStatus[];
 
   @IsOptional()
-  @IsEnum(CompanyType)
-  companyType?: CompanyType;
+  @Transform(({ value }) => toCompanyTypeList(value))
+  @IsEnum(CompanyType, { each: true })
+  companyType?: CompanyType[];
 
   @IsOptional()
-  @IsEnum(RelationshipLevel)
-  relationshipLevel?: RelationshipLevel;
+  @Transform(({ value }) => toRelationshipLevelList(value))
+  @IsEnum(RelationshipLevel, { each: true })
+  relationshipLevel?: RelationshipLevel[];
+
+  @IsOptional()
+  @Transform(({ value }) => toPartnershipStageList(value))
+  @IsEnum(PartnershipStage, { each: true })
+  partnershipStage?: PartnershipStage[];
 }

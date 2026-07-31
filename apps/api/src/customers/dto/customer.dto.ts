@@ -131,6 +131,12 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(5000)
   remarks?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(20)
+  npwp?: string;
 }
 
 export class UpdateCustomerDto {
@@ -245,4 +251,10 @@ export class UpdateCustomerDto {
   @IsString()
   @MaxLength(5000)
   remarks?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(20)
+  npwp?: string;
 }

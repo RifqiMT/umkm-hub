@@ -1,10 +1,12 @@
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus, BillStatus, InvoiceStatus, Prisma } from '@prisma/client';
 import { dateOnlyBounds } from './order-date-range';
 
 export type OrderFilterQuery = {
   search?: string;
   status?: OrderStatus[];
   paymentStatus?: PaymentStatus[];
+  billStatus?: BillStatus[];
+  invoiceStatus?: InvoiceStatus[];
   orderDateFrom?: string;
   orderDateTo?: string;
   shipmentDateFrom?: string;
@@ -38,6 +40,26 @@ export function buildOrderFilterSql(
       Prisma.sql`o."paymentStatus" IN (${Prisma.join(
         paymentStatuses.map(
           (status) => Prisma.sql`${status}::"PaymentStatus"`,
+        ),
+      )})`,
+    );
+  }
+
+  const billStatuses = query.billStatus ?? [];
+  if (billStatuses.length > 0) {
+    parts.push(
+      Prisma.sql`o."billStatus" IN (${Prisma.join(
+        billStatuses.map((status) => Prisma.sql`${status}::"BillStatus"`),
+      )})`,
+    );
+  }
+
+  const invoiceStatuses = query.invoiceStatus ?? [];
+  if (invoiceStatuses.length > 0) {
+    parts.push(
+      Prisma.sql`o."invoiceStatus" IN (${Prisma.join(
+        invoiceStatuses.map(
+          (status) => Prisma.sql`${status}::"InvoiceStatus"`,
         ),
       )})`,
     );
@@ -77,11 +99,11 @@ export function buildOrderFilterSql(
   if (search) {
     const pattern = `%${search}%`;
     const searchParts: Prisma.Sql[] = [
-      Prisma.sql`o.sku ILIKE ${pattern}`,
+      Prisma.sql`o."orderId" ILIKE ${pattern}`,
       Prisma.sql`EXISTS (
         SELECT 1 FROM "Product" p
         WHERE p.id = o."productId"
-          AND (p.name ILIKE ${pattern} OR p.sku ILIKE ${pattern})
+          AND (p.name ILIKE ${pattern} OR p."productId" ILIKE ${pattern})
       )`,
       Prisma.sql`EXISTS (
         SELECT 1 FROM "Customer" c

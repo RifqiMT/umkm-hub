@@ -1,5 +1,6 @@
 'use client';
 
+import { useTr } from '@/components/Tr';
 type Option<T extends string> = {
   value: T;
   label: string;
@@ -30,6 +31,7 @@ export function OptionChips<T extends string>({
   className,
   disabled = false,
 }: OptionChipsProps<T>) {
+  const tr = useTr();
   const sizeClass = size === 'sm' ? ' is-sm' : '';
   const rootClass = ['umkm-choice-group', sizeClass, className]
     .filter(Boolean)
@@ -39,7 +41,7 @@ export function OptionChips<T extends string>({
     <div
       className={rootClass}
       role="radiogroup"
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ? tr(ariaLabel) : undefined}
       aria-disabled={disabled || undefined}
     >
       {allowEmpty ? (
@@ -51,7 +53,7 @@ export function OptionChips<T extends string>({
           disabled={disabled}
           onClick={() => onChange('')}
         >
-          {emptyLabel}
+          {tr(emptyLabel)}
         </button>
       ) : null}
       {options.map((opt) => {
@@ -65,10 +67,10 @@ export function OptionChips<T extends string>({
             className={`umkm-choice-chip${active ? ' is-active' : ''}`}
             aria-checked={active}
             disabled={optDisabled}
-            title={opt.title}
+            title={opt.title ? tr(opt.title) : undefined}
             onClick={() => onChange(opt.value)}
           >
-            {opt.label}
+            {tr(opt.label)}
           </button>
         );
       })}

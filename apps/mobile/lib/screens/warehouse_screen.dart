@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/product_packs.dart';
 import '../timeline.dart';
 import '../widgets/ui.dart';
+import '../widgets/feature_data_transfer.dart';
 
 String _todayDate() {
   final now = DateTime.now();
@@ -34,6 +35,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   List<Product> products = [];
   String? error;
   bool loading = true;
+  bool _dataSyncOpen = false;
 
   @override
   void initState() {
@@ -188,8 +190,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                         value: p.id,
                         child: Text(
                           pPack != null
-                              ? '${p.name} (${formatQty(p.stockQty)} ${p.unit.toLowerCase()} · ${pPack.sizeLabel})'
-                              : '${p.name} (${formatQty(p.stockQty)} ${p.unit.toLowerCase()})',
+                              ? '${p.name} (${formatCompactQty(p.stockQty)} ${p.unit.toLowerCase()} · ${pPack.sizeLabel})'
+                              : '${p.name} (${formatCompactQty(p.stockQty)} ${p.unit.toLowerCase()})',
                         ),
                       );
                     }).toList(),
@@ -284,7 +286,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '= ${formatQty(qty)} ${product.unit.toLowerCase()}',
+                        '= ${formatCompactQty(qty)} ${product.unit.toLowerCase()}',
                         style: const TextStyle(color: Colors.black54),
                       ),
                     ),
@@ -293,7 +295,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${formatQty(packs)} × ${pack.sizeLabel}',
+                        '${formatCompactQty(packs)} × ${pack.sizeLabel}',
                         style: const TextStyle(color: Colors.black54),
                       ),
                     ),
@@ -314,7 +316,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Stock ${formatQty(product.stockQty)} → ${formatQty(product.stockQty + qty)} ${product.unit.toLowerCase()}',
+                    'Stock ${formatCompactQty(product.stockQty)} → ${formatCompactQty(product.stockQty + qty)} ${product.unit.toLowerCase()}',
                   ),
                   if (packsNow != null || packsAfter != null)
                     Text(
@@ -398,7 +400,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 ),
                 DetailRow(
                   label: 'Stock',
-                  value: '${formatQty(product.stockQty)} ${product.unit.toLowerCase()}',
+                  value: '${formatCompactQty(product.stockQty)} ${product.unit.toLowerCase()}',
                 ),
                 DetailRow(
                   label: 'Packs in stock',
@@ -497,13 +499,13 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 ),
                 DetailRow(
                   label: 'Qty added',
-                  value: '+${formatQty(restock.qtyAdded)} $u'
+                  value: '+${formatCompactQty(restock.qtyAdded)} $u'
                       '${packsAdded != null ? ' · $packsAdded' : ''}',
                 ),
                 DetailRow(
                   label: 'Before → after',
                   value:
-                      '${formatQty(restock.stockBefore)} → ${formatQty(restock.stockAfter)}'
+                      '${formatCompactQty(restock.stockBefore)} → ${formatCompactQty(restock.stockAfter)}'
                       '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
                 ),
                 DetailRow(
@@ -521,6 +523,16 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDataSyncSection() {
+    return FeatureDataSyncSection(
+      open: _dataSyncOpen,
+      onToggle: () => setState(() => _dataSyncOpen = !_dataSyncOpen),
+      entity: FeatureExportEntity.warehouse,
+      label: 'Warehouse',
+      onImported: _load,
     );
   }
 
@@ -547,6 +559,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               subtitle:
                   'Stock by pack, inventory value, and restock history.',
             ),
+            _buildDataSyncSection(),
             const SectionLabel(
               'Inventory',
               subtitle: 'Stock, active pack, and inventory value from catalog rates.',
@@ -678,7 +691,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                   title: r.productName ?? r.productId,
                   chips: [
                     StatusChip(
-                      label: '+${formatQty(r.qtyAdded)} $u',
+                      label: '+${formatCompactQty(r.qtyAdded)} $u',
                       tone: StatusTone.brand,
                     ),
                     if (pack != null)
@@ -696,14 +709,14 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     (
                       'Before',
                       packsBefore != null
-                          ? '${formatQty(r.stockBefore)} · $packsBefore'
-                          : formatQty(r.stockBefore),
+                          ? '${formatCompactQty(r.stockBefore)} · $packsBefore'
+                          : formatCompactQty(r.stockBefore),
                     ),
                     (
                       'After',
                       packsAfter != null
-                          ? '${formatQty(r.stockAfter)} · $packsAfter'
-                          : formatQty(r.stockAfter),
+                          ? '${formatCompactQty(r.stockAfter)} · $packsAfter'
+                          : formatCompactQty(r.stockAfter),
                     ),
                   ],
                   onTap: () => _openViewRestock(r),

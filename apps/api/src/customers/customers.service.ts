@@ -6,6 +6,31 @@ import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 import { CustomerQueryDto, CustomerSummaryQueryDto } from './dto/customer-query.dto';
 import { buildCustomerSku } from './customer-sku';
 import { buildCustomerSummary } from './customer-summary';
+import { buildCustomerStatistics } from './customer-statistics';
+
+/** Lean list row — long text loads on GET /customers/:id. */
+const customerListSelect = {
+  id: true,
+  customerId: true,
+  name: true,
+  title: true,
+  companyName: true,
+  companyType: true,
+  email: true,
+  phone: true,
+  city: true,
+  province: true,
+  country: true,
+  partnershipStage: true,
+  status: true,
+  promiseAnnualBonus: true,
+  promiseOnTimeDelivery: true,
+  promisePackagingBox: true,
+  relationshipLevel: true,
+  approvalPercentage: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.CustomerSelect;
 
 @Injectable()
 export class CustomersService {
@@ -21,7 +46,11 @@ export class CustomersService {
     profileId: string,
     query: Pick<
       CustomerQueryDto,
-      'search' | 'status' | 'companyType' | 'relationshipLevel'
+      | 'search'
+      | 'status'
+      | 'companyType'
+      | 'relationshipLevel'
+      | 'partnershipStage'
     > = {},
   ): Prisma.CustomerWhereInput {
     return {
@@ -29,9 +58,14 @@ export class CustomersService {
       ...(query.status && query.status.length > 0
         ? { status: { in: query.status } }
         : {}),
-      ...(query.companyType ? { companyType: query.companyType } : {}),
-      ...(query.relationshipLevel
-        ? { relationshipLevel: query.relationshipLevel }
+      ...(query.companyType && query.companyType.length > 0
+        ? { companyType: { in: query.companyType } }
+        : {}),
+      ...(query.relationshipLevel && query.relationshipLevel.length > 0
+        ? { relationshipLevel: { in: query.relationshipLevel } }
+        : {}),
+      ...(query.partnershipStage && query.partnershipStage.length > 0
+        ? { partnershipStage: { in: query.partnershipStage } }
         : {}),
       ...(query.search?.trim()
         ? {
@@ -63,7 +97,7 @@ export class CustomersService {
                   mode: 'insensitive',
                 },
               },
-              { sku: { contains: query.search.trim(), mode: 'insensitive' } },
+              { customerId: { contains: query.search.trim(), mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -83,10 +117,10 @@ export class CustomersService {
         customer.companyType,
         customer.id,
       );
-      if (customer.sku === expected) continue;
+      if (customer.customerId === expected) continue;
       await this.prisma.customer.update({
         where: { id: customer.id },
-        data: { sku: expected },
+        data: { customerId: expected },
       });
       updated += 1;
     }
@@ -104,7 +138,7 @@ export class CustomersService {
         id,
         profileId,
         name: dto.name,
-        sku,
+        customerId: sku,
         title: dto.title,
         companyName: dto.companyName,
         companyType: dto.companyType,
@@ -129,7 +163,7 @@ export class CustomersService {
       },
     });
     this.logger.log(
-      `Customer created: ${customer.id} sku=${sku} by ${profileId}`,
+      `Customer created: ${customer.id} customerId=${sku} by ${profileId}`,
     );
     return customer;
   }
@@ -147,6 +181,19 @@ export class CustomersService {
       closingCount,
       promiseCount,
       contactCount,
+      companyTypeRows,
+      partnershipStageRows,
+      statusRows,
+      relationshipLevelRows,
+      cityRows,
+      provinceRows,
+      countryRows,
+      customerNeedsWith,
+      desiredStandardsWith,
+      remarksWith,
+      promiseAnnualBonus,
+      promiseOnTimeDelivery,
+      promisePackagingBox,
     ] = await Promise.all([
       this.prisma.customer.aggregate({
         where,
@@ -170,22 +217,126 @@ export class CustomersService {
       }),
       this.prisma.customer.count({
         where: and({
-          OR: [
-            { email: { not: '' } },
-            { phone: { not: '' } },
-          ],
+          OR: [{ email: { not: '' } }, { phone: { not: '' } }],
         }),
+      }),
+      this.prisma.customer.groupBy({
+        by: ['companyType'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['partnershipStage'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['status'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['relationshipLevel'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['city'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['province'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.groupBy({
+        by: ['country'],
+        where,
+        _count: true,
+      }),
+      this.prisma.customer.count({
+        where: and({ NOT: { customerNeeds: '' } }),
+      }),
+      this.prisma.customer.count({
+        where: and({ NOT: { desiredStandards: '' } }),
+      }),
+      this.prisma.customer.count({
+        where: and({ NOT: { remarks: '' } }),
+      }),
+      this.prisma.customer.count({
+        where: and({ promiseAnnualBonus: true }),
+      }),
+      this.prisma.customer.count({
+        where: and({ promiseOnTimeDelivery: true }),
+      }),
+      this.prisma.customer.count({
+        where: and({ promisePackagingBox: true }),
       }),
     ]);
 
-    return buildCustomerSummary({
-      customerCount: agg._count,
-      approvalSum: agg._sum.approvalPercentage ?? 0,
-      interestedCount,
-      closingCount,
-      promiseCount,
-      contactCount,
-    });
+    const customerCount = agg._count;
+
+    return {
+      ...buildCustomerSummary({
+        customerCount,
+        approvalSum: agg._sum.approvalPercentage ?? 0,
+        interestedCount,
+        closingCount,
+        promiseCount,
+        contactCount,
+      }),
+      statistics: buildCustomerStatistics({
+        customerCount,
+        companyType: companyTypeRows.map((row) => ({
+          key: row.companyType,
+          count: row._count,
+        })),
+        partnershipStage: partnershipStageRows.map((row) => ({
+          key: row.partnershipStage ?? 'UNSET',
+          count: row._count,
+        })),
+        status: statusRows.map((row) => ({
+          key: row.status ?? 'UNSET',
+          count: row._count,
+        })),
+        relationshipLevel: relationshipLevelRows.map((row) => ({
+          key: row.relationshipLevel ?? 'UNSET',
+          count: row._count,
+        })),
+        customerNeeds: {
+          withCount: customerNeedsWith,
+          withoutCount: customerCount - customerNeedsWith,
+        },
+        desiredStandards: {
+          withCount: desiredStandardsWith,
+          withoutCount: customerCount - desiredStandardsWith,
+        },
+        remarks: {
+          withCount: remarksWith,
+          withoutCount: customerCount - remarksWith,
+        },
+        customerPromise: {
+          withCount: promiseCount,
+          withoutCount: customerCount - promiseCount,
+          annualBonus: promiseAnnualBonus,
+          onTimeDelivery: promiseOnTimeDelivery,
+          packagingBox: promisePackagingBox,
+        },
+        city: cityRows.map((row) => ({
+          key: row.city,
+          count: row._count,
+        })),
+        province: provinceRows.map((row) => ({
+          key: row.province,
+          count: row._count,
+        })),
+        country: countryRows.map((row) => ({
+          key: row.country,
+          count: row._count,
+        })),
+      }),
+    };
   }
 
   async findAll(profileId: string, query: CustomerQueryDto) {
@@ -198,6 +349,7 @@ export class CustomersService {
       this.prisma.customer.count({ where }),
       this.prisma.customer.findMany({
         where,
+        select: customerListSelect,
         orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -222,10 +374,10 @@ export class CustomersService {
       customer.companyType,
       customer.id,
     );
-    if (customer.sku !== expected) {
+    if (customer.customerId !== expected) {
       customer = await this.prisma.customer.update({
         where: { id: customer.id },
-        data: { sku: expected },
+        data: { customerId: expected },
       });
     }
     return customer;
@@ -238,9 +390,9 @@ export class CustomersService {
     const sku = this.skuFor(name, companyType, id);
     const customer = await this.prisma.customer.update({
       where: { id },
-      data: { ...dto, sku },
+      data: { ...dto, customerId: sku },
     });
-    this.logger.log(`Customer updated: ${id} sku=${sku}`);
+    this.logger.log(`Customer updated: ${id} customerId=${sku}`);
     return customer;
   }
 

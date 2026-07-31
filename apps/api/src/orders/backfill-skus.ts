@@ -15,7 +15,7 @@ async function main() {
     const sku = buildOrderSku(order.orderDate, order.id);
     await prisma.order.update({
       where: { id: order.id },
-      data: { sku },
+      data: { orderId: sku },
     });
     // eslint-disable-next-line no-console
     console.log(

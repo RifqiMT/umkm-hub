@@ -100,3 +100,28 @@ export class VerifyEmailDto {
   )
   token!: string;
 }
+
+export class ForgotPasswordDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(254)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  login!: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(20)
+  @MaxLength(512)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password!: string;
+}

@@ -15,6 +15,13 @@ import {
   calculateUnitProfit,
 } from '../../products/product-pricing';
 import { calculateRemainingAmount } from '../../orders/order-installments';
+import { resolveOrderAmountDue } from '../../orders/fiscal-invoice';
+
+export type SerializeOrderProfile = {
+  isPkp: boolean;
+  defaultPpnPercent: Decimal | number | string;
+  taxInclusive: boolean;
+};
 
 export function decimalToNumber(value: Decimal | number | string): number {
   if (typeof value === 'number') return value;
@@ -80,6 +87,7 @@ export function serializeOrder(
     >;
     installments?: OrderInstallment[];
   },
+  profile?: SerializeOrderProfile,
 ) {
   const packSize = decimalToNumber(order.packSizeSnapshot);
   const packPrice = decimalToNumber(order.packPriceSnapshot);
@@ -94,6 +102,17 @@ export function serializeOrder(
     updatedAt: row.updatedAt,
   }));
   const paidAmount = installments.reduce((sum, row) => sum + row.amount, 0);
+  const amountDue = profile
+    ? resolveOrderAmountDue({
+        totalOrderValue,
+        includePpn: order.includePpn,
+        profile: {
+          isPkp: profile.isPkp,
+          ppnPercent: decimalToNumber(profile.defaultPpnPercent),
+          taxInclusive: profile.taxInclusive,
+        },
+      })
+    : totalOrderValue;
 
   const lines = (order.lines ?? []).map((line) => {
     const linePackSize = decimalToNumber(line.packSizeSnapshot);
@@ -126,7 +145,9 @@ export function serializeOrder(
     ...order,
     orderDate: dateOnlyIso(order.orderDate)!,
     shipmentDate: dateOnlyIso(order.shipmentDate),
+    billDate: dateOnlyIso(order.billDate),
     invoiceDate: dateOnlyIso(order.invoiceDate),
+    paymentDueDate: dateOnlyIso(order.paymentDueDate),
     productQty,
     packSizeSnapshot: packSize,
     packPriceSnapshot: packPrice,
@@ -140,11 +161,12 @@ export function serializeOrder(
     lineTotal: decimalToNumber(order.lineTotal),
     discountValue: decimalToNumber(order.discountValue),
     totalOrderValue,
+    amountDue: profile ? amountDue : undefined,
     lineCount: lines.length || 1,
     lines,
     installments,
     paidAmount: Math.round((paidAmount + Number.EPSILON) * 10000) / 10000,
-    remainingAmount: calculateRemainingAmount(totalOrderValue, installments),
+    remainingAmount: calculateRemainingAmount(amountDue, installments),
     product: order.product ? serializeProduct(order.product) : undefined,
     customer: order.customer
       ? serializeCustomer(order.customer)

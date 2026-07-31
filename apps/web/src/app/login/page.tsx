@@ -5,9 +5,11 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { setSession } from '@/lib/auth';
+import { useTr } from '@/components/Tr';
 
 export default function LoginPage() {
   const router = useRouter();
+  const tr = useTr();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,7 +32,7 @@ export default function LoginPage() {
       setSession(data);
       router.replace('/dashboard');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Login failed');
+      setError(err instanceof ApiError ? err.message : tr('Login failed'));
     } finally {
       setLoading(false);
     }
@@ -41,18 +43,19 @@ export default function LoginPage() {
       <section className="umkm-auth-hero" aria-hidden={false}>
         <h1>UMKM Hub</h1>
         <p>
-          A calm workspace to manage products, customers, and orders for your
-          growing business.
+          {tr(
+            'A calm workspace to manage products, customers, and orders for your growing business.',
+          )}
         </p>
       </section>
       <section className="umkm-auth-panel">
         <div className="umkm-panel umkm-auth-card">
-          <h1 className="umkm-title">Welcome back</h1>
-          <p className="umkm-sub">Sign in to continue to your workspace.</p>
+          <h1 className="umkm-title">{tr('Welcome back')}</h1>
+          <p className="umkm-sub">{tr('Sign in to continue to your workspace.')}</p>
           {error ? <div className="umkm-error">{error}</div> : null}
           <form onSubmit={onSubmit}>
             <div className="umkm-field">
-              <label htmlFor="login">Username or email</label>
+              <label htmlFor="login">{tr('Username or email')}</label>
               <input
                 id="login"
                 value={login}
@@ -65,7 +68,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="umkm-field">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">{tr('Password')}</label>
               <input
                 id="password"
                 type="password"
@@ -75,12 +78,16 @@ export default function LoginPage() {
                 autoComplete="current-password"
               />
             </div>
+            <p className="umkm-sub" style={{ marginTop: '-0.35rem', marginBottom: '0.85rem' }}>
+              <Link href="/forgot-password">{tr('Forgot password?')}</Link>
+            </p>
             <button className="umkm-btn" type="submit" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? tr('Signing in…') : tr('Sign in')}
             </button>
           </form>
           <p className="umkm-sub" style={{ marginTop: '1.1rem', marginBottom: 0 }}>
-            New here? <Link href="/register">Create a profile</Link>
+            {tr('New here?')}{' '}
+            <Link href="/register">{tr('Create a profile')}</Link>
           </p>
         </div>
       </section>

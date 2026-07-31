@@ -506,10 +506,10 @@ function parseArgs(argv: string[]) {
 }
 
 function toData(seed: CustomerSeed, id: string) {
-  const sku = buildCustomerSku(seed.name, seed.companyType, id);
+  const customerId = buildCustomerSku(seed.name, seed.companyType, id);
   return {
     name: seed.name,
-    sku,
+    customerId,
     title: seed.title,
     companyName: seed.companyName,
     companyType: seed.companyType,
@@ -585,7 +585,7 @@ async function main() {
     const id = randomUUID();
     const data = toData(seed, id);
     console.log(
-      `${dryRun ? 'would create' : 'create'}: ${seed.name} · ${seed.companyName} (${seed.companyType}) sku=${data.sku}`,
+      `${dryRun ? 'would create' : 'create'}: ${seed.name} · ${seed.companyName} (${seed.companyType}) customerId=${data.customerId}`,
     );
     if (!dryRun) {
       await prisma.customer.create({

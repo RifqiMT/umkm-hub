@@ -55,7 +55,7 @@ async function main() {
     const sku = buildProductSkuFromProduct(product.name, pricing, product.id);
     await prisma.product.update({
       where: { id: product.id },
-      data: { sku },
+      data: { productId: sku },
     });
     // eslint-disable-next-line no-console
     console.log(`${product.name} → ${sku}`);

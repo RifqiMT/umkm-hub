@@ -2,7 +2,7 @@
 
 Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). One profile owns products, customers, warehouse stock, orders, revenue targets, and analytics — available on **web** and **mobile** against a shared NestJS API.
 
-**Current product version:** 1.5.217 · **Docs:** [`docs/`](./docs/)
+**Current product version:** 1.5.233 · **Docs:** [`docs/`](./docs/) · Code tip aligned: **v1.5.232**
 
 ---
 
@@ -10,10 +10,12 @@ Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). 
 
 - Centralize stock, pack pricing, and optional COGS
 - Track B2B customer pipeline (stage, status, relationship, promises, address)
-- Create multi-line orders with discounts, installments, invoice status, and stock checks
+- Create multi-line orders with discounts, PPN-aware **amount due**, installments, bill vs invoice collection, and stock checks
+- Download printable **PDF invoices** and **e-Faktur prep** (CSV/XML) — prep aids, not DJP filing
 - Plan yearly revenue targets with attainment, on-plan, pace, and coverage rates
-- Analyze Weekly / Monthly / Quarterly / Annual performance (multi-year or All timelines)
-- Shared Dictionary of metric definitions; verified account identity (username + email)
+- Analyze Weekly / Monthly / Quarterly / Annual performance; domain **statistics** breakdowns; export charts as CSV/PNG
+- Backup/restore via JSON & CSV export/import (own or allowlisted all-profiles; feature-scoped)
+- Shared Dictionary + optional UI language; verified identity + forgot/reset password
 - Same backend for Next.js web and Flutter mobile
 
 ---
@@ -22,15 +24,15 @@ Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). 
 
 | Domain | Capabilities |
 |--------|----------------|
-| **Profile** | Register (unique username + email), login by username/email (JWT), immutable identity, password change, email verify, sealed location, workspace snapshot, delete account |
-| **Product** | CRUD — pcs/gram/liter packs + optional COGS; warehouse-managed stock; summary rates |
-| **Warehouse** | Restock (manual or by pack); history; inventory valuation + summary |
-| **Customer** | CRUD — company type, CRM fields, address + postal geo fill; summary rates |
-| **Order** | Multi-line packs, discounts, terms, installments, invoice status, optional CRM link; paginated filters; summary health rates; no delete |
-| **Targets** | Per-year monthly/annual plans (manual/systematic); FeatureStage attainment / on-plan / pace / coverage (**web-first**) |
-| **Analytics** | Weekly/Monthly/Quarterly/Annual; progressive load; mix %; UPT/APF; lead times; Top/Bottom rankings; Graph\|Table + fullscreen |
-| **Dictionary** | Plain-English metric definitions and formulas (web nav; mobile via Profile) |
-| **Dashboard** | Period-scoped order stage + workspace domain panels (web) |
+| **Profile** | Register (unique username + email), login by username/email, immutable identity, password change, forgot/reset, email verify, sealed location, **invoicing identity** (NPWP, PKP, PPN %, taxInclusive, invoice prefix), workspace snapshot, export/import, UI language |
+| **Product** | CRUD — packs + optional COGS; warehouse-managed stock; human `productId`; summary + **statistics**; feature transfer |
+| **Warehouse** | Restock create + **edit** (web); history; valuation; summary + **statistics**; feature transfer |
+| **Customer** | CRUD — CRM fields, address + postal geo, optional **NPWP**; human `customerId`; summary + **statistics**; feature transfer |
+| **Order** | Multi-line packs, discounts, terms, installments vs **amountDue**; bill + invoice collection; PDF + e-Faktur prep; optional CRM link; pagination up to 500k; summary + **statistics**; feature transfer |
+| **Targets** | Per-year plans; FeatureStage rates (**web-first**); feature transfer |
+| **Analytics** | W/M/Q/Y; progressive load; mix %; UPT/APF; Top/Bottom rankings; Graph\|Table; CSV/PNG export |
+| **Dictionary** | Plain-English metric definitions (web nav; mobile via Profile) |
+| **Dashboard** | Period-scoped order stage + workspace panels (web) |
 
 ---
 
@@ -40,10 +42,10 @@ Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). 
 |-------|------------|
 | API | NestJS 11 + TypeScript + Prisma 6 |
 | Database | PostgreSQL 16 |
-| Auth | JWT access + refresh, bcrypt (cost 12) |
-| Web | Next.js 15 (App Router) + React 19 + Tailwind CSS 4 + Recharts |
+| Auth | JWT + bcrypt 12; email verify; password reset |
+| Web | Next.js 15 + React 19 + Tailwind CSS 4 + Recharts |
 | Mobile | Flutter (Provider, fl_chart, Manrope) |
-| Shared | `@umkm-hub/shared` enums/helpers |
+| Shared | `@umkm-hub/shared` |
 | Local DB | Docker Compose |
 
 ---
@@ -65,63 +67,25 @@ docker-compose.yml
 ## Quick start (recommended)
 
 ```bash
-# First time on a machine / empty sandbox
-npm run setup
-
-# After every git pull or teammate change
-npm run sync
+npm run setup   # first time
+npm run sync    # after every pull
+npm run api:dev # → http://localhost:3001/api/v1/health
+npm run web:dev # → http://localhost:3000
 ```
 
-Then:
-
-```bash
-npm run api:dev   # → http://localhost:3001/api/v1/health
-npm run web:dev   # → http://localhost:3000
-```
-
-`setup` loads sandbox data (`rifqi_tjahyono` / `12041994` on first create only). Re-seed: `npm run sync -- --seed` or `npm run db:seed`.
-
-```bash
-npm run sync -- --skip-mobile
-npm run sync -- --seed
-```
-
+Sandbox login (first create only): `rifqi_tjahyono` / `12041994`.  
 See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md).
 
 ### Manual steps
 
-#### 1. Database
 ```bash
 docker compose up -d
+cd apps/api && cp .env.example .env && npm install && npx prisma migrate deploy && npm run start:dev
+cd apps/web && cp .env.example .env.local && npm install && npm run dev
+cd apps/mobile && flutter pub get && flutter run --dart-define=API_BASE_URL=http://localhost:3001/api/v1
 ```
 
-#### 2. API
-```bash
-cd apps/api
-cp .env.example .env
-npm install
-npx prisma migrate deploy
-npm run start:dev
-```
-
-#### 3. Web
-```bash
-cd apps/web
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-> Run only one `next` process. Don’t `build` while `dev` is active.
-
-#### 4. Mobile
-```bash
-cd apps/mobile
-flutter create . --project-name umkm_hub   # if needed
-flutter pub get
-flutter run --dart-define=API_BASE_URL=http://localhost:3001/api/v1
-```
-Android emulator: `http://10.0.2.2:3001/api/v1`
+> Run only one Next process. Don’t `build` while `dev` is active.
 
 ---
 
@@ -130,8 +94,7 @@ Android emulator: `http://10.0.2.2:3001/api/v1`
 | Script | Purpose |
 |--------|---------|
 | `npm run setup` / `sync` | Bootstrap / keep sandbox current |
-| `npm run db:up` / `db:down` | Postgres |
-| `npm run db:migrate` / `db:generate` / `db:seed` | Prisma |
+| `npm run db:up` / `db:down` / `db:migrate` / `db:seed` | Postgres / Prisma |
 | `npm run api:dev` / `web:dev` | Dev servers |
 | `npm run api:test` / `web:build` | Tests / build |
 
@@ -149,20 +112,7 @@ cd apps/web && npm run build
 
 ## Documentation
 
-| Doc | Contents |
-|-----|----------|
-| [PRODUCT](./docs/PRODUCT.md) | Overview, benefits, features, logics |
-| [PRD](./docs/PRD.md) | Requirements |
-| [PERSONAS](./docs/PERSONAS.md) / [USER_STORIES](./docs/USER_STORIES.md) | Users & stories |
-| [VARIABLES](./docs/VARIABLES.md) | Formulas + relationship charts |
-| [METRICS](./docs/METRICS.md) | Product metrics & OKRs |
-| [DESIGN_GUIDELINES](./docs/DESIGN_GUIDELINES.md) | Color, type, components |
-| [TRACEABILITY](./docs/TRACEABILITY.md) | FR → code matrix |
-| [GUARDRAILS](./docs/GUARDRAILS.md) | Tech & business limits |
-| [ARCHITECTURE](./docs/ARCHITECTURE.md) | System architecture |
-| [CHANGELOG](./docs/CHANGELOG.md) | Development history |
-
-Index: [docs/README.md](./docs/README.md).
+Index: [docs/README.md](./docs/README.md) — PRODUCT, PRD, PERSONAS, USER_STORIES, VARIABLES, METRICS, DESIGN, TRACEABILITY, GUARDRAILS, ARCHITECTURE, CHANGELOG.
 
 ---
 

@@ -1,6 +1,6 @@
 export type Product = {
   id: string;
-  sku: string;
+  productId: string;
   name: string;
   unit: 'PCS' | 'GRAM' | 'LITER';
   stockQty: number;
@@ -29,11 +29,13 @@ export type Product = {
 
 export type Customer = {
   id: string;
-  sku: string;
+  customerId: string;
   name: string;
   title: string;
   companyName: string;
   companyType: string;
+  /** Buyer tax ID for B2B invoices / e-Faktur (optional). */
+  npwp?: string;
   email: string;
   phone: string;
   address: string;
@@ -80,7 +82,7 @@ export type OrderLine = {
 
 export type Order = {
   id: string;
-  sku?: string;
+  orderId?: string;
   customerId?: string | null;
   productId: string;
   orderDate: string;
@@ -99,10 +101,17 @@ export type Order = {
   discountType: string;
   discountValue: number;
   totalOrderValue: number;
+  /** Invoice amount due (includes PPN when PKP tax-exclusive). */
+  amountDue?: number;
   status: string;
   paymentStatus: string;
   invoiceStatus?: string;
   invoiceDate?: string | null;
+  billStatus?: string;
+  billDate?: string | null;
+  paymentDueDate?: string | null;
+  fiscalInvoiceNumber?: string;
+  includePpn?: boolean | null;
   lineCount?: number;
   /** Present on lean list responses; full rows via GET /orders/:id. */
   installmentCount?: number;
@@ -130,6 +139,16 @@ export type OrderSummary = {
   discountRate: number | null;
   /** Fully paid (remaining ≈ 0) ÷ non-cancelled orders × 100. */
   fullPaymentRate: number | null;
+  statistics: OrderStatistics;
+};
+
+export type OrderStatistics = {
+  status: StatBucket[];
+  paymentStatus: StatBucket[];
+  invoiceStatus: StatBucket[];
+  billStatus: StatBucket[];
+  discountType: StatBucket[];
+  customerLinked: WithWithoutStats;
 };
 
 export type ProductSummary = {
@@ -141,6 +160,15 @@ export type ProductSummary = {
   costCoverageRate: number | null;
   profitMarginRate: number | null;
   packReadyRate: number | null;
+  statistics: ProductStatistics;
+};
+
+export type ProductStatistics = {
+  unit: StatBucket[];
+  stockStatus: StatBucket[];
+  costSet: StatBucket[];
+  packReady: StatBucket[];
+  details: WithWithoutStats;
 };
 
 export type WarehouseSummary = {
@@ -156,6 +184,15 @@ export type WarehouseSummary = {
   costCoverageRate: number | null;
   inStockRate: number | null;
   outOfStockRate: number | null;
+  statistics: WarehouseStatistics;
+};
+
+export type WarehouseStatistics = {
+  unit: StatBucket[];
+  stockStatus: StatBucket[];
+  costSet: StatBucket[];
+  restockUnit: StatBucket[];
+  restockNotes: WithWithoutStats;
 };
 
 export type CustomerSummary = {
@@ -166,6 +203,48 @@ export type CustomerSummary = {
   closingRate: number | null;
   promiseRate: number | null;
   contactRate: number | null;
+  statistics: CustomerStatistics;
+};
+
+export type CustomerStatBucket = {
+  key: string;
+  count: number;
+  rate: number | null;
+};
+
+/** Shared bucket shape for feature statistics breakdowns. */
+export type StatBucket = CustomerStatBucket;
+
+export type CustomerWithWithoutStats = {
+  withCount: number;
+  withoutCount: number;
+  withRate: number | null;
+  withoutRate: number | null;
+};
+
+export type WithWithoutStats = CustomerWithWithoutStats;
+
+export type CustomerPromiseStats = CustomerWithWithoutStats & {
+  annualBonus: number;
+  onTimeDelivery: number;
+  packagingBox: number;
+  annualBonusRate: number | null;
+  onTimeDeliveryRate: number | null;
+  packagingBoxRate: number | null;
+};
+
+export type CustomerStatistics = {
+  companyType: CustomerStatBucket[];
+  partnershipStage: CustomerStatBucket[];
+  status: CustomerStatBucket[];
+  relationshipLevel: CustomerStatBucket[];
+  customerNeeds: CustomerWithWithoutStats;
+  desiredStandards: CustomerWithWithoutStats;
+  remarks: CustomerWithWithoutStats;
+  customerPromise: CustomerPromiseStats;
+  city: CustomerStatBucket[];
+  province: CustomerStatBucket[];
+  country: CustomerStatBucket[];
 };
 
 export type WarehouseRestock = {
@@ -207,6 +286,14 @@ export type Profile = {
   /** True when legacy one-way hashes exist and must be re-entered. */
   locationNeedsReentry?: boolean;
   locationSource?: LocationSource | null;
+  businessName?: string;
+  businessPhone?: string;
+  businessAddress?: string;
+  npwp?: string;
+  isPkp?: boolean;
+  defaultPpnPercent?: number;
+  taxInclusive?: boolean;
+  invoicePrefix?: string;
   createdAt?: string;
   updatedAt?: string;
 };

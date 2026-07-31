@@ -229,4 +229,119 @@ class ApiService {
         .map((e) => WarehouseRestock.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  String _filenameFromDisposition(String? header, String fallback) {
+    if (header == null || header.isEmpty) return fallback;
+    final utf = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false)
+        .firstMatch(header);
+    if (utf != null) {
+      return Uri.decodeComponent(utf.group(1)!);
+    }
+    final plain =
+        RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(header);
+    if (plain != null) return plain.group(1)!;
+    return fallback;
+  }
+
+  Future<({List<int> bytes, String filename})> downloadFeatureExport({
+    required String entity,
+    required String format,
+  }) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/export').replace(
+      queryParameters: {'entity': entity, 'format': format},
+    );
+
+    Future<http.Response> send(String? token) {
+      final headers = <String, String>{};
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+      return _client.get(uri, headers: headers);
+    }
+
+    var token = await accessToken;
+    var res = await send(token);
+    if (res.statusCode == 401) {
+      final refreshed = await _refresh();
+      if (refreshed) {
+        token = await accessToken;
+        res = await send(token);
+      }
+    }
+    if (res.statusCode >= 400) {
+      _decode(res);
+    }
+
+    final fallback = format == 'csv'
+        ? 'umkm-hub-$entity.zip'
+        : format == 'csv-unified'
+            ? 'umkm-hub-$entity-unified.csv'
+            : 'umkm-hub-$entity.json';
+    return (
+      bytes: res.bodyBytes,
+      filename: _filenameFromDisposition(
+        res.headers['content-disposition'],
+        fallback,
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> uploadFeatureImport({
+    required String entity,
+    required String format,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/import').replace(
+      queryParameters: {'entity': entity, 'format': format},
+    );
+
+    Future<http.Response> send(String? token) async {
+      final request = http.MultipartRequest('POST', uri);
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: filename),
+      );
+      final streamed = await _client.send(request);
+      return http.Response.fromStream(streamed);
+    }
+
+    var token = await accessToken;
+    var res = await send(token);
+    if (res.statusCode == 401) {
+      final refreshed = await _refresh();
+      if (refreshed) {
+        token = await accessToken;
+        res = await send(token);
+      }
+    }
+    final data = _decode(res);
+    return data as Map<String, dynamic>;
+  }
+
+  Future<List<String>> translateBatch(List<String> texts, String to) async {
+    final payload = {'to': to, 'texts': texts};
+
+    Future<List<String>> parse(dynamic data) async {
+      final map = data as Map<String, dynamic>;
+      final list = map['translations'];
+      if (list is! List) return List<String>.from(texts);
+      return list.map((item) => item?.toString() ?? '').toList(growable: false);
+    }
+
+    try {
+      return parse(
+        await request('POST', '/translate/batch', body: payload),
+      );
+    } catch (_) {
+      return parse(
+        await request(
+          'POST',
+          '/translate/batch-public',
+          body: payload,
+          auth: false,
+        ),
+      );
+    }
+  }
 }

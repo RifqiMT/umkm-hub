@@ -40,7 +40,7 @@ export function buildProductFilterSql(
   if (search) {
     const pattern = `%${search}%`;
     parts.push(
-      Prisma.sql`(p.name ILIKE ${pattern} OR p.sku ILIKE ${pattern})`,
+      Prisma.sql`(p.name ILIKE ${pattern} OR p."productId" ILIKE ${pattern})`,
     );
   }
 

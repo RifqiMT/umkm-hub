@@ -3,9 +3,10 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
+| **Code tip aligned** | v1.5.232 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -20,6 +21,7 @@ erDiagram
   Profile ||--o{ WarehouseRestock : owns
   Profile ||--o{ RevenueTargetPlan : owns
   Profile ||--o{ EmailVerificationToken : has
+  Profile ||--o{ PasswordResetToken : has
   RevenueTargetPlan ||--o{ RevenueTargetMonth : has
   Customer ||--o{ Order : "optional link"
   Product ||--o{ Order : "primary line denorm"
@@ -32,60 +34,54 @@ erDiagram
     uuid id PK
     string profileName UK
     string passwordHash
-    string firstName
-    string lastName
     string email UK
-    datetime emailVerifiedAt
-    datetime accountVerifiedAt
-    string locationCity
-    string locationCountry
-    string locationIpHash
-    enum locationSource
+    string businessName
+    string npwp
+    boolean isPkp
+    decimal defaultPpnPercent
+    boolean taxInclusive
+    string invoicePrefix
   }
-  EmailVerificationToken {
+  PasswordResetToken {
     uuid id PK
     uuid profileId FK
-    string email
     string tokenHash UK
     datetime expiresAt
-    datetime consumedAt
   }
   Product {
     uuid id PK
     uuid profileId FK
-    string sku
+    string productId
     string name
     enum unit
-    decimal stockQty
-    decimal pricePerUnit
-    decimal costPerUnit
   }
   Customer {
     uuid id PK
     uuid profileId FK
-    string sku
+    string customerId
     string name
-    enum companyType
+    string npwp
   }
   Order {
     uuid id PK
     uuid profileId FK
+    string orderId
     uuid customerId FK
     uuid productId FK
-    string sku
-    date orderDate
-    decimal lineTotal
-    decimal totalOrderValue
-    enum status
-    enum paymentStatus
+    enum billStatus
+    date billDate
     enum invoiceStatus
+    date invoiceDate
+    decimal totalOrderValue
+    boolean includePpn
+    string fiscalInvoiceNumber
+    date paymentDueDate
   }
   OrderLine {
     uuid id PK
     uuid orderId FK
     uuid productId FK
     decimal packCount
-    decimal productQty
     decimal lineTotal
   }
   OrderInstallment {
@@ -164,8 +160,11 @@ flowchart TB
     sumLines["order.lineTotal = Σ lineTotals"]
     discount[discountType + discountValue]
     total["totalOrderValue"]
+    fiscal["amountDue = fiscalBreakdown(total)"]
     paid["paidAmount = Σ installments"]
-    remaining["remainingAmount = max(0, total − paid)"]
+    remaining["remainingAmount = max(0, amountDue − paid)"]
+    bill["billStatus + billDate"]
+    invoice["invoiceStatus = derive(paid, amountDue, bill)"]
   end
 
   subgraph InventoryValue
@@ -200,8 +199,12 @@ flowchart TB
   lineTotal --> sumLines
   sumLines --> discount
   discount --> total
-  total --> paid
+  total --> fiscal
+  fiscal --> paid
   paid --> remaining
+  bill --> invoice
+  paid --> invoice
+  fiscal --> invoice
   stockQty --> potRev
   packPrice --> potRev
   stockQty --> potCost
@@ -239,7 +242,14 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `id` (Profile) | Profile ID | System-generated tenant key | `uuid()` | DB `Profile.id`; `GET/PATCH/DELETE /profiles/me`; web/mobile Profile | `a1b2c3d4-…` |
 | `profileName` | Username | Unique login identifier (UI: Username; immutable after register) | `[A-Za-z0-9._-]{3,64}`, unique | `POST /auth/register`; login; Profile UI (read-only) | `sari_umkm` |
 | `login` (auth) | Login identifier | Username or email for sign-in | username as stored, or email (case-insensitive) | `POST /auth/login` body `login` (alias `profileName`) | `sari@example.com` |
-| `password` / `passwordHash` | Password | Access credential | bcrypt cost **12**; min length 8 | Auth; never returned by API | `••••••••` |
+| `password` / `passwordHash` | Password / hash | Access credential (bcrypt) | cost **12**; min length 8 | Auth; Profile; **own-profile export** seals hash as `pwd1:…`; **all-profiles export** may emit plaintext `password` (not hash) | `••••••••` / `pwd1:…` |
+| `PasswordResetToken.tokenHash` | Reset token digest | HMAC of raw reset token | never store raw token; TTL 24h | DB; `POST /auth/forgot-password`, `reset-password` | `a3f2…` |
+| `PASSWORD_RESET_SECRET` | Reset crypto secret | Key for reset HMAC | Falls back to `JWT_ACCESS_SECRET` | `apps/api/.env` | (secret) |
+| `DATA_EXPORT_PROFILE_NAMES` | Export allowlist | Usernames allowed to dump all profiles | Comma-separated; default `rifqi_tjahyono` | `.env`; export/import | `rifqi_tjahyono` |
+| `SANDBOX_EXPORT_PASSWORDS` | Sandbox password map | Plaintext passwords for privileged export column | `name:pass` pairs | `.env`; privileged export | `rifqi_tjahyono:12041994` |
+| `IMPORT_BOOTSTRAP_PASSWORD` | Import bootstrap password | Password for new profiles created on privileged import | Used when no password in file | `.env`; import | (secret) |
+| `LIST_PAGE_MAX` | List page max | Hard cap on `limit` query | **500000** | `pagination.dto.ts` | `500000` |
+| `entity` (export/import) | Feature transfer entity | Scope dump to one domain | `products` \| `customers` \| `orders` \| `warehouse` \| `targets` | `GET /export`, `POST /import` | `orders` |
 | `firstName` | First name | Optional given name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Sari` |
 | `lastName` | Last name | Optional family name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Wijaya` |
 | `email` | Email | Required unique identity email (1:1 with username; immutable after register) | RFC email; unique; NOT NULL; stored lowercased | `POST /auth/register`; login; Profile UI (read-only) | `sari@example.com` |
@@ -255,6 +265,15 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `locationNeedsReentry` | Re-enter location | Legacy irreversible HMAC city/country | true when only `h1:` blobs remain | API `GET /profiles/me` | `false` |
 | `locationSource` | Location source | How location was set | `MANUAL` \| `IP` \| null | Profile; set by detect or edit | `IP` |
 | `PROFILE_LOCATION_SECRET` | Location crypto secret | Key material for seal + IP HMAC | Falls back to `JWT_ACCESS_SECRET` | `apps/api/.env` | (secret) |
+| `businessName` | Business name | Seller legal/trade name on invoices | free text | Profile invoicing | `CV Melati Sejahtera` |
+| `businessPhone` / `businessAddress` | Business contact | Seller phone/address on PDF | free text | Profile invoicing | `0812…` / `Jl. …` |
+| `Profile.npwp` | Seller NPWP | Tax ID for PDF / e-Faktur prep | digits; `formatNpwp` for display | Profile invoicing | `10.0.0.2-123.000` |
+| `isPkp` | PKP flag | Seller is Pengusaha Kena Pajak | boolean; drives default PPN | Profile | `true` |
+| `defaultPpnPercent` | Default PPN % | Profile PPN rate | default **11** | Profile | `11` |
+| `taxInclusive` | Tax inclusive prices | Order totals already include PPN | boolean | Profile | `false` |
+| `invoicePrefix` | Invoice prefix | Prefix for fiscalInvoiceNumber | 2–12 alnum | Profile | `INV` |
+| `DATA_EXPORT_PROFILE_NAMES` | Cross-tenant export/import allowlist | Comma-separated `profileName` values that may dump or merge **all** profiles via `GET /export` / `POST /import`; every authenticated user may still export/import their **own** profile | Default `rifqi_tjahyono` when unset/empty | `apps/api/.env` | `rifqi_tjahyono` |
+| `IMPORT_BOOTSTRAP_PASSWORD` | Import bootstrap password | Plain password hashed for **new** profiles created during cross-tenant import (existing profiles keep their password) | Default `umkm-import-change-me` when unset | `apps/api/.env` | (secret) |
 | JWT `sub` | Token subject | Authenticated profile id | Payload `{ sub, profileName }` | Access & refresh tokens | same as Profile id |
 | `DATABASE_URL` | Database URL | Postgres connection string | Prisma datasource | `apps/api/.env` | `postgresql://umkm:…@localhost:5432/umkm_hub` |
 | Sandbox `profileName` | Sandbox login | Seeded demo account | Create-if-missing in seed | `apps/api/prisma/seed.ts` | `rifqi_tjahyono` |
@@ -264,7 +283,7 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
-| `sku` (product) | Product ID | Human + system product code | `{INITIALS}_{PACK}_{uuid}` | Product API/UI | `CB_100_00000000-…` |
+| `Product.productId` | Product code | Human + system product code | `{INITIALS}_{PACK}_{uuid}` | Product API/UI; unique per profile | `CB_100_00000000-…` |
 | `name` | Product name | Catalog display name | Required string | Products | `Cabai Merah` |
 | `unit` | Product unit | Stock/sell unit | `PCS` \| `GRAM` \| `LITER` | Products | `GRAM` |
 | `price50`…`price1000` | Pack sell prices | Selling price for fixed pack sizes | Optional decimals; exactly one pack active for gram/liter | Product | `20000` for 100g |
@@ -286,7 +305,8 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
-| `sku` (customer) | Customer ID | Name + company type + system id | `{NameSegs}{R\|H\|S}_{uuid}` | Customer | `BuSaR_00000000-…` |
+| `Customer.customerId` | Customer code | Name + company type + system id | `{NameSegs}{R\|H\|S}_{uuid}` | Customer; unique per profile | `BuSaR_00000000-…` |
+| `Customer.npwp` | Buyer NPWP | Customer tax ID for invoices | optional free text / digits | Customer; PDF / fiscal | `01.234…` |
 | `name` / `title` / `companyName` | Identity | Person + company | Required | Customers | `Budi Santoso`, `Owner`, `Warung Melati` |
 | `companyType` | Company type | Customer segment | `RESTAURANT` \| `HOTEL` \| `STORE` | Customer | `HOTEL` |
 | `email` / `phone` | Contacts | Optional contact fields | Free text | Customer | `budi@…` |
@@ -308,13 +328,16 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 
 | Variable | Friendly name | Definition | Formula / rule | Location | Example |
 |----------|---------------|------------|----------------|----------|---------|
-| `sku` (order) | Order ID | Date-based human id | `YYYY_MM_DD_{uuid}` | Order | `2026_07_25_00000000-…` |
-| `customerId` | Order customer | Optional CRM link | FK → Customer; nullable; SetNull on customer delete | Order; Analytics LTV | uuid |
-| `orderDate` | Order date | Business date of the order | Defaults to today; drives Order ID | Order | `2026-07-25` |
+| `Order.orderId` | Order code | Date-based human id | `YYYY_MM_DD_{uuid}` | Order; unique per profile | `2026_07_25_00000000-…` |
+| `Order.customerId` | Order customer FK | Optional CRM link (UUID) | FK → `Customer.id`; nullable; SetNull on delete | Order; Analytics LTV | uuid |
+| `Order.productId` | Primary product FK | Denormalized first-line product UUID | FK → `Product.id` | Order list/legacy | uuid |
+| `orderDate` | Order date | Business date of the order | Defaults to today; drives Order.orderId | Order | `2026-07-25` |
 | `shipmentDate` | Shipment date | Planned/actual ship date | Optional | Order View Timeline | `2026-07-26` |
 | `status` | Order status | Fulfillment lifecycle | `PENDING` \| `CONFIRMED` \| `SHIPPED` \| `DELIVERED` \| `CANCELLED` | Order | `PENDING` |
 | `paymentStatus` | Payment terms | Commercial payment mode | `CASH` \| `CONSIGNMENT` \| `DELAYED_PAYMENT` | Order | `CASH` |
-| `invoiceStatus` | Invoice status | Operational invoice state | `CREATED` \| `SENT` | Order | `CREATED` |
+| `billStatus` | Bill status | Bill document state | `CREATED` \| `SENT` | Order | `SENT` |
+| `billDate` | Bill date | Bill business date | Optional; defaults to order date on create | Order | `2026-07-25` |
+| `invoiceStatus` | Invoice collection status | Collection state (often derived) | `CREATED` \| `SENT` \| `PARTIALLY_PAID` \| `FULLY_PAID` | Order | `PARTIALLY_PAID` |
 | `invoiceDate` | Invoice date | Invoice business date | Optional; defaults to order date on create | Order | `2026-07-25` |
 | `orderDateFrom` / `orderDateTo` | Order date filter | Inclusive list/summary range on `orderDate` | YYYY-MM-DD; omit = no bound; inverted from/to swapped | `GET /orders`, `GET /orders/summary`, Dashboard Period | `2024-01-01` |
 | `paymentStatus` (filter) | Payment status filter | Restrict list/summary to selected payment terms | Comma-separated `CASH` / `CONSIGNMENT` / `DELAYED_PAYMENT` | `GET /orders`, `GET /orders/summary` | `CASH,CONSIGNMENT` |
@@ -329,17 +352,23 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `lineTotal` (order) | Pre-discount order total | Sum of line totals | `SUM(OrderLine.lineTotal)` | Order | `150000` |
 | `discountType` | Discount type | How discount applies | `PERCENTAGE` \| `AMOUNT` | Order | `PERCENTAGE` |
 | `discountValue` | Discount value | % or amount | % ≤ 100; amount ≤ order lineTotal | Order | `10` |
-| `totalOrderValue` | Total order value | After order-level discount | %: `line×(1−d/100)`; amount: `line−d` | Order | `135000` |
+| `totalOrderValue` | Total order value | After order-level discount (pre-PPN commercial total) | %: `line×(1−d/100)`; amount: `line−d` | Order | `135000` |
+| `includePpn` | Include PPN | Order override for PKP tax | `null` → use profile `isPkp`; else boolean | Order | `null` |
+| `amountDue` | Amount due | Invoice total after fiscal breakdown | `computeFiscalBreakdown(totalOrderValue, …).total` via `resolveOrderAmountDue` | Order read DTO; installments; Paid % | `149850` |
+| `computeFiscalBreakdown` | Fiscal DPP/PPN/total | Tax breakdown for PDF/e-Faktur | Non-PKP: DPP=total, PPN=0. Inclusive: DPP=total/(1+r), PPN=total−DPP. Exclusive: DPP=total, PPN=DPP×r, total=DPP+PPN | `fiscal-invoice.ts` | `{ dpp:135000, ppn:14850, total:149850 }` |
+| `fiscalInvoiceNumber` | Fiscal invoice number | Human invoice # on PDF | `PREFIX-YYYYMMDD-XXXXXXXX`; auto on PDF if empty | Order | `INV-20260731-A1B2C3D4` |
+| `paymentDueDate` | Payment due date | When delayed payment is due | Optional date; UX-required for DELAYED_PAYMENT | Order | `2026-08-15` |
 | `allocateLineRevenue` | Allocated line revenue | Line share of post-discount total | Proportional to lineTotal; last line absorbs drift | `order-math.ts`; Analytics | — |
-| `installment.amount` | Installment amount | Payment recorded | ≥ 0; sum ≤ totalOrderValue | OrderInstallment | `54000` |
+| `installment.amount` | Installment amount | Payment recorded | ≥ 0; sum ≤ **amountDue** | OrderInstallment | `54000` |
 | `installmentDate` | Installment date | Payment date | Non-decreasing in list order | OrderInstallment | `2026-08-01` |
 | `paidAmount` | Paid amount | Sum of installments | `SUM(installment.amount)` | Order read DTO | `54000` |
-| `remainingAmount` | Remaining amount | Unpaid balance | `max(0, totalOrderValue − paidAmount)` | Order read DTO | `81000` |
+| `remainingAmount` | Remaining amount | Unpaid balance vs amount due | `max(0, amountDue − paidAmount)` | Order read DTO | `95850` |
+| `order.paymentRate` | Order paid % | Progress of installments vs amount due | `paidAmount ÷ amountDue × 100` | Orders list Paid column | `100` |
+| `deriveInvoiceStatusFromPayments` | Derived invoice status | From paid vs **amountDue** + bill | unpaid → mirror bill; partial → `PARTIALLY_PAID`; paid ≥ amountDue → `FULLY_PAID` | `order-installments.ts`; OrdersService | `FULLY_PAID` |
 | `orders.summary.cancellationRate` | Cancellation rate | Share of orders cancelled | `cancelledCount ÷ allOrders × 100` (null if none) | `GET /orders/summary` | `2.5` |
 | `orders.summary.profitMarginRate` | Profit margin rate | Margin on post-discount revenue | `(revenue − COGS) ÷ revenue × 100` when any catalog cost exists | `GET /orders/summary` | `58.2` |
 | `orders.summary.discountRate` | Discount rate | Discount share of pre-discount totals | `(Σ lineTotal − Σ total) ÷ Σ lineTotal × 100` | `GET /orders/summary` | `6.4` |
-| `orders.summary.fullPaymentRate` | Full-payment rate | Share of active orders paid in full | `count(paid ≥ total − 0.00005) ÷ activeOrders × 100` (CANCELLED excluded) | `GET /orders/summary` | `25` |
-| `order.paymentRate` | Order paid % | Progress of installments vs total | `paidAmount ÷ totalOrderValue × 100` (100 when fully paid) | Orders list Paid column | `100` |
+| `orders.summary.fullPaymentRate` | Full-payment rate | Share of active orders paid in full | `count(paid ≥ amountDue − ε) ÷ activeOrders × 100` (CANCELLED excluded) | `GET /orders/summary` | `25` |
 | `products.summary.inventorySellValue` | Inventory sell value | Stock × unit price across catalog | `Σ(stockQty × pricePerUnit)` | `GET /products/summary` | `125000` |
 | `products.summary.outOfStockRate` | Out-of-stock rate | Zero-stock SKU share | `count(stock≤0) ÷ products × 100` | `GET /products/summary` | `12.5` |
 | `products.summary.packReadyRate` | Pack-ready rate | PCS or SKUs with a pack price | `packReady ÷ products × 100` | `GET /products/summary` | `90` |
@@ -472,14 +501,15 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | Concern | Path |
 |---------|------|
 | Order math | `apps/api/src/orders/order-math.ts` |
+| Invoice / fiscal | `order-installments.ts`, `fiscal-invoice.ts`, `invoice.service.ts`, `invoice-pdf.ts` |
+| Statistics | `*-statistics.ts`, `statistics-buckets.ts` |
 | Shared totals helper | `packages/shared/src/index.ts` |
 | Revenue target math | `apps/api/src/revenue-targets/revenue-target-math.ts` |
 | Targets FeatureStage rates | `apps/web/src/lib/feature-stage-metrics.ts` |
 | Analytics period / query / cache | `analytics-period.ts`, `analytics-query.ts`, `analytics-cache.ts` |
-| Order actuals (targets + analytics) | `apps/api/src/analytics/order-actuals.ts` |
-| Week / quarter / basket / APF / mix | `week-series.ts`, `quarter-series.ts`, `weekly-target.ts`, `basket-series.ts`, `purchase-frequency-series.ts`, `status-payment-series.ts` |
-| Product / customer performance | `product-performance.ts`, `customer-performance.ts` |
-| Margin / duration / LTV / growth | `margin-series.ts`, `duration-series.ts`, `ltv-series.ts`, `period-growth.ts` |
+| Export / import / passwords | `apps/api/src/export/` |
+| Password reset | `apps/api/src/auth/` + `password-reset*.ts` |
+| Translate | `apps/api/src/translate/` |
 | Schema | `apps/api/prisma/schema.prisma` |
 | Money formatting | `apps/web/src/lib/format-money.ts`, `apps/mobile/lib/format_money.dart` |
 

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
+  BillStatus,
   DiscountType,
   InvoiceStatus,
   OrderStatus,
@@ -23,7 +24,10 @@ import {
 import {
   assertInstallmentsChronological,
   assertInstallmentsWithinTotal,
+  applyBillInvoiceDateHints,
   calculateRemainingFromPaid,
+  deriveInvoiceStatusFromPayments,
+  sumInstallmentAmounts,
 } from './order-installments';
 import { resolveOrderPack } from './order-packs';
 import { buildOrderSku } from './order-sku';
@@ -35,6 +39,7 @@ import {
 } from './dto/order.dto';
 import { OrderListQueryDto } from './dto/order-list-query.dto';
 import { OrderSummaryQueryDto } from './dto/order-summary-query.dto';
+import { resolveOrderAmountDue } from './fiscal-invoice';
 import {
   cancellationRatePercent,
   discountRatePercent,
@@ -43,6 +48,10 @@ import {
   toDateOnlyIso,
   totalProductsSold,
 } from './order-summary';
+import {
+  buildOrderStatistics,
+  emptyOrderStatistics,
+} from './order-statistics';
 import { dateOnlyBounds, parseDateOnlyUtc } from './order-date-range';
 import { buildOrderFilterSql } from './order-filter-sql';
 
@@ -80,13 +89,18 @@ const orderInclude = {
 const orderListSelect = {
   id: true,
   profileId: true,
-  sku: true,
+  orderId: true,
   customerId: true,
   productId: true,
   orderDate: true,
   shipmentDate: true,
+  billDate: true,
+  billStatus: true,
   invoiceDate: true,
   invoiceStatus: true,
+  paymentDueDate: true,
+  fiscalInvoiceNumber: true,
+  includePpn: true,
   productQty: true,
   packSizeSnapshot: true,
   packPriceSnapshot: true,
@@ -106,7 +120,7 @@ const orderListSelect = {
     select: {
       id: true,
       name: true,
-      sku: true,
+      productId: true,
       unit: true,
     },
   },
@@ -135,18 +149,38 @@ type ResolvedLine = {
 };
 
 function validateInstallments(
-  totalOrderValue: number,
+  amountDue: number,
   installments: OrderInstallmentDto[] | undefined,
 ) {
   if (!installments) return;
   try {
     assertInstallmentsChronological(installments);
-    assertInstallmentsWithinTotal(totalOrderValue, installments);
+    assertInstallmentsWithinTotal(amountDue, installments);
   } catch (err) {
     throw new BadRequestException(
       err instanceof Error ? err.message : 'Invalid installments',
     );
   }
+}
+
+function orderAmountDueFromProfile(
+  totalOrderValue: number,
+  includePpn: boolean | null,
+  profile: {
+    isPkp: boolean;
+    defaultPpnPercent: Prisma.Decimal | number | string;
+    taxInclusive: boolean;
+  },
+): number {
+  return resolveOrderAmountDue({
+    totalOrderValue,
+    includePpn,
+    profile: {
+      isPkp: profile.isPkp,
+      ppnPercent: decimalToNumber(profile.defaultPpnPercent),
+      taxInclusive: profile.taxInclusive,
+    },
+  });
 }
 
 async function replaceInstallments(
@@ -334,10 +368,10 @@ export class OrdersService {
     let updated = 0;
     for (const order of orders) {
       const expected = this.skuFor(order.orderDate, order.id);
-      if (order.sku === expected) continue;
+      if (order.orderId === expected) continue;
       await this.prisma.order.update({
         where: { id: order.id },
-        data: { sku: expected },
+        data: { orderId: expected },
       });
       updated += 1;
     }
@@ -349,6 +383,9 @@ export class OrdersService {
 
   async create(profileId: string, dto: CreateOrderDto) {
     return this.prisma.$transaction(async (tx) => {
+      const profile = await tx.profile.findFirstOrThrow({
+        where: { id: profileId },
+      });
       const status =
         (dto.status as OrderStatus | undefined) ?? OrderStatus.PENDING;
       const resolved = await this.resolveLines(tx, profileId, dto.lines);
@@ -364,14 +401,25 @@ export class OrdersService {
         dto.shipmentDate && dto.shipmentDate !== ''
           ? parseDateOnly(dto.shipmentDate)
           : null;
-      const invoiceStatus =
-        (dto.invoiceStatus as InvoiceStatus | undefined) ??
-        InvoiceStatus.CREATED;
-      let invoiceDate: Date | null = orderDate;
-      if (dto.invoiceDate === null || dto.invoiceDate === '') {
-        invoiceDate = null;
-      } else if (typeof dto.invoiceDate === 'string') {
-        invoiceDate = parseDateOnly(dto.invoiceDate);
+      const billStatus =
+        (dto.billStatus as BillStatus | undefined) ?? BillStatus.CREATED;
+      const billDateProvided =
+        dto.billDate !== undefined && dto.billDate !== null && dto.billDate !== '';
+      let billDate: Date | null = orderDate;
+      if (dto.billDate === null || dto.billDate === '') {
+        billDate = null;
+      } else if (typeof dto.billDate === 'string') {
+        billDate = parseDateOnly(dto.billDate);
+      }
+      const invoiceDateProvided =
+        dto.invoiceDate !== undefined &&
+        dto.invoiceDate !== null &&
+        dto.invoiceDate !== '';
+      let paymentDueDate: Date | null = null;
+      if (dto.paymentDueDate === null || dto.paymentDueDate === '') {
+        paymentDueDate = null;
+      } else if (typeof dto.paymentDueDate === 'string') {
+        paymentDueDate = parseDateOnly(dto.paymentDueDate);
       }
       const installments = dto.installments ?? [];
 
@@ -391,7 +439,44 @@ export class OrdersService {
         );
       }
 
-      validateInstallments(totals.totalOrderValue, installments);
+      validateInstallments(
+        orderAmountDueFromProfile(
+          totals.totalOrderValue,
+          dto.includePpn ?? null,
+          profile,
+        ),
+        installments,
+      );
+
+      const paidAmount = sumInstallmentAmounts(installments);
+      const invoiceStatus = deriveInvoiceStatusFromPayments({
+        amountDue: orderAmountDueFromProfile(
+          totals.totalOrderValue,
+          dto.includePpn ?? null,
+          profile,
+        ),
+        paidAmount,
+        billStatus,
+      }) as InvoiceStatus;
+      let invoiceDate: Date | null = orderDate;
+      if (dto.invoiceDate === null || dto.invoiceDate === '') {
+        invoiceDate = null;
+      } else if (typeof dto.invoiceDate === 'string') {
+        invoiceDate = parseDateOnly(dto.invoiceDate);
+      }
+
+      const hintedDates = applyBillInvoiceDateHints({
+        billStatus,
+        billDate,
+        billDateProvided,
+        invoiceDate,
+        invoiceDateProvided,
+        installments,
+        paidAmount,
+        today: todayDateOnly(),
+      });
+      billDate = hintedDates.billDate;
+      invoiceDate = hintedDates.invoiceDate;
 
       const primary = resolved[0];
       const id = randomUUID();
@@ -400,7 +485,7 @@ export class OrdersService {
         data: {
           id,
           profileId,
-          sku,
+          orderId: sku,
           customerId,
           productId: primary.productId,
           orderDate,
@@ -418,8 +503,13 @@ export class OrdersService {
           totalOrderValue: totals.totalOrderValue,
           status,
           paymentStatus: dto.paymentStatus,
+          billStatus,
+          billDate,
           invoiceStatus,
           invoiceDate,
+          paymentDueDate,
+          fiscalInvoiceNumber: dto.fiscalInvoiceNumber?.trim() ?? '',
+          includePpn: dto.includePpn ?? null,
         },
       });
 
@@ -439,9 +529,9 @@ export class OrdersService {
       });
 
       this.logger.log(
-        `Order created: ${order.id} sku=${sku} (${resolved.length} lines) by ${profileId}`,
+        `Order created: ${order.id} orderId=${sku} (${resolved.length} lines) by ${profileId}`,
       );
-      return serializeOrder(full!);
+      return serializeOrder(full!, profile);
     });
   }
 
@@ -451,6 +541,8 @@ export class OrdersService {
       search?: string;
       status?: OrderStatus[];
       paymentStatus?: PaymentStatus[];
+      billStatus?: BillStatus[];
+      invoiceStatus?: InvoiceStatus[];
       orderDateFrom?: string;
       orderDateTo?: string;
       shipmentDateFrom?: string;
@@ -462,6 +554,8 @@ export class OrdersService {
     const search = query.search?.trim() ?? '';
     const statuses = query.status ?? [];
     const paymentStatuses = query.paymentStatus ?? [];
+    const billStatuses = query.billStatus ?? [];
+    const invoiceStatuses = query.invoiceStatus ?? [];
     const orderDate = dateOnlyBounds(query.orderDateFrom, query.orderDateTo);
     const shipmentDate = dateOnlyBounds(
       query.shipmentDateFrom,
@@ -478,13 +572,19 @@ export class OrdersService {
       ...(paymentStatuses.length > 0
         ? { paymentStatus: { in: paymentStatuses } }
         : {}),
+      ...(billStatuses.length > 0
+        ? { billStatus: { in: billStatuses } }
+        : {}),
+      ...(invoiceStatuses.length > 0
+        ? { invoiceStatus: { in: invoiceStatuses } }
+        : {}),
       ...(orderDate ? { orderDate } : {}),
       ...(shipmentDate ? { shipmentDate } : {}),
       ...(invoiceDate ? { invoiceDate } : {}),
       ...(search
         ? {
             OR: [
-              { sku: { contains: search, mode: 'insensitive' } },
+              { orderId: { contains: search, mode: 'insensitive' } },
               {
                 product: {
                   name: { contains: search, mode: 'insensitive' },
@@ -492,7 +592,7 @@ export class OrdersService {
               },
               {
                 product: {
-                  sku: { contains: search, mode: 'insensitive' },
+                  productId: { contains: search, mode: 'insensitive' },
                 },
               },
               {
@@ -549,6 +649,10 @@ export class OrdersService {
       }
     })();
 
+    const profile = await this.prisma.profile.findFirstOrThrow({
+      where: { id: profileId },
+    });
+
     const [total, items] = await this.prisma.$transaction([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({
@@ -563,16 +667,20 @@ export class OrdersService {
     const orderIds = items.map((order) => order.id);
     const paidByOrderId = new Map<string, number>();
     if (orderIds.length > 0) {
-      const paidRows = await this.prisma.orderInstallment.groupBy({
-        by: ['orderId'],
-        where: { orderId: { in: orderIds } },
-        _sum: { amount: true },
-      });
-      for (const row of paidRows) {
-        paidByOrderId.set(
-          row.orderId,
-          decimalToNumber(row._sum.amount ?? 0),
-        );
+      const chunkSize = 2000;
+      for (let offset = 0; offset < orderIds.length; offset += chunkSize) {
+        const chunk = orderIds.slice(offset, offset + chunkSize);
+        const paidRows = await this.prisma.orderInstallment.groupBy({
+          by: ['orderId'],
+          where: { orderId: { in: chunk } },
+          _sum: { amount: true },
+        });
+        for (const row of paidRows) {
+          paidByOrderId.set(
+            row.orderId,
+            decimalToNumber(row._sum.amount ?? 0),
+          );
+        }
       }
     }
 
@@ -581,6 +689,11 @@ export class OrdersService {
         const { _count, product, customer, ...rest } = order;
         const totalOrderValue = decimalToNumber(rest.totalOrderValue);
         const paidAmount = paidByOrderId.get(order.id) ?? 0;
+        const amountDue = orderAmountDueFromProfile(
+          totalOrderValue,
+          rest.includePpn,
+          profile,
+        );
         const serialized = serializeOrder({
           ...rest,
           // List omits line/installment rows; header + aggregates are enough.
@@ -588,7 +701,7 @@ export class OrdersService {
           installments: [],
           product: null,
           customer: null,
-        });
+        }, profile);
         return {
           ...serialized,
           lineCount: Math.max(1, _count.lines),
@@ -596,10 +709,8 @@ export class OrdersService {
           lines: undefined,
           installments: [],
           paidAmount,
-          remainingAmount: calculateRemainingFromPaid(
-            totalOrderValue,
-            paidAmount,
-          ),
+          amountDue,
+          remainingAmount: calculateRemainingFromPaid(amountDue, paidAmount),
           product: product ?? undefined,
           customer: customer ?? undefined,
         };
@@ -632,6 +743,7 @@ export class OrdersService {
         profitMarginRate: null,
         discountRate: null,
         fullPaymentRate: null,
+        statistics: emptyOrderStatistics(),
       };
     }
 
@@ -645,6 +757,11 @@ export class OrdersService {
       linePackAgg,
       headerOnlyPackAgg,
       statusGroups,
+      paymentStatusGroups,
+      invoiceStatusGroups,
+      billStatusGroups,
+      discountTypeGroups,
+      customerLinkedCount,
       fullyPaidRows,
       lineCostRows,
       headerCostRows,
@@ -671,19 +788,48 @@ export class OrdersService {
         where: filterWhere,
         _count: { _all: true },
       }),
+      this.prisma.order.groupBy({
+        by: ['paymentStatus'],
+        where: filterWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['invoiceStatus'],
+        where: filterWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['billStatus'],
+        where: filterWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['discountType'],
+        where: filterWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.order.count({
+        where: { AND: [filterWhere, { customerId: { not: null } }] },
+      }),
       this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
         SELECT COUNT(*)::bigint AS count
         FROM "Order" o
+        INNER JOIN "Profile" p ON p.id = o."profileId"
+        LEFT JOIN (
+          SELECT "orderId", SUM(amount) AS paid
+          FROM "OrderInstallment"
+          GROUP BY "orderId"
+        ) inst ON inst."orderId" = o.id
         WHERE o.status <> 'CANCELLED'::"OrderStatus"
           AND ${filterSql}
-          AND COALESCE(
-            (
-              SELECT SUM(i.amount)
-              FROM "OrderInstallment" i
-              WHERE i."orderId" = o.id
-            ),
-            0
-          ) >= o."totalOrderValue" - 0.00005
+          AND COALESCE(inst.paid, 0) >= (
+            CASE
+              WHEN NOT COALESCE(o."includePpn", p."isPkp") THEN o."totalOrderValue"
+              WHEN p."defaultPpnPercent" <= 0 THEN o."totalOrderValue"
+              WHEN p."taxInclusive" THEN o."totalOrderValue"
+              ELSE o."totalOrderValue" * (1 + p."defaultPpnPercent" / 100.0)
+            END
+          ) - 0.00005
       `,
       this.prisma.$queryRaw<
         Array<{ costSum: Prisma.Decimal | number | null; hasCost: boolean }>
@@ -774,10 +920,40 @@ export class OrdersService {
         fullyPaidCount,
         orderAgg._count,
       ),
+      statistics: buildOrderStatistics({
+        orderCount: allOrderCount,
+        status: statusGroups.map((row) => ({
+          key: row.status,
+          count: row._count._all,
+        })),
+        paymentStatus: paymentStatusGroups.map((row) => ({
+          key: row.paymentStatus,
+          count: row._count._all,
+        })),
+        invoiceStatus: invoiceStatusGroups.map((row) => ({
+          key: row.invoiceStatus,
+          count: row._count._all,
+        })),
+        billStatus: billStatusGroups.map((row) => ({
+          key: row.billStatus,
+          count: row._count._all,
+        })),
+        discountType: discountTypeGroups.map((row) => ({
+          key: row.discountType,
+          count: row._count._all,
+        })),
+        customerLinked: {
+          withCount: customerLinkedCount,
+          withoutCount: allOrderCount - customerLinkedCount,
+        },
+      }),
     };
   }
 
   async findOne(profileId: string, id: string) {
+    const profile = await this.prisma.profile.findFirstOrThrow({
+      where: { id: profileId },
+    });
     let order = await this.prisma.order.findFirst({
       where: { id, profileId },
       include: orderInclude,
@@ -786,18 +962,21 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
     const expected = this.skuFor(order.orderDate, order.id);
-    if (order.sku !== expected) {
+    if (order.orderId !== expected) {
       order = await this.prisma.order.update({
         where: { id: order.id },
-        data: { sku: expected },
+        data: { orderId: expected },
         include: orderInclude,
       });
     }
-    return serializeOrder(order);
+    return serializeOrder(order, profile);
   }
 
   async update(profileId: string, id: string, dto: UpdateOrderDto) {
     return this.prisma.$transaction(async (tx) => {
+      const profile = await tx.profile.findFirstOrThrow({
+        where: { id: profileId },
+      });
       const existing = await tx.order.findFirst({
         where: { id, profileId },
         include: {
@@ -865,9 +1044,8 @@ export class OrdersService {
       const paymentStatus =
         (dto.paymentStatus as PaymentStatus | undefined) ??
         existing.paymentStatus;
-      const invoiceStatus =
-        (dto.invoiceStatus as InvoiceStatus | undefined) ??
-        existing.invoiceStatus;
+      const billStatus =
+        (dto.billStatus as BillStatus | undefined) ?? existing.billStatus;
       const orderDate = dto.orderDate
         ? parseDateOnly(dto.orderDate)
         : existing.orderDate;
@@ -877,11 +1055,37 @@ export class OrdersService {
       } else if (typeof dto.shipmentDate === 'string') {
         shipmentDate = parseDateOnly(dto.shipmentDate);
       }
+      let billDate = existing.billDate;
+      const billDateProvided =
+        dto.billDate !== undefined && dto.billDate !== null && dto.billDate !== '';
+      if (dto.billDate === null || dto.billDate === '') {
+        billDate = null;
+      } else if (typeof dto.billDate === 'string') {
+        billDate = parseDateOnly(dto.billDate);
+      }
+      const invoiceDateProvided =
+        dto.invoiceDate !== undefined &&
+        dto.invoiceDate !== null &&
+        dto.invoiceDate !== '';
       let invoiceDate = existing.invoiceDate;
       if (dto.invoiceDate === null || dto.invoiceDate === '') {
         invoiceDate = null;
       } else if (typeof dto.invoiceDate === 'string') {
         invoiceDate = parseDateOnly(dto.invoiceDate);
+      }
+      let paymentDueDate = existing.paymentDueDate;
+      if (dto.paymentDueDate === null || dto.paymentDueDate === '') {
+        paymentDueDate = null;
+      } else if (typeof dto.paymentDueDate === 'string') {
+        paymentDueDate = parseDateOnly(dto.paymentDueDate);
+      }
+      let fiscalInvoiceNumber = existing.fiscalInvoiceNumber;
+      if (dto.fiscalInvoiceNumber !== undefined) {
+        fiscalInvoiceNumber = dto.fiscalInvoiceNumber.trim();
+      }
+      let includePpn = existing.includePpn;
+      if (dto.includePpn !== undefined) {
+        includePpn = dto.includePpn;
       }
 
       let totals;
@@ -906,7 +1110,41 @@ export class OrdersService {
           amount: decimalToNumber(row.amount),
           installmentDate: row.installmentDate.toISOString().slice(0, 10),
         }));
-      validateInstallments(totals.totalOrderValue, installmentsForValidation);
+      validateInstallments(
+        orderAmountDueFromProfile(
+          totals.totalOrderValue,
+          includePpn,
+          profile,
+        ),
+        installmentsForValidation,
+      );
+
+      const paidAmount = sumInstallmentAmounts(
+        installmentsForValidation.map((row) => ({ amount: row.amount })),
+      );
+      const invoiceStatus = deriveInvoiceStatusFromPayments({
+        amountDue: orderAmountDueFromProfile(
+          totals.totalOrderValue,
+          includePpn,
+          profile,
+        ),
+        paidAmount,
+        billStatus,
+      }) as InvoiceStatus;
+
+      const hintedDates = applyBillInvoiceDateHints({
+        billStatus,
+        previousBillStatus: existing.billStatus,
+        billDate,
+        billDateProvided,
+        invoiceDate,
+        invoiceDateProvided,
+        installments: installmentsForValidation,
+        paidAmount,
+        today: todayDateOnly(),
+      });
+      billDate = hintedDates.billDate;
+      invoiceDate = hintedDates.invoiceDate;
 
       let customerId = existing.customerId;
       if (dto.customerId !== undefined) {
@@ -936,7 +1174,7 @@ export class OrdersService {
       await tx.order.update({
         where: { id },
         data: {
-          sku,
+          orderId: sku,
           customerId,
           productId: primary.productId,
           orderDate,
@@ -954,8 +1192,13 @@ export class OrdersService {
           totalOrderValue: totals.totalOrderValue,
           status,
           paymentStatus,
+          billStatus,
+          billDate,
           invoiceStatus,
           invoiceDate,
+          paymentDueDate,
+          fiscalInvoiceNumber,
+          includePpn,
         },
       });
 
@@ -971,9 +1214,9 @@ export class OrdersService {
       });
 
       this.logger.log(
-        `Order updated: ${id} sku=${sku} (${resolved.length} lines)`,
+        `Order updated: ${id} orderId=${sku} (${resolved.length} lines)`,
       );
-      return serializeOrder(full!);
+      return serializeOrder(full!, profile);
     });
   }
 }

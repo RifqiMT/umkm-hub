@@ -1,13 +1,16 @@
 import { LocationSource } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -98,6 +101,56 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsEnum(LocationSource)
   locationSource?: LocationSource;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(200)
+  businessName?: string | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(40)
+  businessPhone?: string | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(500)
+  businessAddress?: string | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(20)
+  npwp?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isPkp?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  defaultPpnPercent?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  taxInclusive?: boolean;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  @MaxLength(20)
+  invoicePrefix?: string | null;
 }
 
 export class DetectLocationDto {

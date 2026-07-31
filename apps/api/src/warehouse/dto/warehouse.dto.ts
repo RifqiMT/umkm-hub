@@ -28,3 +28,20 @@ export class CreateWarehouseRestockDto {
   @MaxLength(2000)
   notes?: string;
 }
+
+export class UpdateWarehouseRestockDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0.0001)
+  qtyAdded?: number;
+
+  @IsOptional()
+  @IsDateString()
+  restockDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}

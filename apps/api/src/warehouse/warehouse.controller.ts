@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -13,7 +14,10 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import { WarehouseService } from './warehouse.service';
-import { CreateWarehouseRestockDto } from './dto/warehouse.dto';
+import {
+  CreateWarehouseRestockDto,
+  UpdateWarehouseRestockDto,
+} from './dto/warehouse.dto';
 import { WarehouseSummaryQueryDto } from './dto/warehouse-query.dto';
 
 @Controller('warehouse')
@@ -48,5 +52,14 @@ export class WarehouseController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.warehouseService.findOne(user.profileId, id);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWarehouseRestockDto,
+  ) {
+    return this.warehouseService.update(user.profileId, id, dto);
   }
 }

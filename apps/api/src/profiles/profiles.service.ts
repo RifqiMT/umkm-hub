@@ -43,6 +43,14 @@ const PROFILE_DB_SELECT = {
   locationCountry: true,
   locationIpHash: true,
   locationSource: true,
+  businessName: true,
+  businessPhone: true,
+  businessAddress: true,
+  npwp: true,
+  isPkp: true,
+  defaultPpnPercent: true,
+  taxInclusive: true,
+  invoicePrefix: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -59,6 +67,14 @@ type ProfileRow = {
   locationCountry: string | null;
   locationIpHash: string | null;
   locationSource: LocationSource | null;
+  businessName: string;
+  businessPhone: string;
+  businessAddress: string;
+  npwp: string;
+  isPkp: boolean;
+  defaultPpnPercent: { toString(): string };
+  taxInclusive: boolean;
+  invoicePrefix: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -111,6 +127,14 @@ export class ProfilesService {
         (isLegacyLocationHash(row.locationCity) ||
           isLegacyLocationHash(row.locationCountry)),
       locationSource: row.locationSource,
+      businessName: row.businessName,
+      businessPhone: row.businessPhone,
+      businessAddress: row.businessAddress,
+      npwp: row.npwp,
+      isPkp: row.isPkp,
+      defaultPpnPercent: Number(row.defaultPpnPercent.toString()),
+      taxInclusive: row.taxInclusive,
+      invoicePrefix: row.invoicePrefix,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -255,6 +279,20 @@ export class ProfilesService {
     }
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
+    if (dto.businessName !== undefined) data.businessName = dto.businessName ?? '';
+    if (dto.businessPhone !== undefined) data.businessPhone = dto.businessPhone ?? '';
+    if (dto.businessAddress !== undefined) {
+      data.businessAddress = dto.businessAddress ?? '';
+    }
+    if (dto.npwp !== undefined) data.npwp = dto.npwp ?? '';
+    if (dto.isPkp !== undefined) data.isPkp = dto.isPkp;
+    if (dto.defaultPpnPercent !== undefined) {
+      data.defaultPpnPercent = dto.defaultPpnPercent;
+    }
+    if (dto.taxInclusive !== undefined) data.taxInclusive = dto.taxInclusive;
+    if (dto.invoicePrefix !== undefined) {
+      data.invoicePrefix = dto.invoicePrefix ?? '';
+    }
 
     const locationTouched =
       dto.locationCity !== undefined ||

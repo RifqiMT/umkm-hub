@@ -20,11 +20,43 @@ import {
 } from './product-sku';
 import { buildProductSummary } from './product-summary';
 import {
+  buildProductStatisticsFromCounts,
+  emptyProductStatistics,
+} from './product-statistics';
+import { buildProductWhere } from './product-where';
+import {
   buildProductFilterSql,
   inventoryValueSelectSql,
   mapInventoryValueRow,
 } from './product-inventory-sql';
 import { Decimal } from '@prisma/client/runtime/library';
+
+/** Lean list row — product notes load on GET /products/:id. */
+const productListSelect = {
+  id: true,
+  profileId: true,
+  name: true,
+  productId: true,
+  unit: true,
+  stockQty: true,
+  pricePerUnit: true,
+  price50: true,
+  price100: true,
+  price250: true,
+  price500: true,
+  price1000: true,
+  priceCustom: true,
+  costPerUnit: true,
+  cost50: true,
+  cost100: true,
+  cost250: true,
+  cost500: true,
+  cost1000: true,
+  costCustom: true,
+  customSize: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductSelect;
 
 function nullPacks() {
   return {
@@ -240,10 +272,10 @@ export class ProductsService {
         packPricing,
         product.id,
       );
-      if (product.sku === expected) continue;
+      if (product.productId === expected) continue;
       await this.prisma.product.update({
         where: { id: product.id },
-        data: { sku: expected },
+        data: { productId: expected },
       });
       updated += 1;
     }
@@ -262,7 +294,7 @@ export class ProductsService {
         id,
         profileId,
         name: dto.name,
-        sku,
+        productId: sku,
         unit: dto.unit,
         stockQty: dto.stockQty ?? 0,
         details: dto.details ?? '',
@@ -270,75 +302,13 @@ export class ProductsService {
       },
     });
     this.logger.log(
-      `Product created: ${product.id} sku=${sku} by ${profileId}`,
+      `Product created: ${product.id} productId=${sku} by ${profileId}`,
     );
     return serializeProduct(product);
   }
 
-  private buildProductWhere(
-    profileId: string,
-    query: Pick<
-      ProductQueryDto,
-      'search' | 'unit' | 'costSet' | 'packReady' | 'stockStatus'
-    > = {},
-  ): Prisma.ProductWhereInput {
-    const where: Prisma.ProductWhereInput = { profileId };
-    const search = query.search?.trim();
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-    if (query.unit && query.unit.length > 0) {
-      where.unit = { in: query.unit };
-    }
-
-    const costSet = query.costSet ?? [];
-    if (costSet.length === 1) {
-      where.costPerUnit =
-        costSet[0] === 'set' ? { not: null } : null;
-    } else if (costSet.length > 1 && !costSet.includes('set')) {
-      where.costPerUnit = null;
-    } else if (costSet.length > 1 && !costSet.includes('unset')) {
-      where.costPerUnit = { not: null };
-    }
-
-    const packReady = query.packReady ?? [];
-    if (packReady.length === 1) {
-      const readyClause: Prisma.ProductWhereInput = {
-        OR: [
-          { unit: ProductUnit.PCS },
-          { price50: { not: null } },
-          { price100: { not: null } },
-          { price250: { not: null } },
-          { price500: { not: null } },
-          { price1000: { not: null } },
-          { priceCustom: { not: null } },
-        ],
-      };
-      // Must AND (never Object.assign) so search `OR` is not overwritten.
-      where.AND = [
-        ...(Array.isArray(where.AND)
-          ? where.AND
-          : where.AND
-            ? [where.AND]
-            : []),
-        packReady[0] === 'ready' ? readyClause : { NOT: readyClause },
-      ];
-    }
-
-    const stockStatus = query.stockStatus ?? [];
-    if (stockStatus.length === 1) {
-      where.stockQty =
-        stockStatus[0] === 'in_stock' ? { gt: 0 } : { lte: 0 };
-    }
-
-    return where;
-  }
-
   async getSummary(profileId: string, query: ProductSummaryQueryDto = {}) {
-    const where = this.buildProductWhere(profileId, query);
+    const where = buildProductWhere(profileId, query);
     const packReadyClause: Prisma.ProductWhereInput = {
       OR: [
         { unit: ProductUnit.PCS },
@@ -364,7 +334,7 @@ export class ProductsService {
     });
 
     // Counts via Prisma; inventory value via SQL SUM(stock×price/cost).
-    const [agg, inStockCount, withCostCount, packReadyCount, valueRows] =
+    const [agg, inStockCount, withCostCount, packReadyCount, detailsWithCount, unitRows, valueRows] =
       await Promise.all([
         this.prisma.product.aggregate({
           where,
@@ -379,6 +349,14 @@ export class ProductsService {
         }),
         this.prisma.product.count({
           where: and(packReadyClause),
+        }),
+        this.prisma.product.count({
+          where: and({ NOT: { details: '' } }),
+        }),
+        this.prisma.product.groupBy({
+          by: ['unit'],
+          where,
+          _count: true,
         }),
         this.prisma.$queryRaw<
           Array<{
@@ -405,29 +383,46 @@ export class ProductsService {
       },
     );
 
-    return buildProductSummary({
-      productCount: agg._count,
-      totalStockQty: decimalToNumber(agg._sum.stockQty ?? 0),
-      sellValue: values.sellValue,
-      costedSellValue: values.costedSellValue,
-      costValue: values.costValue,
-      hasCost: values.hasCost,
-      inStockCount,
-      withCostCount,
-      packReadyCount,
-    });
+    return {
+      ...buildProductSummary({
+        productCount: agg._count,
+        totalStockQty: decimalToNumber(agg._sum.stockQty ?? 0),
+        sellValue: values.sellValue,
+        costedSellValue: values.costedSellValue,
+        costValue: values.costValue,
+        hasCost: values.hasCost,
+        inStockCount,
+        withCostCount,
+        packReadyCount,
+      }),
+      statistics:
+        agg._count === 0
+          ? emptyProductStatistics()
+          : buildProductStatisticsFromCounts({
+              productCount: agg._count,
+              inStockCount,
+              withCostCount,
+              packReadyCount,
+              detailsWithCount,
+              unitRows: unitRows.map((row) => ({
+                key: row.unit,
+                count: row._count,
+              })),
+            }),
+    };
   }
 
   async findAll(profileId: string, query: ProductQueryDto) {
     // SKU backfill is offline/CLI only — never on the list hot path.
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where = this.buildProductWhere(profileId, query);
+    const where = buildProductWhere(profileId, query);
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
         where,
+        select: productListSelect,
         orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -435,7 +430,9 @@ export class ProductsService {
     ]);
 
     return {
-      items: items.map(serializeProduct),
+      items: items.map((product) =>
+        serializeProduct({ ...product, details: '' }),
+      ),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -447,7 +444,7 @@ export class ProductsService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    if (!product.sku || product.sku.startsWith('TMP_')) {
+    if (!product.productId || product.productId.startsWith('TMP_')) {
       await this.backfillMissingSkus(profileId);
       product = await this.prisma.product.findFirstOrThrow({
         where: { id, profileId },
@@ -488,21 +485,21 @@ export class ProductsService {
 
     const nextSku = this.skuFor(name, unit, pricing, id);
     const shouldRefreshSku =
-      existing.sku !== nextSku || this.skuNeedsRefresh(existing.sku, id);
+      existing.productId !== nextSku || this.skuNeedsRefresh(existing.productId, id);
 
-    const sku = shouldRefreshSku ? nextSku : existing.sku;
+    const sku = shouldRefreshSku ? nextSku : existing.productId;
 
     const product = await this.prisma.product.update({
       where: { id },
       data: {
         name,
-        sku,
+        productId: sku,
         ...(dto.unit !== undefined ? { unit: dto.unit } : {}),
         ...(dto.details !== undefined ? { details: dto.details } : {}),
         ...pricing,
       },
     });
-    this.logger.log(`Product updated: ${id} sku=${sku}`);
+    this.logger.log(`Product updated: ${id} productId=${sku}`);
     return serializeProduct(product);
   }
 

@@ -28,6 +28,11 @@ import {
 } from 'recharts';
 import { api, ApiError } from '@/lib/api';
 import {
+  downloadChartPng,
+  downloadCsv,
+  slugExportName,
+} from '@/lib/analytics-export';
+import {
   ContentSection,
   EmptyState,
 } from '@/components/PageHeader';
@@ -44,7 +49,9 @@ import {
 import type { AnalyticsOverview } from '@/lib/types';
 import { mergeAnalyticsOverview } from '@/lib/analytics-merge';
 import { LazyMount } from '@/components/analytics/LazyMount';
-import { LABELS, ORDER_STATUSES, PAYMENT_STATUSES } from '@/lib/enums';
+import { ORDER_STATUSES, PAYMENT_STATUSES } from '@/lib/enums';
+import { useLabels } from '@/hooks/useLabels';
+import { useTr } from '@/components/Tr';
 import {
   formatMoney,
   formatMoneyParts,
@@ -148,19 +155,27 @@ const PAYMENT_MODE_COLORS: Record<(typeof PAYMENT_STATUSES)[number], string> = {
   DELAYED_PAYMENT: '#3d6b8f',
 };
 
-const STATUS_SERIES = ORDER_STATUSES.map((status) => ({
-  label: LABELS.orderStatus[status],
-  color: STATUS_COLORS[status],
-  style: 'bar' as const,
-  dataKey: status,
-}));
+function buildStatusSeries(
+  orderStatus: Record<(typeof ORDER_STATUSES)[number], string>,
+) {
+  return ORDER_STATUSES.map((status) => ({
+    label: orderStatus[status],
+    color: STATUS_COLORS[status],
+    style: 'bar' as const,
+    dataKey: status,
+  }));
+}
 
-const PAYMENT_MODE_SERIES = PAYMENT_STATUSES.map((status) => ({
-  label: LABELS.paymentStatus[status],
-  color: PAYMENT_MODE_COLORS[status],
-  style: 'bar' as const,
-  dataKey: status,
-}));
+function buildPaymentModeSeries(
+  paymentStatus: Record<(typeof PAYMENT_STATUSES)[number], string>,
+) {
+  return PAYMENT_STATUSES.map((status) => ({
+    label: paymentStatus[status],
+    color: PAYMENT_MODE_COLORS[status],
+    style: 'bar' as const,
+    dataKey: status,
+  }));
+}
 
 type ChartSeriesSwatch = { label: string; color: string; style?: 'bar' | 'line' };
 
@@ -279,20 +294,24 @@ function RankBarChart({
   domain,
   valueName,
   caption,
+  fullscreen = false,
 }: {
   data: RankChartRow[];
   fill: string;
   domain: [number, number];
   valueName: string;
   caption: string;
+  fullscreen?: boolean;
 }) {
+  const fsActive = useContext(AnalyticsPanelFullscreenContext);
+  const isFullscreen = fullscreen ?? fsActive;
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={data}
         layout="vertical"
-        margin={{ top: 4, right: 12, left: 4, bottom: 0 }}
-        barCategoryGap="18%"
+        margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+        barCategoryGap={isFullscreen ? '12%' : '18%'}
       >
         <CartesianGrid
           strokeDasharray="3 3"
@@ -302,7 +321,7 @@ function RankBarChart({
         <XAxis
           type="number"
           tickFormatter={formatCompactAxis}
-          tick={{ fill: AXIS, fontSize: 11 }}
+          tick={{ fill: AXIS, fontSize: isFullscreen ? 12 : 11 }}
           axisLine={false}
           tickLine={false}
           domain={domain}
@@ -311,9 +330,9 @@ function RankBarChart({
         <YAxis
           type="category"
           dataKey="key"
-          width={78}
+          width={isFullscreen ? 112 : 78}
           interval={0}
-          tick={{ fill: AXIS, fontSize: 11 }}
+          tick={{ fill: AXIS, fontSize: isFullscreen ? 12 : 11 }}
           axisLine={false}
           tickLine={false}
         />
@@ -330,7 +349,7 @@ function RankBarChart({
           name={valueName}
           fill={fill}
           radius={[0, 7, 7, 0]}
-          maxBarSize={26}
+          maxBarSize={isFullscreen ? 44 : 26}
         />
       </BarChart>
     </ResponsiveContainer>
@@ -341,15 +360,31 @@ type ChartPanelView = 'chart' | 'table';
 
 const AnalyticsChartViewContext = createContext<ChartPanelView>('chart');
 
+const AnalyticsPanelFullscreenContext = createContext(false);
+
 type AnalyticsLensControls = {
   granularity: Granularity;
   setGranularity: (value: Granularity) => void;
   chartView: ChartPanelView;
   setChartView: (value: ChartPanelView) => void;
+  timeline: TimelineFilterValue;
+  setTimeline: (value: TimelineFilterValue) => void;
+  nowYear: number;
+  timelineCaption: string | null;
 };
 
 const AnalyticsLensControlsContext =
   createContext<AnalyticsLensControls | null>(null);
+
+/** Raw (unformatted) CSV payloads keyed by ChartPanel `panelKey`. */
+export type AnalyticsCsvExport = {
+  columns: Array<{ key: string; label: string }>;
+  rows: Array<Record<string, unknown>>;
+};
+
+const AnalyticsCsvExportContext = createContext<
+  Record<string, AnalyticsCsvExport>
+>({});
 
 type ChartPanelTone =
   | 'brand'
@@ -737,9 +772,13 @@ function SeriesTable({
   rows: SeriesTableRow[];
   caption?: string;
 }) {
+  const tr = useTr();
   if (rows.length === 0) {
-    return <ChartState>{caption ?? 'No data for this period'}</ChartState>;
+    return (
+      <ChartState>{caption ? tr(caption) : tr('No data for this period')}</ChartState>
+    );
   }
+
   return (
     <div className="umkm-analytics-series-table-wrap">
       <table className="umkm-analytics-series-table">
@@ -750,7 +789,7 @@ function SeriesTable({
                 key={col.key}
                 className={col.align === 'end' ? 'is-num' : undefined}
               >
-                {col.label}
+                {tr(col.label)}
               </th>
             ))}
           </tr>
@@ -771,6 +810,50 @@ function SeriesTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function CsvIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 3v6h6M8 13h8M8 17h5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PngIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <circle cx="9" cy="10" r="1.6" fill="currentColor" />
+      <path
+        d="m7 16 3.2-3.2a1 1 0 0 1 1.4 0L15 16l1.3-1.3a1 1 0 0 1 1.4 0L21 16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -888,6 +971,29 @@ async function exitBrowserFullscreen() {
   }
 }
 
+function csvCell(value: unknown): string | number {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : '';
+  }
+  return String(value);
+}
+
+function downloadAnalyticsCsvExport(
+  filename: string,
+  exportData: AnalyticsCsvExport,
+): void {
+  const headers = exportData.columns.map((c) => c.label);
+  const rows = exportData.rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const col of exportData.columns) {
+      out[col.label] = csvCell(row[col.key]);
+    }
+    return out;
+  });
+  downloadCsv(filename, headers, rows);
+}
+
 function ChartPanel({
   panelKey,
   title,
@@ -910,13 +1016,17 @@ function ChartPanel({
   table?: ReactNode;
   children: ReactNode;
 }) {
+  const tr = useTr();
   const view = useContext(AnalyticsChartViewContext);
   const lens = useContext(AnalyticsLensControlsContext);
   const fs = useContext(AnalyticsFullscreenContext);
+  const csvByPanel = useContext(AnalyticsCsvExportContext);
+  const csvExport = csvByPanel[panelKey];
   const showChart = view === 'chart' || table == null;
   const panelId = panelKey;
   const isFullscreenActive = fs?.activeId === panelId;
   const panelRef = useRef<HTMLElement>(null);
+  const chartCaptureRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const stageFillRef = useRef<HTMLDivElement>(null);
   const register = fs?.register;
@@ -924,6 +1034,13 @@ function ChartPanel({
   const kind: FsPanelKind = showChart ? 'graph' : 'table';
   /** Bump to remount Recharts after the FS stage has a real height. */
   const [chartEpoch, setChartEpoch] = useState(0);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  const exportBasename = slugExportName(`${panelKey}-${title}`);
+  const canExportCsv = Boolean(csvExport && csvExport.rows.length > 0);
+  const panelTitle = tr(title);
+  const panelSubtitle = subtitle ? tr(subtitle) : undefined;
 
   useLayoutEffect(() => {
     if (!register || !unregister) return;
@@ -953,13 +1070,78 @@ function ChartPanel({
     return () => ro.disconnect();
   }, [isFullscreenActive, chartEpoch]);
 
+  function onDownloadCsv() {
+    if (!csvExport || csvExport.rows.length === 0) return;
+    setExportError('');
+    downloadAnalyticsCsvExport(exportBasename, csvExport);
+  }
+
+  async function onDownloadPng() {
+    const target = chartCaptureRef.current;
+    if (!target || exportingPng) return;
+    setExportError('');
+    setExportingPng(true);
+    try {
+      // Let layout settle (esp. after fullscreen remount) before capture.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await downloadChartPng(target, exportBasename, {
+        backgroundColor:
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--surface')
+            .trim() || '#ffffff',
+      });
+    } catch (err) {
+      console.error('Analytics chart PNG export failed', err);
+      setExportError('PNG export failed—try again.');
+    } finally {
+      setExportingPng(false);
+    }
+  }
+
+  const exportTools = (
+    <>
+      {!showChart && canExportCsv ? (
+        <button
+          type="button"
+          className="umkm-analytics-export-btn is-tool"
+          aria-label={`${tr('Download')} ${panelTitle} ${tr('as CSV')}`}
+          title={tr('Download table as CSV')}
+          onClick={onDownloadCsv}
+        >
+          <CsvIcon />
+          <span>CSV</span>
+        </button>
+      ) : null}
+      {showChart ? (
+        <button
+          type="button"
+          className="umkm-analytics-export-btn is-tool"
+          aria-label={`${tr('Download')} ${panelTitle} ${tr('as PNG')}`}
+          title={tr('Download high-resolution PNG')}
+          disabled={exportingPng}
+          onClick={() => void onDownloadPng()}
+        >
+          <PngIcon />
+          <span>{exportingPng ? '…' : 'PNG'}</span>
+        </button>
+      ) : null}
+    </>
+  );
+
   const panelBody = showChart ? (
     <LazyMount
       force={isFullscreenActive}
-      minHeight={chartHeight && !isFullscreenActive ? chartHeight : 220}
+      minHeight={
+        isFullscreenActive
+          ? 0
+          : chartHeight && !isFullscreenActive
+            ? chartHeight
+            : 220
+      }
       className={isFullscreenActive ? 'umkm-analytics-lazy is-fs-fill' : undefined}
     >
       <div
+        ref={chartCaptureRef}
         key={isFullscreenActive ? `fs-chart-${chartEpoch}` : 'chart'}
         className={`umkm-analytics-chart${chartHeight ? ' is-rank' : ''}${isFullscreenActive ? ' is-fs-fill' : ''}`}
         style={
@@ -968,7 +1150,9 @@ function ChartPanel({
             : undefined
         }
       >
-        {children}
+        <AnalyticsPanelFullscreenContext.Provider value={isFullscreenActive}>
+          {children}
+        </AnalyticsPanelFullscreenContext.Provider>
       </div>
     </LazyMount>
   ) : (
@@ -984,7 +1168,7 @@ function ChartPanel({
     showChart && series && series.length > 0 ? (
       <ul
         className={`umkm-analytics-chart-series${isFullscreenActive ? ' is-fs-compact' : ''}`}
-        aria-label="Series"
+        aria-label={tr('Series')}
       >
         {series.map((s) => (
           <li key={s.label}>
@@ -1030,7 +1214,7 @@ function ChartPanel({
       className={`umkm-analytics-chart-panel tone-${tone}${fsClass}`}
       aria-modal={isFullscreenActive || undefined}
       role={isFullscreenActive ? 'dialog' : undefined}
-      aria-label={isFullscreenActive ? title : undefined}
+      aria-label={isFullscreenActive ? panelTitle : undefined}
     >
       {isFullscreenActive ? (
         <>
@@ -1042,37 +1226,38 @@ function ChartPanel({
             <div className="umkm-analytics-fs-identity">
               <div className="umkm-analytics-fs-identity-row">
                 <span className={`umkm-analytics-fs-mode is-${kind}`}>
-                  {kind === 'graph' ? 'Graph' : 'Table'}
+                  {kind === 'graph' ? tr('Graph') : tr('Table')}
                 </span>
                 <span className="umkm-analytics-fs-progress" aria-live="polite">
                   {activeIndex + 1} / {panelCount}
                 </span>
               </div>
-              <h3 className="umkm-analytics-fs-title">{title}</h3>
-              {subtitle ? (
-                <p className="umkm-analytics-fs-sub">{subtitle}</p>
+              <h3 className="umkm-analytics-fs-title">{panelTitle}</h3>
+              {panelSubtitle ? (
+                <p className="umkm-analytics-fs-sub">{panelSubtitle}</p>
               ) : null}
             </div>
             <div className="umkm-analytics-fs-top-tools">
               {seriesLegend}
+              {exportTools}
               <button
                 ref={closeBtnRef}
                 type="button"
                 className="umkm-analytics-fs-btn is-close"
-                aria-label={`Exit fullscreen ${title}`}
-                title="Exit fullscreen (Esc)"
+                aria-label={`${tr('Exit fullscreen')} ${panelTitle}`}
+                title={tr('Exit fullscreen (Esc)')}
                 onClick={() => fs?.close()}
               >
                 <CollapseIcon />
-                <span className="umkm-analytics-fs-btn-label">Exit</span>
+                <span className="umkm-analytics-fs-btn-label">{tr('Exit')}</span>
               </button>
             </div>
           </header>
 
           {lens ? (
-            <div className="umkm-analytics-fs-lens" aria-label="Chart controls">
+            <div className="umkm-analytics-fs-lens" aria-label={tr('Chart controls')}>
               <OptionChips
-                aria-label="Chart period"
+                aria-label={tr('Chart period')}
                 className="umkm-analytics-fs-lens-period"
                 size="sm"
                 value={lens.granularity}
@@ -1087,14 +1272,26 @@ function ChartPanel({
                   }
                 }}
                 options={[
-                  { value: 'weekly', label: 'Weekly' },
-                  { value: 'monthly', label: 'Monthly' },
-                  { value: 'quarterly', label: 'Quarterly' },
-                  { value: 'annual', label: 'Annual' },
+                  { value: 'weekly', label: tr('Weekly') },
+                  { value: 'monthly', label: tr('Monthly') },
+                  { value: 'quarterly', label: tr('Quarterly') },
+                  { value: 'annual', label: tr('Annual') },
                 ]}
               />
+              <TimelineFilter
+                id={`${panelId}-fs-timeline`}
+                className="umkm-analytics-fs-lens-timeline"
+                label=""
+                aria-label={tr('Timeline')}
+                value={lens.timeline}
+                years={appYearOptions(lens.nowYear)}
+                nowYear={lens.nowYear}
+                allLabel={tr('All timelines')}
+                caption={lens.timelineCaption}
+                onChange={lens.setTimeline}
+              />
               <OptionChips
-                aria-label="Chart view"
+                aria-label={tr('Chart view')}
                 className="umkm-analytics-fs-lens-view"
                 size="sm"
                 value={lens.chartView}
@@ -1102,8 +1299,8 @@ function ChartPanel({
                   if (v === 'chart' || v === 'table') lens.setChartView(v);
                 }}
                 options={[
-                  { value: 'chart', label: 'Graph' },
-                  { value: 'table', label: 'Table' },
+                  { value: 'chart', label: tr('Graph') },
+                  { value: 'table', label: tr('Table') },
                 ]}
               />
             </div>
@@ -1123,12 +1320,14 @@ function ChartPanel({
 
           <footer className="umkm-analytics-fs-dock">
             {panelCount > 1 ? (
-              <div className="umkm-analytics-fs-nav" aria-label="Chart navigation">
+              <div className="umkm-analytics-fs-nav" aria-label={tr('Chart navigation')}>
                 <button
                   type="button"
                   className="umkm-analytics-fs-nav-btn is-prev"
                   aria-label={
-                    prev ? `Previous: ${prev.title}` : 'Previous chart'
+                    prev
+                      ? `${tr('Previous')}: ${tr(prev.title)}`
+                      : tr('Previous chart')
                   }
                   disabled={!prev}
                   onClick={() => fs?.goRelative(-1)}
@@ -1137,14 +1336,14 @@ function ChartPanel({
                     <ChevronLeftIcon />
                   </span>
                   <span className="umkm-analytics-fs-nav-copy">
-                    <span className="umkm-analytics-fs-nav-kicker">Previous</span>
+                    <span className="umkm-analytics-fs-nav-kicker">{tr('Previous')}</span>
                     <span className="umkm-analytics-fs-nav-title">
-                      {prev?.title ?? '—'}
+                      {prev ? tr(prev.title) : '—'}
                     </span>
                     {prev ? (
                       <span className="umkm-analytics-fs-nav-meta">
                         {prev.index + 1}/{panelCount}
-                        {prev.subtitle ? ` · ${prev.subtitle}` : ''}
+                        {prev.subtitle ? ` · ${tr(prev.subtitle)}` : ''}
                       </span>
                     ) : null}
                   </span>
@@ -1153,19 +1352,21 @@ function ChartPanel({
                 <button
                   type="button"
                   className="umkm-analytics-fs-nav-btn is-next"
-                  aria-label={next ? `Next: ${next.title}` : 'Next chart'}
+                  aria-label={
+                    next ? `${tr('Next')}: ${tr(next.title)}` : tr('Next chart')
+                  }
                   disabled={!next}
                   onClick={() => fs?.goRelative(1)}
                 >
                   <span className="umkm-analytics-fs-nav-copy">
-                    <span className="umkm-analytics-fs-nav-kicker">Next</span>
+                    <span className="umkm-analytics-fs-nav-kicker">{tr('Next')}</span>
                     <span className="umkm-analytics-fs-nav-title">
-                      {next?.title ?? '—'}
+                      {next ? tr(next.title) : '—'}
                     </span>
                     {next ? (
                       <span className="umkm-analytics-fs-nav-meta">
                         {next.index + 1}/{panelCount}
-                        {next.subtitle ? ` · ${next.subtitle}` : ''}
+                        {next.subtitle ? ` · ${tr(next.subtitle)}` : ''}
                       </span>
                     ) : null}
                   </span>
@@ -1181,7 +1382,7 @@ function ChartPanel({
                 <div
                   className="umkm-analytics-fs-dots"
                   role="tablist"
-                  aria-label="All charts"
+                  aria-label={tr('All charts')}
                 >
                   {deck.map((item) => (
                     <button
@@ -1190,8 +1391,8 @@ function ChartPanel({
                       role="tab"
                       aria-selected={item.index === activeIndex}
                       className={`umkm-analytics-fs-dot${item.index === activeIndex ? ' is-active' : ''}`}
-                      title={item.title}
-                      aria-label={`Show ${item.title}`}
+                      title={tr(item.title)}
+                      aria-label={`${tr('Show')} ${tr(item.title)}`}
                       onClick={() => fs?.goTo(item.index)}
                     />
                   ))}
@@ -1202,12 +1403,12 @@ function ChartPanel({
               <p className="umkm-analytics-fs-hints">
                 <kbd>←</kbd>
                 <kbd>→</kbd>
-                <span>switch</span>
+                <span>{tr('switch')}</span>
                 <span className="umkm-analytics-fs-hints-sep">·</span>
-                <span>swipe</span>
+                <span>{tr('swipe')}</span>
                 <span className="umkm-analytics-fs-hints-sep">·</span>
                 <kbd>Esc</kbd>
-                <span>exit</span>
+                <span>{tr('exit')}</span>
               </p>
             </div>
           </footer>
@@ -1216,19 +1417,20 @@ function ChartPanel({
         <>
           <header className="umkm-analytics-chart-head">
             <div className="umkm-analytics-chart-head-text">
-              <h3 className="umkm-analytics-chart-title">{title}</h3>
-              {subtitle ? (
-                <p className="umkm-analytics-chart-sub">{subtitle}</p>
+              <h3 className="umkm-analytics-chart-title">{panelTitle}</h3>
+              {panelSubtitle ? (
+                <p className="umkm-analytics-chart-sub">{panelSubtitle}</p>
               ) : null}
             </div>
             <div className="umkm-analytics-chart-head-tools">
               {seriesLegend}
+              {exportTools}
               {fs ? (
                 <button
                   type="button"
                   className="umkm-analytics-fs-btn"
-                  aria-label={`Open ${title} in fullscreen`}
-                  title="Fullscreen"
+                  aria-label={`${tr('Open')} ${panelTitle} ${tr('in fullscreen')}`}
+                  title={tr('Fullscreen')}
                   onClick={() => fs.open(panelId)}
                 >
                   <ExpandIcon />
@@ -1236,6 +1438,11 @@ function ChartPanel({
               ) : null}
             </div>
           </header>
+          {exportError ? (
+            <p className="umkm-analytics-export-error" role="alert">
+              {exportError}
+            </p>
+          ) : null}
           {panelBody}
         </>
       )}
@@ -1256,16 +1463,17 @@ function RankSeriesTable({
   valueLabel: string;
   empty?: string;
 }) {
+  const tr = useTr();
   return (
     <SeriesTable
       caption={empty}
       columns={[
-        { key: 'name', label: 'Name' },
-        { key: 'value', label: valueLabel, align: 'end' },
-        { key: 'orders', label: 'Orders', align: 'end' },
-        { key: 'packs', label: 'Packs', align: 'end' },
-        { key: 'aov', label: 'AOV', align: 'end' },
-        { key: 'upt', label: 'UPT', align: 'end' },
+        { key: 'name', label: tr('Name') },
+        { key: 'value', label: tr(valueLabel), align: 'end' },
+        { key: 'orders', label: tr('Orders'), align: 'end' },
+        { key: 'packs', label: tr('Packs'), align: 'end' },
+        { key: 'aov', label: tr('AOV'), align: 'end' },
+        { key: 'upt', label: tr('UPT'), align: 'end' },
       ]}
       rows={rows.map((row) => ({
         id: row.key,
@@ -1310,6 +1518,124 @@ function formatTableDays(value: number | null | undefined) {
 function formatTableMoney(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return '—';
   return formatMoney(value);
+}
+
+function downloadProductPerformanceCsv(
+  filename: string,
+  products: Array<{
+    name: string;
+    unit: string;
+    orderCount: number;
+    packsSold: number;
+    qtySold: number;
+    revenue: number;
+    avgOrderValue: number | null;
+    firstRepeatOrderDays: number | null;
+    avgRepeatOrderDays: number | null;
+    discount: number;
+    discountPercent: number | null;
+    cost: number | null;
+    costPercent: number | null;
+    profit: number | null;
+    marginPercent: number | null;
+  }>,
+) {
+  downloadCsv(
+    filename,
+    [
+      'Product',
+      'Unit',
+      'Orders',
+      'Packs sold',
+      'Qty sold',
+      'Revenue',
+      'Avg order value',
+      'First repeat days',
+      'Avg repeat days',
+      'Discount',
+      'Discount %',
+      'Cost',
+      'Cost %',
+      'Profit',
+      'Margin %',
+    ],
+    products.map((p) => ({
+      Product: p.name,
+      Unit: p.unit,
+      Orders: p.orderCount,
+      'Packs sold': p.packsSold,
+      'Qty sold': p.qtySold,
+      Revenue: p.revenue,
+      'Avg order value': p.avgOrderValue,
+      'First repeat days': p.firstRepeatOrderDays,
+      'Avg repeat days': p.avgRepeatOrderDays,
+      Discount: p.discount,
+      'Discount %': p.discountPercent,
+      Cost: p.cost,
+      'Cost %': p.costPercent,
+      Profit: p.profit,
+      'Margin %': p.marginPercent,
+    })),
+  );
+}
+
+function downloadCustomerPerformanceCsv(
+  filename: string,
+  customers: Array<{
+    name: string;
+    companyName: string;
+    companyType: string;
+    orderCount: number;
+    packsSold: number;
+    revenue: number;
+    avgOrderValue: number | null;
+    firstRepeatOrderDays: number | null;
+    avgRepeatOrderDays: number | null;
+    discount: number;
+    discountPercent: number | null;
+    cost: number | null;
+    costPercent: number | null;
+    profit: number | null;
+    marginPercent: number | null;
+  }>,
+) {
+  downloadCsv(
+    filename,
+    [
+      'Customer',
+      'Company',
+      'Company type',
+      'Orders',
+      'Packs sold',
+      'Revenue',
+      'Avg order value',
+      'First repeat days',
+      'Avg repeat days',
+      'Discount',
+      'Discount %',
+      'Cost',
+      'Cost %',
+      'Profit',
+      'Margin %',
+    ],
+    customers.map((c) => ({
+      Customer: c.name,
+      Company: c.companyName,
+      'Company type': c.companyType,
+      Orders: c.orderCount,
+      'Packs sold': c.packsSold,
+      Revenue: c.revenue,
+      'Avg order value': c.avgOrderValue,
+      'First repeat days': c.firstRepeatOrderDays,
+      'Avg repeat days': c.avgRepeatOrderDays,
+      Discount: c.discount,
+      'Discount %': c.discountPercent,
+      Cost: c.cost,
+      'Cost %': c.costPercent,
+      Profit: c.profit,
+      'Margin %': c.marginPercent,
+    })),
+  );
 }
 
 function formatTableQty(value: number | null | undefined) {
@@ -1593,19 +1919,20 @@ function LensQty({
 }
 
 export default function AnalyticsWorkspace() {
+  const tr = useTr();
+  const { orderStatus, paymentStatus, companyType } = useLabels();
+  const statusSeries = useMemo(
+    () => buildStatusSeries(orderStatus),
+    [orderStatus],
+  );
+  const paymentModeSeries = useMemo(
+    () => buildPaymentModeSeries(paymentStatus),
+    [paymentStatus],
+  );
   const nowYear = new Date().getUTCFullYear();
   const [timeline, setTimeline] = useState<TimelineFilterValue>([nowYear]);
   const [granularity, setGranularity] = useState<Granularity>('monthly');
   const [chartView, setChartView] = useState<ChartPanelView>('chart');
-  const lensControls = useMemo<AnalyticsLensControls>(
-    () => ({
-      granularity,
-      setGranularity,
-      chartView,
-      setChartView,
-    }),
-    [granularity, chartView],
-  );
   const [data, setData] = useState<AnalyticsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1932,6 +2259,19 @@ export default function AnalyticsWorkspace() {
         : isAll
           ? 'Entire app timeline in range'
           : null;
+  const lensControls = useMemo<AnalyticsLensControls>(
+    () => ({
+      granularity,
+      setGranularity,
+      chartView,
+      setChartView,
+      timeline,
+      setTimeline,
+      nowYear,
+      timelineCaption,
+    }),
+    [granularity, chartView, timeline, nowYear, timelineCaption],
+  );
   const barMax =
     granularity === 'weekly'
       ? 14
@@ -1971,6 +2311,154 @@ export default function AnalyticsWorkspace() {
       abbreviateProductAxisLabel,
     );
   }, [data]);
+
+  /** Raw numeric CSV payloads for panel header export (matches Graph|Table panels). */
+  const seriesCsvExports = useMemo((): Record<string, AnalyticsCsvExport> => {
+    const periodCol = { key: 'period', label: axisPeriodLabel };
+    const periodRows = (
+      pick: (row: (typeof chartData)[number]) => Record<string, unknown>,
+    ) =>
+      chartData.map((row) => ({
+        period: row.key,
+        ...pick(row),
+      }));
+
+    const rankExport = (
+      rows: RankChartRow[],
+      valueLabel: string,
+    ): AnalyticsCsvExport => ({
+      columns: [
+        { key: 'name', label: 'Name' },
+        { key: 'value', label: valueLabel },
+        { key: 'orders', label: 'Orders' },
+        { key: 'packs', label: 'Packs' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'upt', label: 'UPT' },
+      ],
+      rows: rows.map((row) => ({
+        name: row.fullName,
+        value: row.value,
+        orders: row.orderCount,
+        packs: row.packsSold,
+        aov: row.avgOrderValue,
+        upt: row.avgBasketSize,
+      })),
+    });
+
+    return {
+      revenue: {
+        columns: [
+          periodCol,
+          { key: 'revenue', label: 'Revenue' },
+          ...(hasChartTarget ? [{ key: 'target', label: 'Target' }] : []),
+        ],
+        rows: periodRows((row) => ({
+          revenue: row.revenue,
+          ...(hasChartTarget ? { target: row.target } : {}),
+        })),
+      },
+      orders: {
+        columns: [periodCol, { key: 'orders', label: 'Orders' }],
+        rows: periodRows((row) => ({ orders: row.orders })),
+      },
+      aov: {
+        columns: [periodCol, { key: 'aov', label: 'AOV' }],
+        rows: periodRows((row) => ({ aov: row.aov })),
+      },
+      upt: {
+        columns: [periodCol, { key: 'basket', label: 'UPT' }],
+        rows: periodRows((row) => ({ basket: row.basket })),
+      },
+      apf: {
+        columns: [periodCol, { key: 'frequency', label: 'APF' }],
+        rows: periodRows((row) => ({ frequency: row.frequency })),
+      },
+      attainment: {
+        columns: [periodCol, { key: 'attainment', label: '% of target' }],
+        rows: periodRows((row) => ({ attainment: row.attainment })),
+      },
+      margin: {
+        columns: [periodCol, { key: 'margin', label: 'Margin' }],
+        rows: periodRows((row) => ({ margin: row.margin })),
+      },
+      'order-status-mix': {
+        columns: [
+          periodCol,
+          ...ORDER_STATUSES.map((status) => ({
+            key: status,
+            label: orderStatus[status],
+          })),
+          { key: 'orders', label: 'Orders' },
+        ],
+        rows: statusChartData.map((row) => ({
+          period: row.key,
+          PENDING: row.PENDING,
+          CONFIRMED: row.CONFIRMED,
+          SHIPPED: row.SHIPPED,
+          DELIVERED: row.DELIVERED,
+          CANCELLED: row.CANCELLED,
+          orders: row.orderCount,
+        })),
+      },
+      'payment-mode-mix': {
+        columns: [
+          periodCol,
+          ...PAYMENT_STATUSES.map((status) => ({
+            key: status,
+            label: paymentStatus[status],
+          })),
+          { key: 'orders', label: 'Orders' },
+        ],
+        rows: paymentChartData.map((row) => ({
+          period: row.key,
+          CASH: row.CASH,
+          CONSIGNMENT: row.CONSIGNMENT,
+          DELAYED_PAYMENT: row.DELAYED_PAYMENT,
+          orders: row.orderCount,
+        })),
+      },
+      shipment: {
+        columns: [periodCol, { key: 'days', label: 'Avg days' }],
+        rows: periodRows((row) => ({ days: row.shipmentDays })),
+      },
+      invoice: {
+        columns: [periodCol, { key: 'days', label: 'Avg days' }],
+        rows: periodRows((row) => ({ days: row.invoiceDays })),
+      },
+      'first-payment': {
+        columns: [periodCol, { key: 'days', label: 'Avg days' }],
+        rows: periodRows((row) => ({ days: row.firstPaymentDays })),
+      },
+      'last-payment': {
+        columns: [periodCol, { key: 'days', label: 'Avg days' }],
+        rows: periodRows((row) => ({ days: row.paymentDays })),
+      },
+      'avg-product-revenue': {
+        columns: [periodCol, { key: 'productRevenue', label: 'Avg product revenue' }],
+        rows: periodRows((row) => ({ productRevenue: row.productRevenue })),
+      },
+      'top-products': rankExport(productTopChartData, 'Revenue'),
+      'bottom-products': rankExport(productBottomChartData, 'Revenue'),
+      'avg-ltv': {
+        columns: [periodCol, { key: 'ltv', label: 'Avg LTV' }],
+        rows: periodRows((row) => ({ ltv: row.ltv })),
+      },
+      'top-customers': rankExport(ltvTopChartData, 'LTV'),
+      'bottom-customers': rankExport(ltvBottomChartData, 'LTV'),
+    };
+  }, [
+    axisPeriodLabel,
+    chartData,
+    hasChartTarget,
+    statusChartData,
+    paymentChartData,
+    productTopChartData,
+    productBottomChartData,
+    ltvTopChartData,
+    ltvBottomChartData,
+    orderStatus,
+    paymentStatus,
+  ]);
 
   const revenueDomain = useMemo(
     () =>
@@ -2127,36 +2615,37 @@ export default function AnalyticsWorkspace() {
     stage?.profit != null ? formatMoneyParts(stage.profit) : null;
   const granularityLabel =
     granularity === 'weekly'
-      ? 'Weekly'
+      ? tr('Weekly')
       : granularity === 'monthly'
-        ? 'Monthly'
+        ? tr('Monthly')
         : granularity === 'quarterly'
-          ? 'Quarterly'
-          : 'Annual';
+          ? tr('Quarterly')
+          : tr('Annual');
 
   return (
     <section className="umkm-analytics-page">
       <FeatureStage
-        title="Analytics"
+        title={tr('Analytics')}
         loading={loading}
         subtitle={
           data
-            ? `${granularityLabel} · ${scopeLabel} · Non-cancelled outcomes and plan health`
-            : 'Trends for revenue, targets, margins, and fulfillment lead times.'
+            ? `${granularityLabel} · ${scopeLabel} · ${tr('Non-cancelled outcomes and plan health')}`
+            : tr('Trends for revenue, targets, margins, and fulfillment lead times.')
         }
         action={
           <Link className="umkm-btn secondary" href="/targets">
-            Edit targets
+            {tr('Edit targets')}
           </Link>
         }
         stats={[
           {
-            label: 'Revenue',
+            label: tr('Revenue'),
             hero: true,
             tip: {
               value: stage ? formatMoneyExact(stage.revenue) : undefined,
-              description:
+              description: tr(
                 'Non-cancelled revenue for the selected analytics scope.',
+              ),
             },
             value: pulseRevenue ? (
               <>
@@ -2168,11 +2657,11 @@ export default function AnalyticsWorkspace() {
             ),
           },
           {
-            label: 'Target',
+            label: tr('Target'),
             tip: {
               value:
               stage?.target != null ? formatMoneyExact(stage.target) : undefined,
-              description: 'Planned revenue for the same scope, when set.',
+              description: tr('Planned revenue for the same scope, when set.'),
             },
             value: pulseTarget ? (
               <>
@@ -2186,12 +2675,13 @@ export default function AnalyticsWorkspace() {
             ),
           },
           {
-            label: 'Profit',
+            label: tr('Profit'),
             tip: {
               value:
               stage?.profit != null ? formatMoneyExact(stage.profit) : undefined,
-              description:
+              description: tr(
                 'Estimated profit after cost of goods for this scope.',
+              ),
             },
             value: pulseProfit ? (
               <>
@@ -2205,43 +2695,45 @@ export default function AnalyticsWorkspace() {
             ),
           },
         ]}
-        ratesLabel="Analytics rates"
+        ratesLabel={tr('Analytics rates')}
         rates={[
           {
             tone: 'tone-paid',
-            label: 'Attainment',
+            label: tr('Attainment'),
             tip: {
-              description:
+              description: tr(
                 'How close actual revenue is to the target for the same Analytics period (week, month, quarter, or year).',
-              detail: 'Actual revenue ÷ period target × 100',
+              ),
+              detail: tr('Actual revenue ÷ period target × 100'),
             },
             value: stage?.attainmentRate,
           },
           {
             tone: 'tone-margin',
-            label: 'Margin',
+            label: tr('Margin'),
             tip: {
-              description: 'Profit as a share of revenue using catalog costs.',
-              detail: 'Profit ÷ revenue on orders with cost',
+              description: tr('Profit as a share of revenue using catalog costs.'),
+              detail: tr('Profit ÷ revenue on orders with cost'),
             },
             value: stage?.marginRate,
           },
           {
             tone: 'tone-discount',
-            label: 'YoY',
+            label: tr('YoY'),
             tip: {
-              description: 'Revenue growth compared with the prior year.',
-              detail: 'This year ÷ prior year − 100%',
+              description: tr('Revenue growth compared with the prior year.'),
+              detail: tr('This year ÷ prior year − 100%'),
             },
             value: stage?.yoyGrowthRate,
           },
           {
             tone: 'tone-cancel',
-            label: 'Pace',
+            label: tr('Pace'),
             tip: {
-              description:
+              description: tr(
                 'Year-to-date progress versus targets for months so far.',
-              detail: 'YTD revenue ÷ elapsed monthly targets',
+              ),
+              detail: tr('YTD revenue ÷ elapsed monthly targets'),
             },
             value: stage?.paceRate,
           },
@@ -2261,17 +2753,7 @@ export default function AnalyticsWorkspace() {
               label="Period"
               bodyClassName="umkm-analytics-lens-filter-body"
               idleHint={granularityLabel}
-              activeCount={
-                (granularity !== 'monthly' ? 1 : 0) +
-                (timeline === 'all' ||
-                !(
-                  Array.isArray(timeline) &&
-                  timeline.length === 1 &&
-                  timeline[0] === nowYear
-                )
-                  ? 1
-                  : 0)
-              }
+              activeCount={granularity !== 'monthly' ? 1 : 0}
             >
               <OptionChips
                 aria-label="Chart period"
@@ -2288,18 +2770,18 @@ export default function AnalyticsWorkspace() {
                   { value: 'annual', label: 'Annual' },
                 ]}
               />
-              <TimelineFilter
-                id="analytics-year"
-                className="umkm-analytics-lens-timeline"
-                label="Timeline"
-                value={timeline}
-                years={appYearOptions(nowYear)}
-                nowYear={nowYear}
-                allLabel="All timelines"
-                caption={timelineCaption}
-                onChange={setTimeline}
-              />
             </CollapsibleFilters>
+            <TimelineFilter
+              id="analytics-year"
+              className="umkm-analytics-lens-timeline"
+              label="Timeline"
+              value={timeline}
+              years={appYearOptions(nowYear)}
+              nowYear={nowYear}
+              allLabel="All timelines"
+              caption={timelineCaption}
+              onChange={setTimeline}
+            />
             <OptionChips
               aria-label="Chart view"
               className="umkm-analytics-lens-view umkm-analytics-view-toggle"
@@ -2496,6 +2978,7 @@ export default function AnalyticsWorkspace() {
       <AnalyticsFullscreenProvider>
       <AnalyticsLensControlsContext.Provider value={lensControls}>
       <AnalyticsChartViewContext.Provider value={chartView}>
+      <AnalyticsCsvExportContext.Provider value={seriesCsvExports}>
       {empty ? (
         <ContentSection
           eyebrow="Charts"
@@ -3198,7 +3681,7 @@ export default function AnalyticsWorkspace() {
                 title="Order status mix"
                 subtitle="% of orders by status"
                 tone="orders"
-                series={STATUS_SERIES}
+                series={statusSeries}
                 table={
                   loading ? (
                     <ChartState>Loading…</ChartState>
@@ -3210,7 +3693,7 @@ export default function AnalyticsWorkspace() {
                         { key: 'period', label: axisPeriodLabel },
                         ...ORDER_STATUSES.map((status) => ({
                           key: status,
-                          label: LABELS.orderStatus[status],
+                          label: orderStatus[status],
                           align: 'end' as const,
                         })),
                         { key: 'orders', label: 'Orders', align: 'end' },
@@ -3264,7 +3747,7 @@ export default function AnalyticsWorkspace() {
                         <Bar
                           key={status}
                           dataKey={status}
-                          name={LABELS.orderStatus[status]}
+                          name={orderStatus[status]}
                           stackId="status"
                           fill={STATUS_COLORS[status]}
                           maxBarSize={36}
@@ -3281,7 +3764,7 @@ export default function AnalyticsWorkspace() {
                 title="Payment mode mix"
                 subtitle="% of active orders by payment"
                 tone="pay"
-                series={PAYMENT_MODE_SERIES}
+                series={paymentModeSeries}
                 table={
                   loading ? (
                     <ChartState>Loading…</ChartState>
@@ -3293,7 +3776,7 @@ export default function AnalyticsWorkspace() {
                         { key: 'period', label: axisPeriodLabel },
                         ...PAYMENT_STATUSES.map((status) => ({
                           key: status,
-                          label: LABELS.paymentStatus[status],
+                          label: paymentStatus[status],
                           align: 'end' as const,
                         })),
                         { key: 'orders', label: 'Orders', align: 'end' },
@@ -3346,7 +3829,7 @@ export default function AnalyticsWorkspace() {
                         <Bar
                           key={status}
                           dataKey={status}
-                          name={LABELS.paymentStatus[status]}
+                          name={paymentStatus[status]}
                           stackId="payment"
                           fill={PAYMENT_MODE_COLORS[status]}
                           maxBarSize={36}
@@ -3874,6 +4357,28 @@ export default function AnalyticsWorkspace() {
         eyebrow="Products"
         title={`${scopeLabel} product performance`}
         description="Revenue is after discount. Discount, COGS, and margin % are shares of the pre-discount total (Discount + Cost + Profit), so they add up to ~100%."
+        actions={
+          data?.products?.length ? (
+            <button
+              type="button"
+              className="umkm-analytics-export-btn is-tool"
+              onClick={() =>
+                downloadProductPerformanceCsv(
+                  slugExportName(
+                    `${scopeLabel}-product-performance`,
+                    'product-performance',
+                  ),
+                  data.products,
+                )
+              }
+              title="Download table as CSV"
+              aria-label="Download product performance as CSV"
+            >
+              <CsvIcon />
+              <span>CSV</span>
+            </button>
+          ) : null
+        }
       >
         {loading || tablesLoading ? (
           <p className="umkm-catalog-count">Loading products…</p>
@@ -4263,6 +4768,28 @@ export default function AnalyticsWorkspace() {
         eyebrow="Customers"
         title={`${scopeLabel} customer performance`}
         description="Same metrics as products, grouped by CRM customer. Only orders with a customer assigned appear here. Rates are shares of the pre-discount total."
+        actions={
+          data?.customers?.length ? (
+            <button
+              type="button"
+              className="umkm-analytics-export-btn is-tool"
+              onClick={() =>
+                downloadCustomerPerformanceCsv(
+                  slugExportName(
+                    `${scopeLabel}-customer-performance`,
+                    'customer-performance',
+                  ),
+                  data.customers,
+                )
+              }
+              title="Download table as CSV"
+              aria-label="Download customer performance as CSV"
+            >
+              <CsvIcon />
+              <span>CSV</span>
+            </button>
+          ) : null
+        }
       >
         {loading || tablesLoading ? (
           <p className="umkm-catalog-count">Loading customers…</p>
@@ -4294,8 +4821,8 @@ export default function AnalyticsWorkspace() {
                           <span className="umkm-product-name">{c.name}</span>
                           <div className="umkm-product-identity-row">
                             <span className="umkm-unit-chip">
-                              {LABELS.companyType[
-                                c.companyType as keyof typeof LABELS.companyType
+                              {companyType[
+                                c.companyType as keyof typeof companyType
                               ] ?? c.companyType}
                             </span>
                             {c.companyName ? (
@@ -4407,8 +4934,8 @@ export default function AnalyticsWorkspace() {
                       <span className="umkm-product-name">{c.name}</span>
                       <div className="umkm-product-identity-row">
                         <span className="umkm-unit-chip">
-                          {LABELS.companyType[
-                            c.companyType as keyof typeof LABELS.companyType
+                          {companyType[
+                            c.companyType as keyof typeof companyType
                           ] ?? c.companyType}
                         </span>
                         <span className="umkm-unit-chip">
@@ -4483,6 +5010,7 @@ export default function AnalyticsWorkspace() {
           </>
         )}
       </ContentSection>
+      </AnalyticsCsvExportContext.Provider>
       </AnalyticsChartViewContext.Provider>
       </AnalyticsLensControlsContext.Provider>
       </AnalyticsFullscreenProvider>

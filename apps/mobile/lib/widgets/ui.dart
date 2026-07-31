@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/countries.dart';
 import '../theme/umkm_theme.dart';
+import 'auto_translate_text.dart';
 
 /// Subtitle-only intro under the shell AppBar (avoids duplicate titles).
 class PageIntro extends StatelessWidget {
@@ -15,7 +16,7 @@ class PageIntro extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-      child: Text(
+      child: Tr(
         subtitle,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: UmkmColors.muted,
@@ -55,7 +56,7 @@ class EmptyHint extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                Tr(
                   title,
                   textAlign: TextAlign.center,
                   style: UmkmType.display(
@@ -66,7 +67,7 @@ class EmptyHint extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                Tr(
                   message,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -162,7 +163,7 @@ class MetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          Tr(
             label.toUpperCase(),
             style: const TextStyle(
               fontSize: 11,
@@ -214,7 +215,7 @@ class StatusChip extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
+      child: Tr(
         label,
         style: TextStyle(
           fontSize: 12,
@@ -243,7 +244,7 @@ class DetailRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          Tr(
             label.toUpperCase(),
             style: const TextStyle(
               fontSize: 11,
@@ -287,18 +288,18 @@ class SectionLabel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          Tr(
             text,
             style: UmkmType.title(size: 18),
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 8),
+            Tr(
               subtitle!,
               style: const TextStyle(
                 color: UmkmColors.muted,
                 fontSize: 13,
-                height: 1.4,
+                height: 1.5,
               ),
             ),
           ],
@@ -346,7 +347,7 @@ class EntityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          Tr(
             m.$1.toUpperCase(),
             style: UmkmType.label(size: 10),
           ),
@@ -533,7 +534,7 @@ class CardActionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 22, color: color),
               const SizedBox(height: 4),
-              Text(
+              Tr(
                 label.toUpperCase(),
                 style: TextStyle(
                   fontSize: 10,
@@ -588,7 +589,7 @@ Future<T?> showAppFormSheet<T>({
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    child: Text(
+                    child: Tr(
                       title,
                       style: UmkmType.display(
                         size: 22,
@@ -770,18 +771,18 @@ class FormSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          Tr(
             title,
             style: UmkmType.title(size: 16),
           ),
           if (description != null) ...[
-            const SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 8),
+            Tr(
               description!,
               style: const TextStyle(
                 color: UmkmColors.muted,
                 fontSize: 12.5,
-                height: 1.4,
+                height: 1.5,
               ),
             ),
           ],
@@ -908,7 +909,7 @@ class _ExpandableFiltersState extends State<ExpandableFilters> {
               ),
               child: Row(
                 children: [
-                  Text(
+                  Tr(
                     widget.title,
                     style: UmkmType.body(
                       size: 14.5,
@@ -937,7 +938,7 @@ class _ExpandableFiltersState extends State<ExpandableFilters> {
                       ),
                     )
                   else
-                    Text(
+                    Tr(
                       widget.idleHint,
                       style: UmkmType.body(
                         size: 13,
@@ -1016,7 +1017,7 @@ class _ChoiceChipButton extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Text(
+          child: Tr(
             label,
             style: TextStyle(
               fontSize: 13,

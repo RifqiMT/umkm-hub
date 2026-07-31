@@ -44,9 +44,7 @@ String unitShort(String? unit) {
 }
 
 String _fmtSize(num value) {
-  final n = value.toDouble();
-  if (n == n.roundToDouble()) return n.round().toString();
-  return n.toString();
+  return formatCompactQty(value);
 }
 
 /// Active selling pack for a catalog product (pcs or single gram/liter pack).
@@ -107,9 +105,9 @@ String? formatPacksOnHand(double stockQty, ActivePack? pack) {
   final count = packsOnHand(stockQty, pack);
   if (count == null || pack == null) return null;
   if (pack.size == 1 && pack.shortUnit == 'pcs') {
-    return '${formatMoney(count)} pcs';
+    return '${formatCompactQty(count)} pcs';
   }
-  return '${formatMoney(count)} packs (${pack.sizeLabel})';
+  return '${formatCompactQty(count)} packs (${pack.sizeLabel})';
 }
 
 List<ProductPack> listProductPacks(Product product) {

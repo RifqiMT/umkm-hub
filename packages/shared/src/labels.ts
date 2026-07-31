@@ -37,8 +37,14 @@ export const LABELS = {
     DELAYED_PAYMENT: 'Delayed payment',
   },
   invoiceStatus: {
-    CREATED: 'Created',
-    SENT: 'Sent',
+    CREATED: 'Not billed yet',
+    SENT: 'Awaiting payment',
+    PARTIALLY_PAID: 'Partial payment',
+    FULLY_PAID: 'Paid in full',
+  },
+  billStatus: {
+    CREATED: 'Draft bill',
+    SENT: 'Sent to customer',
   },
   orderStatus: {
     PENDING: 'Pending',

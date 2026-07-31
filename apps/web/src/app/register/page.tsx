@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { setSession } from '@/lib/auth';
 import { checkRegistrationAvailability } from '@/lib/registration-availability';
+import { useTr } from '@/components/Tr';
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]+$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -59,6 +60,7 @@ function isRegisterConflict(err: ApiError): boolean {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const tr = useTr();
   const alertRef = useRef<HTMLDivElement>(null);
   const checkSeq = useRef(0);
   const [profileName, setProfileName] = useState('');
@@ -217,15 +219,16 @@ export default function RegisterPage() {
       <section className="umkm-auth-hero" aria-label="UMKM Hub">
         <div className="umkm-auth-hero-copy">
           <p className="umkm-auth-brand">UMKM Hub</p>
-          <h1>Your workspace starts here</h1>
+          <h1>{tr('Your workspace starts here')}</h1>
           <p>
-            One calm place for products, customers, and orders—set up in a
-            minute.
+            {tr(
+              'One calm place for products, customers, and orders—set up in a minute.',
+            )}
           </p>
           <ul className="umkm-auth-points">
-            <li>Unique username + email for your account</li>
-            <li>Secure password, ready for daily work</li>
-            <li>Jump straight into your dashboard</li>
+            <li>{tr('Unique username + email for your account')}</li>
+            <li>{tr('Secure password, ready for daily work')}</li>
+            <li>{tr('Jump straight into your dashboard')}</li>
           </ul>
         </div>
       </section>
@@ -233,9 +236,9 @@ export default function RegisterPage() {
       <section className="umkm-auth-panel">
         <div className="umkm-panel umkm-auth-card umkm-auth-card-register">
           <header className="umkm-auth-card-head">
-            <h1 className="umkm-title">Create profile</h1>
+            <h1 className="umkm-title">{tr('Create profile')}</h1>
             <p className="umkm-sub">
-              Choose a username and email, then set a password.
+              {tr('Choose a username and email, then set a password.')}
             </p>
           </header>
 

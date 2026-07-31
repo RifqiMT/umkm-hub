@@ -30,7 +30,7 @@ class Product {
     required this.stockQty,
     required this.pricePerUnit,
     required this.details,
-    this.sku = '',
+    this.productId = '',
     this.price50,
     this.price100,
     this.price250,
@@ -53,7 +53,7 @@ class Product {
   });
 
   final String id;
-  final String sku;
+  final String productId;
   final String name;
   final String unit;
   final double stockQty;
@@ -79,11 +79,13 @@ class Product {
   final double? potentialProfit;
   final double? profitMarginPercent;
 
-  String get displayId => sku.isNotEmpty ? sku : id;
+  String get displayId => productId.isNotEmpty ? productId : id;
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
         id: json['id'] as String,
-        sku: (json['sku'] as String?) ?? '',
+        productId: (json['productId'] as String?) ??
+            (json['sku'] as String?) ??
+            '',
         name: json['name'] as String,
         unit: (json['unit'] as String?) ?? 'PCS',
         stockQty: (json['stockQty'] as num).toDouble(),
@@ -140,7 +142,8 @@ class Customer {
     required this.title,
     required this.companyName,
     required this.companyType,
-    this.sku = '',
+    this.customerId = '',
+    this.npwp = '',
     this.email = '',
     this.phone = '',
     this.address = '',
@@ -162,11 +165,12 @@ class Customer {
   });
 
   final String id;
-  final String sku;
+  final String customerId;
   final String name;
   final String title;
   final String companyName;
   final String companyType;
+  final String npwp;
   final String email;
   final String phone;
   final String address;
@@ -186,15 +190,18 @@ class Customer {
   final int approvalPercentage;
   final String remarks;
 
-  String get displayId => sku.isNotEmpty ? sku : id;
+  String get displayId => customerId.isNotEmpty ? customerId : id;
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
         id: json['id'] as String,
-        sku: (json['sku'] as String?) ?? '',
+        customerId: (json['customerId'] as String?) ??
+            (json['sku'] as String?) ??
+            '',
         name: json['name'] as String,
         title: (json['title'] as String?) ?? '',
         companyName: json['companyName'] as String,
         companyType: json['companyType'] as String,
+        npwp: (json['npwp'] as String?) ?? '',
         email: (json['email'] as String?) ?? '',
         phone: (json['phone'] as String?) ?? '',
         address: (json['address'] as String?) ?? '',
@@ -220,6 +227,7 @@ class Customer {
         'title': title,
         'companyName': companyName,
         'companyType': companyType,
+        'npwp': npwp,
         'email': email,
         'phone': phone,
         'address': address,
@@ -315,7 +323,7 @@ class OrderLineItem {
 class OrderItem {
   OrderItem({
     required this.id,
-    this.sku = '',
+    this.orderId = '',
     this.customerId,
     this.customerName,
     this.customerCompany,
@@ -335,17 +343,21 @@ class OrderItem {
     this.packCount,
     this.productName,
     this.unitSnapshot,
+    this.billStatus = 'CREATED',
+    this.billDate,
     this.invoiceStatus = 'CREATED',
     this.invoiceDate,
+    this.paymentDueDate,
     this.lines = const [],
     this.lineCount = 1,
     this.installments = const [],
     this.paidAmount = 0,
     required this.remainingAmount,
+    this.amountDue,
   });
 
   final String id;
-  final String sku;
+  final String orderId;
   final String? customerId;
   final String? customerName;
   final String? customerCompany;
@@ -365,15 +377,21 @@ class OrderItem {
   final double? packCount;
   final String? productName;
   final String? unitSnapshot;
+  final String billStatus;
+  final String? billDate;
   final String invoiceStatus;
   final String? invoiceDate;
+  final String? paymentDueDate;
   final List<OrderLineItem> lines;
   final int lineCount;
   final List<OrderInstallment> installments;
   final double paidAmount;
   final double remainingAmount;
+  final double? amountDue;
 
-  String get displayId => sku.isNotEmpty ? sku : id;
+  double get invoiceAmountDue => amountDue ?? totalOrderValue;
+
+  String get displayId => orderId.isNotEmpty ? orderId : id;
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     final product = json['product'] as Map<String, dynamic>?;
@@ -425,10 +443,13 @@ class OrderItem {
       (sum, row) => sum + row.amount,
     );
     final invoiceDateRaw = json['invoiceDate'] as String?;
+    final billDateRaw = json['billDate'] as String?;
     final customer = json['customer'] as Map<String, dynamic>?;
     return OrderItem(
       id: json['id'] as String,
-      sku: (json['sku'] as String?) ?? '',
+      orderId: (json['orderId'] as String?) ??
+          (json['sku'] as String?) ??
+          '',
       customerId: (json['customerId'] as String?) ??
           (customer?['id'] as String?),
       customerName: customer?['name'] as String?,
@@ -451,17 +472,27 @@ class OrderItem {
       packCount: packCount,
       productName: productName,
       unitSnapshot: unitSnapshot,
+      billStatus: (json['billStatus'] as String?) ?? 'CREATED',
+      billDate: billDateRaw != null && billDateRaw.length >= 10
+          ? billDateRaw.substring(0, 10)
+          : billDateRaw,
       invoiceStatus: (json['invoiceStatus'] as String?) ?? 'CREATED',
       invoiceDate: invoiceDateRaw != null && invoiceDateRaw.length >= 10
           ? invoiceDateRaw.substring(0, 10)
           : invoiceDateRaw,
+      paymentDueDate: () {
+        final raw = json['paymentDueDate'] as String?;
+        if (raw == null || raw.isEmpty) return null;
+        return raw.length >= 10 ? raw.substring(0, 10) : raw;
+      }(),
       lines: lines,
       lineCount: (json['lineCount'] as int?) ?? lines.length,
       installments: installments,
       paidAmount: (json['paidAmount'] as num?)?.toDouble() ??
           (paidFromInstallments > 0 ? paidFromInstallments : 0),
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble() ??
-          (totalOrderValue - paidFromInstallments).clamp(0, double.infinity),
+          ((totalOrderValue - paidFromInstallments).clamp(0, double.infinity)),
+      amountDue: (json['amountDue'] as num?)?.toDouble(),
     );
   }
 }

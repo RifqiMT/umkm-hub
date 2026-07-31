@@ -1,6 +1,7 @@
 'use client';
 
 import { appYearOptions } from '@/lib/app-timeline';
+import { useTr } from '@/components/Tr';
 
 export type YearSelectValue = number | 'all';
 
@@ -34,6 +35,7 @@ export function YearSelect({
   allowAll = false,
   allLabel = 'All timelines',
 }: YearSelectProps) {
+  const tr = useTr();
   const options = years ?? appYearOptions();
   const rootClass = ['umkm-year-select', className].filter(Boolean).join(' ');
 
@@ -41,7 +43,7 @@ export function YearSelect({
     <div className={rootClass}>
       {hideLabel ? null : (
         <label className="umkm-year-select-label" htmlFor={id}>
-          {label}
+          {tr(label)}
         </label>
       )}
       <div className="umkm-year-select-control">
@@ -49,7 +51,7 @@ export function YearSelect({
           id={id}
           value={value === 'all' ? 'all' : String(value)}
           disabled={disabled}
-          aria-label={ariaLabel ?? label}
+          aria-label={tr(ariaLabel ?? label)}
           onChange={(e) => {
             const next = e.target.value;
             if (next === 'all') onChange('all');
@@ -57,7 +59,7 @@ export function YearSelect({
           }}
         >
           {allowAll ? (
-            <option value="all">{allLabel}</option>
+            <option value="all">{tr(allLabel)}</option>
           ) : null}
           {options.map((y) => (
             <option key={y} value={y}>

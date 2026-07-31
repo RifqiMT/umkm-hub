@@ -10,20 +10,18 @@ import {
 import { createPortal } from 'react-dom';
 import { useAnchoredPanel } from '@/lib/use-anchored-panel';
 import {
-  DASHBOARD_PERIOD_LABELS,
   type DashboardPeriod,
 } from '@/lib/dashboard-period';
+import { useLabels } from '@/hooks/useLabels';
+import { useTr } from '@/components/Tr';
 
-const PERIOD_GROUPS: Array<{
-  label: string;
-  options: DashboardPeriod[];
-}> = [
-  { label: 'Near term', options: ['today', 'tomorrow', 'this_week'] },
+const PERIOD_GROUP_KEYS = [
+  { label: 'Near term', options: ['today', 'tomorrow', 'this_week'] as DashboardPeriod[] },
   {
     label: 'Months & quarters',
-    options: ['this_month', 'next_month', 'this_quarter', 'next_quarter'],
+    options: ['this_month', 'next_month', 'this_quarter', 'next_quarter'] as DashboardPeriod[],
   },
-  { label: 'Longer', options: ['this_year', 'all'] },
+  { label: 'Longer', options: ['this_year', 'all'] as DashboardPeriod[] },
 ];
 
 type DashboardPeriodFilterProps = {
@@ -45,6 +43,8 @@ export function DashboardPeriodFilter({
   disabled = false,
   className = '',
 }: DashboardPeriodFilterProps) {
+  const tr = useTr();
+  const { dashboardPeriod } = useLabels();
   const autoId = useId();
   const rootId = id ?? autoId;
   const listId = `${rootId}-panel`;
@@ -53,7 +53,7 @@ export function DashboardPeriodFilter({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { style: panelStyle, isSheet } = useAnchoredPanel(open, rootRef, 16 * 16);
-  const displayLabel = DASHBOARD_PERIOD_LABELS[value];
+  const displayLabel = dashboardPeriod[value];
   const rootClass = [
     'umkm-dash-period',
     className,
@@ -100,7 +100,7 @@ export function DashboardPeriodFilter({
   return (
     <div className={rootClass} ref={rootRef}>
       <span className="umkm-dash-period-label" id={`${rootId}-label`}>
-        {label}
+        {tr(label)}
       </span>
       <button
         type="button"
@@ -138,7 +138,7 @@ export function DashboardPeriodFilter({
                 <button
                   type="button"
                   className="umkm-filter-sheet-backdrop"
-                  aria-label="Close period filter"
+                  aria-label={tr('Close period filter')}
                   onClick={() => setOpen(false)}
                 />
               ) : null}
@@ -147,25 +147,25 @@ export function DashboardPeriodFilter({
                 id={listId}
                 className={`umkm-dash-period-panel${isSheet ? ' is-sheet' : ''}`}
                 role="listbox"
-                aria-label={label}
+                aria-label={tr(label)}
                 style={panelStyle}
               >
                 {isSheet ? (
                   <div className="umkm-filter-sheet-head">
-                    <span className="umkm-filter-sheet-title">{label}</span>
+                    <span className="umkm-filter-sheet-title">{tr(label)}</span>
                     <button
                       type="button"
                       className="umkm-filter-sheet-done"
                       onClick={() => setOpen(false)}
                     >
-                      Done
+                      {tr('Done')}
                     </button>
                   </div>
                 ) : null}
-                {PERIOD_GROUPS.map((group) => (
+                {PERIOD_GROUP_KEYS.map((group) => (
                   <div key={group.label} className="umkm-dash-period-group">
                     <span className="umkm-dash-period-group-label">
-                      {group.label}
+                      {tr(group.label)}
                     </span>
                     <div className="umkm-dash-period-options">
                       {group.options.map((period) => {
@@ -179,7 +179,7 @@ export function DashboardPeriodFilter({
                             className={`umkm-dash-period-option${active ? ' is-active' : ''}`}
                             onClick={() => select(period)}
                           >
-                            {DASHBOARD_PERIOD_LABELS[period]}
+                            {dashboardPeriod[period]}
                           </button>
                         );
                       })}

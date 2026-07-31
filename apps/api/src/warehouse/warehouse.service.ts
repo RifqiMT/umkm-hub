@@ -11,7 +11,10 @@ import {
   decimalToNumber,
   serializeWarehouseRestock,
 } from '../common/utils/serialize';
-import { CreateWarehouseRestockDto } from './dto/warehouse.dto';
+import {
+  CreateWarehouseRestockDto,
+  UpdateWarehouseRestockDto,
+} from './dto/warehouse.dto';
 import { WarehouseSummaryQueryDto } from './dto/warehouse-query.dto';
 import {
   parseDateOnlyForTest as parseDateOnly,
@@ -19,10 +22,42 @@ import {
 } from './warehouse-dates';
 import { buildWarehouseSummary } from './warehouse-summary';
 import {
+  buildWarehouseStatisticsFromCounts,
+  emptyWarehouseStatistics,
+} from './warehouse-statistics';
+import {
   buildProductFilterSql,
   inventoryValueSelectSql,
   mapInventoryValueRow,
 } from '../products/product-inventory-sql';
+import { buildProductWhere } from '../products/product-where';
+
+const warehouseProductSelect = {
+  id: true,
+  profileId: true,
+  name: true,
+  productId: true,
+  unit: true,
+  stockQty: true,
+  pricePerUnit: true,
+  price50: true,
+  price100: true,
+  price250: true,
+  price500: true,
+  price1000: true,
+  priceCustom: true,
+  costPerUnit: true,
+  cost50: true,
+  cost100: true,
+  cost250: true,
+  cost500: true,
+  cost1000: true,
+  costCustom: true,
+  customSize: true,
+  details: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductSelect;
 
 @Injectable()
 export class WarehouseService {
@@ -86,22 +121,8 @@ export class WarehouseService {
   }
 
   async getSummary(profileId: string, query: WarehouseSummaryQueryDto = {}) {
-    const productWhere: Prisma.ProductWhereInput = { profileId };
+    const productWhere = buildProductWhere(profileId, query);
     const search = query.search?.trim();
-    if (search) {
-      productWhere.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-    if (query.unit && query.unit.length > 0) {
-      productWhere.unit = { in: query.unit };
-    }
-    const stockStatus = query.stockStatus ?? [];
-    if (stockStatus.length === 1) {
-      productWhere.stockQty =
-        stockStatus[0] === 'in_stock' ? { gt: 0 } : { lte: 0 };
-    }
 
     const and = (extra: Prisma.ProductWhereInput): Prisma.ProductWhereInput => ({
       AND: [productWhere, extra],
@@ -111,10 +132,23 @@ export class WarehouseService {
       profileId,
       search,
       unit: query.unit,
-      stockStatus,
+      stockStatus: query.stockStatus,
+      costSet: query.costSet,
+      packReady: query.packReady,
     });
 
-    const [agg, inStockCount, withCostCount, valueRows, restockAgg] =
+    const restockWhere: Prisma.WarehouseRestockWhereInput = {
+      profileId,
+      ...(search ||
+      (query.unit && query.unit.length > 0) ||
+      (query.stockStatus && query.stockStatus.length > 0) ||
+      (query.costSet && query.costSet.length > 0) ||
+      (query.packReady && query.packReady.length > 0)
+        ? { product: productWhere }
+        : {}),
+    };
+
+    const [agg, inStockCount, withCostCount, unitRows, valueRows, restockAgg, restockUnitRows, restockNotesWithCount] =
       await Promise.all([
         this.prisma.product.aggregate({
           where: productWhere,
@@ -125,6 +159,11 @@ export class WarehouseService {
         }),
         this.prisma.product.count({
           where: and({ costPerUnit: { not: null } }),
+        }),
+        this.prisma.product.groupBy({
+          by: ['unit'],
+          where: productWhere,
+          _count: true,
         }),
         this.prisma.$queryRaw<
           Array<{
@@ -140,16 +179,19 @@ export class WarehouseService {
           WHERE ${productFilterSql}
         `,
         this.prisma.warehouseRestock.aggregate({
-          where: {
-            profileId,
-            ...(search || (query.unit && query.unit.length > 0)
-              ? { product: productWhere }
-              : {}),
-          },
+          where: restockWhere,
           _count: true,
           _sum: { qtyAdded: true },
           _min: { restockDate: true },
           _max: { restockDate: true },
+        }),
+        this.prisma.warehouseRestock.groupBy({
+          by: ['unitSnapshot'],
+          where: restockWhere,
+          _count: true,
+        }),
+        this.prisma.warehouseRestock.count({
+          where: { ...restockWhere, NOT: { notes: '' } },
         }),
       ]);
 
@@ -166,29 +208,53 @@ export class WarehouseService {
     const filtersActive = Boolean(
       search ||
         (query.unit && query.unit.length > 0) ||
-        stockStatus.length > 0,
+        (query.stockStatus && query.stockStatus.length > 0) ||
+        (query.costSet && query.costSet.length > 0) ||
+        (query.packReady && query.packReady.length > 0),
     );
 
-    return buildWarehouseSummary({
-      productCount: agg._count,
-      sellValue: values.sellValue,
-      costedSellValue: values.costedSellValue,
-      costValue: values.costValue,
-      profitValue: values.profitValue,
-      hasCost: values.hasCost,
-      inStockCount,
-      withCostCount,
-      restockCount: filtersActive ? 0 : restockAgg._count,
-      qtyRestocked: filtersActive
-        ? 0
-        : decimalToNumber(restockAgg._sum.qtyAdded ?? 0),
-      earliestRestockDate: filtersActive
-        ? null
-        : restockAgg._min.restockDate,
-      latestRestockDate: filtersActive
-        ? null
-        : restockAgg._max.restockDate,
-    });
+    const restockCount = restockAgg._count;
+
+    return {
+      ...buildWarehouseSummary({
+        productCount: agg._count,
+        sellValue: values.sellValue,
+        costedSellValue: values.costedSellValue,
+        costValue: values.costValue,
+        profitValue: values.profitValue,
+        hasCost: values.hasCost,
+        inStockCount,
+        withCostCount,
+        restockCount: filtersActive ? 0 : restockCount,
+        qtyRestocked: filtersActive
+          ? 0
+          : decimalToNumber(restockAgg._sum.qtyAdded ?? 0),
+        earliestRestockDate: filtersActive
+          ? null
+          : restockAgg._min.restockDate,
+        latestRestockDate: filtersActive
+          ? null
+          : restockAgg._max.restockDate,
+      }),
+      statistics:
+        agg._count === 0 && restockCount === 0
+          ? emptyWarehouseStatistics()
+          : buildWarehouseStatisticsFromCounts({
+              productCount: agg._count,
+              restockCount,
+              inStockCount,
+              withCostCount,
+              unitRows: unitRows.map((row) => ({
+                key: row.unit,
+                count: row._count,
+              })),
+              restockUnitRows: restockUnitRows.map((row) => ({
+                key: row.unitSnapshot,
+                count: row._count,
+              })),
+              restockNotesWithCount,
+            }),
+    };
   }
 
   async findAll(profileId: string, query: PaginationQueryDto) {
@@ -205,7 +271,7 @@ export class WarehouseService {
       this.prisma.warehouseRestock.count({ where }),
       this.prisma.warehouseRestock.findMany({
         where,
-        include: { product: true },
+        include: { product: { select: warehouseProductSelect } },
         orderBy: [{ restockDate: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
@@ -213,7 +279,9 @@ export class WarehouseService {
     ]);
 
     return {
-      items: items.map(serializeWarehouseRestock),
+      items: items.map((row) =>
+        serializeWarehouseRestock({ ...row, product: row.product ?? null }),
+      ),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -227,5 +295,111 @@ export class WarehouseService {
       throw new NotFoundException('Restock not found');
     }
     return serializeWarehouseRestock(restock);
+  }
+
+  async update(
+    profileId: string,
+    id: string,
+    dto: UpdateWarehouseRestockDto,
+  ) {
+    if (
+      dto.qtyAdded === undefined &&
+      dto.restockDate === undefined &&
+      dto.notes === undefined
+    ) {
+      return this.findOne(profileId, id);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.warehouseRestock.findFirst({
+        where: { id, profileId },
+        include: { product: true },
+      });
+      if (!existing) {
+        throw new NotFoundException('Restock not found');
+      }
+
+      const oldQty = decimalToNumber(existing.qtyAdded);
+      const nextQty = dto.qtyAdded ?? oldQty;
+      if (!(nextQty > 0)) {
+        throw new BadRequestException('Qty added must be greater than 0');
+      }
+
+      let restockDate = existing.restockDate;
+      if (dto.restockDate !== undefined) {
+        try {
+          restockDate = parseDateOnly(dto.restockDate);
+        } catch (err) {
+          throw new BadRequestException(
+            err instanceof Error ? err.message : 'Invalid restock date',
+          );
+        }
+      }
+
+      const delta = nextQty - oldQty;
+      const stockBefore = decimalToNumber(existing.stockBefore);
+      const stockAfter = stockBefore + nextQty;
+
+      if (delta !== 0) {
+        const product = existing.product;
+        if (!product) {
+          throw new NotFoundException('Product not found');
+        }
+
+        const currentStock = decimalToNumber(product.stockQty);
+        const nextStock = currentStock + delta;
+        if (nextStock < 0) {
+          throw new BadRequestException(
+            'Restock change would make product stock negative',
+          );
+        }
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: { stockQty: nextStock },
+        });
+
+        const subsequent = await tx.warehouseRestock.findMany({
+          where: {
+            profileId,
+            productId: existing.productId,
+            OR: [
+              { restockDate: { gt: existing.restockDate } },
+              {
+                restockDate: existing.restockDate,
+                createdAt: { gt: existing.createdAt },
+              },
+            ],
+          },
+          orderBy: [{ restockDate: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        for (const row of subsequent) {
+          await tx.warehouseRestock.update({
+            where: { id: row.id },
+            data: {
+              stockBefore: decimalToNumber(row.stockBefore) + delta,
+              stockAfter: decimalToNumber(row.stockAfter) + delta,
+            },
+          });
+        }
+      }
+
+      const updated = await tx.warehouseRestock.update({
+        where: { id: existing.id },
+        data: {
+          qtyAdded: nextQty,
+          stockAfter,
+          restockDate,
+          ...(dto.notes !== undefined ? { notes: dto.notes.trim() } : {}),
+        },
+        include: { product: true },
+      });
+
+      this.logger.log(
+        `Warehouse restock ${id} updated (qty ${oldQty} → ${nextQty})`,
+      );
+      return serializeWarehouseRestock(updated);
+    });
   }
 }

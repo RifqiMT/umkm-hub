@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Note** | v1 uses a **single profile per tenant**. Field staff (e.g. Budi) act under the owner’s credentials—there is no separate RBAC account. |
 
 ---
@@ -58,17 +58,17 @@
 | **Name** | Dewi Lestari |
 | **Role** | Ops admin — handles invoices/payments offline; uses UMKM Hub as the order system of record |
 | **Age / context** | Early 40s; desk-based; reconciles cash / consignment / delayed terms |
-| **Primary jobs** | Correct order totals after discount changes; track installments and remaining balance; mark invoice sent |
-| **Goals** | Accurate totals; clear payment terms; editable orders without delete; clean catalog tables |
-| **Frustrations** | Recalculating discounts by hand; unclear remaining balance; cluttered ID columns |
-| **Needs in product** | Desktop Orders with live totals receipt; installments as amount or %; payment progress; View Timeline for shipment; compact money labels |
+| **Primary jobs** | Correct order totals after discount/PPN; track installments vs **amount due**; mark bill sent; download PDF / e-Faktur prep |
+| **Goals** | Accurate totals incl. PPN; clear payment terms; editable orders without delete; printable invoices |
+| **Frustrations** | Recalculating discounts/tax by hand; remaining balance vs wrong base; cluttered ID columns |
+| **Needs in product** | Desktop Orders with live totals + **amountDue**; bill vs invoice collection; installments as amount or % of amountDue; PDF + e-Faktur prep; Profile PKP/PPN; compact money labels |
 | **Devices** | Desktop browser (primary) |
-| **Success signal** | Can edit qty, recompute discount, record two installments, and see remainingAmount without a spreadsheet |
+| **Success signal** | Can edit qty, recompute discount/PPN, record installments ≤ amountDue, download PDF/fiscal prep, and see bill Sent + Partially/Fully paid without a spreadsheet |
 
 ### Typical scenarios
-1. Open order View → edit lines → confirm totals and remaining balance.
-2. Add installments (40% then 60%); verify dates non-decreasing; invoice status → Sent.
-3. Cancel a mistaken order and confirm stock restored in Warehouse.
+1. Open order View → edit lines → confirm totals, amountDue, and remaining balance.
+2. Add installments (40% then 60% of amountDue); verify dates non-decreasing; bill → Sent; invoice derives Partially then Fully paid.
+3. Download PDF invoice and optional e-Faktur CSV/XML prep; cancel a mistaken order and confirm stock restored.
 
 ---
 
@@ -82,6 +82,8 @@
 | Customers CRM | ● | ● | ○ |
 | Orders create/edit | ● | ● | ● |
 | Installments / invoice | ○ | ○ | ● |
+| PDF / e-Faktur prep | ○ | — | ● |
+| Profile PKP / PPN | ● | — | ● |
 | Revenue targets | ● | ○ | ○ |
 | Analytics | ● | ● | ○ |
 | Dictionary | ● | ● | ○ |
@@ -93,8 +95,9 @@
 
 ## Design implications
 
-- **Desktop-first density** for Sari/Dewi (tables, sticky headers, View sheets, Targets, Analytics fullscreen).
+- **Desktop-first density** for Sari/Dewi (tables, sticky headers, View sheets, Targets, Analytics fullscreen, PDF/fiscal downloads).
 - **Thumb-first mobile** for Budi (cards, chips, full-width actions ≥44px, Dictionary via Profile).
 - **One visual system** (forest teal + Manrope) so switching devices does not feel like another product.
 - **No RBAC UI in v1**—do not imply team roles in copy; prefer “your profile” / “your catalog”.
 - **Immutable identity**—copy should not suggest renaming username or changing email after register.
+- **Prep ≠ filing**—PDF / e-Faktur copy must not claim DJP submission or legal tax compliance.

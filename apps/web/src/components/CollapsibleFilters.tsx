@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useTr, useFormatNumber } from '@/components/Tr';
 
 const NARROW_MQ = '(max-width: 1100px)';
 
@@ -28,6 +29,8 @@ export function CollapsibleFilters({
   bodyClassName = 'umkm-catalog-filters',
   idleHint = 'All',
 }: CollapsibleFiltersProps) {
+  const tr = useTr();
+  const { formatInteger } = useFormatNumber();
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const panelId = useId();
 
@@ -69,13 +72,13 @@ export function CollapsibleFilters({
         className="umkm-filters-disclosure-summary"
         aria-controls={panelId}
       >
-        <span className="umkm-filters-disclosure-label">{label}</span>
+        <span className="umkm-filters-disclosure-label">{tr(label)}</span>
         {activeCount > 0 ? (
           <span className="umkm-filters-disclosure-badge">
-            {activeCount} active
+            {formatInteger(activeCount)} {tr('active')}
           </span>
         ) : (
-          <span className="umkm-filters-disclosure-hint">{idleHint}</span>
+          <span className="umkm-filters-disclosure-hint">{tr(idleHint)}</span>
         )}
         <span className="umkm-filters-disclosure-chevron" aria-hidden>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

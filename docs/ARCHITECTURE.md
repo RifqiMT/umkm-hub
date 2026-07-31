@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 
 ---
 
@@ -20,6 +20,8 @@ flowchart TB
   subgraph API["NestJS API :3001 /api/v1"]
     Auth[Auth JWT]
     Domain[Products Customers Orders Warehouse Targets Analytics Geo]
+    Invoice[Invoice PDF + e-Faktur prep]
+    Stats[Domain statistics]
   end
 
   DB[(PostgreSQL 16)]
@@ -28,7 +30,10 @@ flowchart TB
   Web -->|HTTPS JSON Bearer| Auth
   Mobile -->|HTTPS JSON Bearer| Auth
   Auth --> Domain
+  Domain --> Invoice
+  Domain --> Stats
   Domain --> DB
+  Invoice --> DB
   Web -.-> Shared
   API -.-> Shared
 ```
@@ -72,12 +77,36 @@ Root scripts use `npm --prefix` (not a full Turborepo/pnpm workspace).
 | Health | `GET /api/v1/health` |
 
 ### Domain modules
-`auth`, `profiles`, `products`, `customers`, `orders`, `warehouse`, `revenue-targets`, `analytics`, `geo`, `prisma`, `health`
+`auth`, `profiles`, `products`, `customers`, `orders` (incl. invoice PDF/fiscal), `warehouse`, `revenue-targets`, `analytics`, `geo`, `export`, `import` (same module folder), `translate`, `prisma`, `health`
+
+### Invoice & fiscal prep
+- `GET /orders/:id/invoice/pdf` — printable PDF (`invoice-pdf.ts`); auto-assigns `fiscalInvoiceNumber` when empty
+- `GET /orders/:id/invoice/fiscal?format=csv|xml` — e-Faktur-oriented **prep** export (`fiscal-invoice.ts`); **not** DJP submission
+- Seller identity from Profile (`businessName`, `npwp`, `isPkp`, `defaultPpnPercent`, `taxInclusive`, `invoicePrefix`)
+- Buyer NPWP from `Customer.npwp` when linked
+- **`amountDue`** = fiscal breakdown total of `totalOrderValue`; installments and Paid % use amountDue
+
+### Domain statistics
+Filter-aware mix breakdowns embedded on `GET …/summary` responses for products, customers, orders, and warehouse (`statistics` via `*-statistics.ts`, `statistics-buckets.ts`), alongside headline summary rates.
+
+### Privileged / scoped data export & import
+Every authenticated user may call:
+- `GET /api/v1/export/eligibility` → `{ allowed, scope }`
+- `GET /api/v1/export?format=json|csv|csv-unified` [& `entity=products|customers|orders|warehouse|targets`]
+- `POST /api/v1/import?format=json|csv-unified` [& `entity=`] (multipart `file`)
+
+Allowlisted `profileName` values (`DATA_EXPORT_PROFILE_NAMES`, default `rifqi_tjahyono`) get `scope=all-profiles`; everyone else gets `own-profile`. City/country decrypted on export. **Own-profile** includes sealed bcrypt `passwordHash` (`pwd1:…`). **All-profiles** includes plaintext `password` from `SANDBOX_EXPORT_PASSWORDS` (no `passwordHash`). IP and verify-token hashes omitted. Throttled (~5/hour). Import restores passwords from sealed or plaintext values; location re-sealed.
+
+### Auth extras
+- Forgot/reset password: HMAC tokens (`PasswordResetToken`), TTL 24h, cooldown 60s
+- Translate: `POST /translate/batch` + `batch-public` (≤40×500 chars)
 
 ### Critical transactional paths
-1. **Order create/update** — validate stock, write lines/installments, adjust `Product.stockQty`
+1. **Order create/update** — validate stock, write lines/installments (sum ≤ **amountDue**), adjust `Product.stockQty`
 2. **Order cancel** — restore stock for all lines
-3. **Warehouse restock** — increment stock + write history snapshots
+3. **Warehouse restock create** — increment stock + write history snapshots
+4. **Warehouse restock edit** (`PATCH /warehouse/:id`) — adjust stock by qty delta + refresh snapshots
+5. **PDF download** — may persist `fiscalInvoiceNumber` if previously empty
 
 ### Shared aggregation
 `loadOrderActuals` powers both **Targets** and **Analytics** so attainment never drifts.
@@ -103,8 +132,11 @@ Single-year annual context loads a rolling **10-year** window. In-process window
 
 ## 4. Data model (summary)
 
-Profile owns: Product, Customer, Order, WarehouseRestock, RevenueTargetPlan, EmailVerificationToken.  
-Order has: OrderLine[], OrderInstallment[], optional Customer.  
+Profile owns: Product, Customer, Order, WarehouseRestock, RevenueTargetPlan, EmailVerificationToken, PasswordResetToken.  
+Profile fiscal identity: `businessName`, `businessPhone`, `businessAddress`, `npwp`, `isPkp`, `defaultPpnPercent`, `taxInclusive`, `invoicePrefix`.  
+Human codes: `Product.productId`, `Customer.customerId`, `Order.orderId` (distinct from UUID PKs/FKs).  
+Customer may store `npwp` for B2B buyer identity.  
+Order has: OrderLine[], OrderInstallment[], optional Customer FK, bill + invoice collection fields, `paymentDueDate`, `fiscalInvoiceNumber`, `includePpn`; reads expose **`amountDue`**.  
 RevenueTargetPlan has: RevenueTargetMonth[12].
 
 Full field catalog: [VARIABLES.md](./VARIABLES.md). Schema: `apps/api/prisma/schema.prisma`.

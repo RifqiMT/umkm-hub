@@ -164,11 +164,11 @@ async function main() {
       costCustom: null,
       customSize: null,
     };
-    const sku = buildProductSkuFromProduct(def.name, pricing, id);
+    const productId = buildProductSkuFromProduct(def.name, pricing, id);
     const stockQty = qtyFromPackCount(PACKS, packSize);
 
     console.log(
-      `${dryRun ? 'would create' : 'create'}: ${def.name} sell=${def.sellPerUnit}/g cost=${def.costPerUnit}/g pack=${price1000}/${cost1000} sku=${sku}`,
+      `${dryRun ? 'would create' : 'create'}: ${def.name} sell=${def.sellPerUnit}/g cost=${def.costPerUnit}/g pack=${price1000}/${cost1000} productId=${productId}`,
     );
 
     if (!dryRun) {
@@ -177,7 +177,7 @@ async function main() {
           id,
           profileId: profile.id,
           name: def.name,
-          sku,
+          productId,
           unit: ProductUnit.GRAM,
           stockQty: new Prisma.Decimal(stockQty),
           pricePerUnit: new Prisma.Decimal(def.sellPerUnit),

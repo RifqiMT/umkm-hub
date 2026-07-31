@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/glossary/glossary.test.ts"
+    "test": "tsx --test src/lib/glossary/glossary.test.ts src/lib/analytics-export.test.ts src/lib/translate-cache.test.ts src/lib/translate-skip.test.ts src/lib/format-localized-number.test.ts"
   },
   "dependencies": {
+    "html-to-image": "^1.11.13",
     "next": "15.5.21",
     "react": "19.1.0",
     "react-dom": "19.1.0",

@@ -1,11 +1,15 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -14,6 +18,7 @@ import { Type } from 'class-transformer';
 import {
   DiscountType,
   InvoiceStatus,
+  BillStatus,
   OrderStatus,
   PaymentStatus,
 } from '@prisma/client';
@@ -88,6 +93,15 @@ export class CreateOrderDto {
   paymentStatus!: PaymentStatus;
 
   @IsOptional()
+  @IsEnum(BillStatus)
+  billStatus?: BillStatus;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsDateString()
+  billDate?: string | null;
+
+  @IsOptional()
   @IsEnum(InvoiceStatus)
   invoiceStatus?: InvoiceStatus;
 
@@ -95,6 +109,20 @@ export class CreateOrderDto {
   @ValidateIf((_, v) => v !== null && v !== '')
   @IsDateString()
   invoiceDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsDateString()
+  paymentDueDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  fiscalInvoiceNumber?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  includePpn?: boolean | null;
 
   @IsOptional()
   @IsArray()
@@ -145,6 +173,15 @@ export class UpdateOrderDto {
   paymentStatus?: PaymentStatus;
 
   @IsOptional()
+  @IsEnum(BillStatus)
+  billStatus?: BillStatus;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsDateString()
+  billDate?: string | null;
+
+  @IsOptional()
   @IsEnum(InvoiceStatus)
   invoiceStatus?: InvoiceStatus;
 
@@ -152,6 +189,20 @@ export class UpdateOrderDto {
   @ValidateIf((_, v) => v !== null && v !== '')
   @IsDateString()
   invoiceDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsDateString()
+  paymentDueDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  fiscalInvoiceNumber?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  includePpn?: boolean | null;
 
   /** When provided, replaces the full installment list. */
   @IsOptional()

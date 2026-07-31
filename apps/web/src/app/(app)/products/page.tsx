@@ -2,19 +2,27 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { dedupeById } from '@/lib/dedupe-by-id';
 import { confirmDelete } from '@/lib/confirm';
-import { ContentSection, EmptyState, FormSection, PageHeader } from '@/components/PageHeader';
+import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
+import { ProductStatisticsSection } from '@/app/(app)/products/ProductStatisticsSection';
+import { ListPager } from '@/components/ListPager';
+import type { ListPageSize } from '@/lib/list-page-size';
 import { OptionChips } from '@/components/OptionChips';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import {
+  FeatureDataTransfer,
+  FeatureDataTransferToggle,
+} from '@/components/FeatureDataTransfer';
 import { FeatureStage } from '@/components/FeatureStage';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
-  LABELS,
   PRODUCT_UNITS,
 } from '@/lib/enums';
 import type { Paginated, Product, ProductSummary } from '@/lib/types';
+import { useLabels } from '@/hooks/useLabels';
 import {
   formatCompactQtyParts,
   formatMoney,
@@ -25,6 +33,7 @@ import {
 import {
   COST_SET_FILTER_OPTIONS,
   PACK_READY_FILTER_OPTIONS,
+  STOCK_STATUS_FILTER_OPTIONS,
 } from '@/lib/product-readiness';
 
 type PackField = 'price50' | 'price100' | 'price250' | 'price500' | 'price1000';
@@ -53,10 +62,6 @@ const emptyForm = {
   customSize: '' as number | '',
   details: '',
 };
-
-function unitLabel(unit: string) {
-  return LABELS.productUnit[unit as keyof typeof LABELS.productUnit] ?? unit;
-}
 
 function unitShort(unit: string) {
   switch (unit) {
@@ -340,25 +345,32 @@ function ProductEconStrip({
 }
 
 export default function ProductsPage() {
+  const { productUnit } = useLabels();
+  const unitLabel = (unit: string) =>
+    productUnit[unit as keyof typeof productUnit] ?? unit;
   const [items, setItems] = useState<Product[]>([]);
   const [summary, setSummary] = useState<ProductSummary | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
+  const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [unitFilters, setUnitFilters] = useState<string[]>([]);
   const [costSetFilters, setCostSetFilters] = useState<string[]>([]);
   const [packReadyFilters, setPackReadyFilters] = useState<string[]>([]);
+  const [stockStatusFilters, setStockStatusFilters] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<ListPageSize>(20);
   const [listMeta, setListMeta] = useState({
     total: 0,
     page: 1,
-    limit: 50,
+    limit: 20,
     totalPages: 0,
   });
   const [packSize, setPackSize] = useState<PackSizeOption>('100');
@@ -433,7 +445,26 @@ export default function ProductsPage() {
     };
   }, [form, savedPacks]);
 
-  async function load(q = debouncedSearch) {
+  async function loadSummary(q = debouncedSearch) {
+    const filterParams = {
+      search: q.trim() || undefined,
+      unit: unitFilters.length > 0 ? unitFilters : undefined,
+      costSet: costSetFilters.length > 0 ? costSetFilters : undefined,
+      packReady: packReadyFilters.length > 0 ? packReadyFilters : undefined,
+      stockStatus:
+        stockStatusFilters.length > 0 ? stockStatusFilters : undefined,
+    };
+    try {
+      const productSummary = await api<ProductSummary>('/products/summary', {
+        searchParams: filterParams,
+      });
+      setSummary(productSummary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load products');
+    }
+  }
+
+  async function loadList(q = debouncedSearch, nextPage = page) {
     const seq = ++loadSeq.current;
     setListLoading(true);
     const filterParams = {
@@ -441,20 +472,21 @@ export default function ProductsPage() {
       unit: unitFilters.length > 0 ? unitFilters : undefined,
       costSet: costSetFilters.length > 0 ? costSetFilters : undefined,
       packReady: packReadyFilters.length > 0 ? packReadyFilters : undefined,
+      stockStatus:
+        stockStatusFilters.length > 0 ? stockStatusFilters : undefined,
     };
     try {
-      const [data, productSummary] = await Promise.all([
-        api<Paginated<Product>>('/products', {
-          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
-        }),
-        api<ProductSummary>('/products/summary', {
-          searchParams: filterParams,
-        }),
-      ]);
+      const data = await api<Paginated<Product>>('/products', {
+        searchParams: {
+          ...filterParams,
+          page: nextPage,
+          limit: pageSize,
+        },
+      });
       if (seq !== loadSeq.current) return;
-      setItems(data.items);
+      setItems(dedupeById(data.items));
       setListMeta(data.meta);
-      setSummary(productSummary);
+      setPage(data.meta.page);
       setError('');
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -465,14 +497,22 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search), 280);
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 280);
     return () => window.clearTimeout(timer);
   }, [search]);
 
   useEffect(() => {
-    void load(debouncedSearch);
+    void loadSummary(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, unitFilters, costSetFilters, packReadyFilters]);
+  }, [debouncedSearch, unitFilters, costSetFilters, packReadyFilters, stockStatusFilters]);
+
+  useEffect(() => {
+    void loadList(debouncedSearch, page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, unitFilters, costSetFilters, packReadyFilters, stockStatusFilters]);
 
   const catalog = useMemo(() => {
     // List is already filter-scoped by the API; only sort locally.
@@ -649,7 +689,7 @@ export default function ProductsPage() {
     });
   }
 
-  function startEdit(product: Product) {
+  function populateEditForm(product: Product) {
     setViewing(null);
     setFormOpen(true);
     setEditingId(product.id);
@@ -715,6 +755,15 @@ export default function ProductsPage() {
     resetPackUi(ui.size, ui.custom);
   }
 
+  async function startEdit(product: Product) {
+    try {
+      const full = await api<Product>(`/products/${product.id}`);
+      populateEditForm(full);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load product');
+    }
+  }
+
   function startCreate() {
     setViewing(null);
     setEditingId(null);
@@ -723,10 +772,15 @@ export default function ProductsPage() {
     setFormOpen(true);
   }
 
-  function startView(product: Product) {
+  async function startView(product: Product) {
     setFormOpen(false);
     setEditingId(null);
-    setViewing(product);
+    try {
+      const full = await api<Product>(`/products/${product.id}`);
+      setViewing(full);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load product');
+    }
   }
 
   function resetForm() {
@@ -820,7 +874,10 @@ export default function ProductsPage() {
         await api('/products', { method: 'POST', body });
       }
       resetForm();
-      await load();
+      await Promise.all([
+        loadSummary(debouncedSearch),
+        loadList(debouncedSearch, page),
+      ]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Save failed');
     } finally {
@@ -834,7 +891,10 @@ export default function ProductsPage() {
     try {
       await api(`/products/${id}`, { method: 'DELETE' });
       if (viewing?.id === id) setViewing(null);
-      await load();
+      await Promise.all([
+        loadSummary(debouncedSearch),
+        loadList(debouncedSearch, page),
+      ]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Delete failed');
     }
@@ -844,10 +904,12 @@ export default function ProductsPage() {
   const chipFiltersActive =
     unitFilters.length > 0 ||
     costSetFilters.length > 0 ||
-    packReadyFilters.length > 0;
+    packReadyFilters.length > 0 ||
+    stockStatusFilters.length > 0;
   const filtersActive =
     debouncedSearch.trim().length > 0 || chipFiltersActive;
   const stageSummary = summary;
+  const statisticsLoading = listLoading && !stageSummary?.statistics;
   const searchPending = search.trim() !== debouncedSearch;
   const stageLoading = listLoading || searchPending;
   const pulseSell = stageSummary
@@ -860,6 +922,7 @@ export default function ProductsPage() {
   return (
     <section>
       {!formOpen && !viewing ? (
+        <>
         <FeatureStage
           title="Products"
           loading={stageLoading && !stageSummary}
@@ -869,9 +932,16 @@ export default function ProductsPage() {
               : 'Define catalog items with selling price and optional cost.'
           }
           action={
-            <button type="button" className="umkm-btn" onClick={startCreate}>
-              Add product
-            </button>
+            <div className="umkm-stage-actions">
+              <FeatureDataTransferToggle
+                open={dataSyncOpen}
+                controlsId="feature-sync-products"
+                onClick={() => setDataSyncOpen((open) => !open)}
+              />
+              <button type="button" className="umkm-btn" onClick={startCreate}>
+                Add product
+              </button>
+            </div>
           }
           stats={[
             {
@@ -962,6 +1032,17 @@ export default function ProductsPage() {
             },
           ]}
         />
+        {dataSyncOpen ? (
+          <FeatureDataTransfer
+            entity="products"
+            label="Products"
+            onImported={() => {
+              void loadSummary(debouncedSearch);
+              void loadList(debouncedSearch, page);
+            }}
+          />
+        ) : null}
+        </>
       ) : (
         <PageHeader
           title="Products"
@@ -1030,13 +1111,22 @@ export default function ProductsPage() {
               metricHint="Warehouse stock"
             />
 
-            <EntityIdDetail id={viewing.sku || viewing.id} label="Product ID" />
+            <EntityIdDetail id={viewing.productId || viewing.id} label="Product ID" />
 
             <ViewBlock
               title="Economics"
               description="Sell, cost, profit, and margin for the active pack."
             >
               <ProductEconStrip pack={viewingPack} showHeader={false} />
+            </ViewBlock>
+
+            <ViewBlock
+              title="Notes"
+              description="Optional catalog details and internal remarks."
+            >
+              <p className="umkm-sub" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                {viewing.details?.trim() ? viewing.details : '—'}
+              </p>
             </ViewBlock>
           </ViewSheetBody>
         </ContentSection>
@@ -1056,7 +1146,7 @@ export default function ProductsPage() {
           >
           <div className="umkm-grid two">
             <div className="umkm-field">
-              <label>Product name</label>
+              <FieldLabel>Product name</FieldLabel>
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -1064,7 +1154,7 @@ export default function ProductsPage() {
               />
             </div>
             <div className="umkm-field">
-              <label>Unit</label>
+              <FieldLabel>Unit</FieldLabel>
               <OptionChips
                 aria-label="Product unit"
                 value={form.unit}
@@ -1079,7 +1169,7 @@ export default function ProductsPage() {
                 }}
                 options={PRODUCT_UNITS.map((u) => ({
                   value: u,
-                  label: LABELS.productUnit[u],
+                  label: productUnit[u],
                 }))}
               />
               <p className="umkm-sub" style={{ margin: '0.35rem 0 0' }}>
@@ -1098,7 +1188,7 @@ export default function ProductsPage() {
               <div className="umkm-pack-composer">
                 <div className="umkm-pack-composer-fields">
                   <div className="umkm-field" style={{ marginBottom: 0 }}>
-                    <label htmlFor="price-per-pcs">Selling price</label>
+                    <FieldLabel htmlFor="price-per-pcs">Selling price</FieldLabel>
                     <input
                       id="price-per-pcs"
                       type="number"
@@ -1112,7 +1202,7 @@ export default function ProductsPage() {
                     />
                   </div>
                   <div className="umkm-field" style={{ marginBottom: 0 }}>
-                    <label htmlFor="cost-per-pcs">Cost (optional)</label>
+                    <FieldLabel htmlFor="cost-per-pcs">Cost (optional)</FieldLabel>
                     <input
                       id="cost-per-pcs"
                       type="number"
@@ -1158,9 +1248,9 @@ export default function ProductsPage() {
 
                 {packSize === 'CUSTOM' ? (
                   <div className="umkm-field umkm-pack-custom-size">
-                    <label htmlFor="custom-size">
+                    <FieldLabel htmlFor="custom-size">
                       Custom size ({unitShort(form.unit)})
-                    </label>
+                    </FieldLabel>
                     <input
                       id="custom-size"
                       type="number"
@@ -1178,7 +1268,7 @@ export default function ProductsPage() {
 
                 <div className="umkm-pack-composer-fields">
                   <div className="umkm-field" style={{ marginBottom: 0 }}>
-                    <label htmlFor="pack-price">Sell</label>
+                    <FieldLabel htmlFor="pack-price">Sell</FieldLabel>
                     <input
                       id="pack-price"
                       type="number"
@@ -1190,7 +1280,7 @@ export default function ProductsPage() {
                     />
                   </div>
                   <div className="umkm-field" style={{ marginBottom: 0 }}>
-                    <label htmlFor="pack-cost">Cost (optional)</label>
+                    <FieldLabel htmlFor="pack-cost">Cost (optional)</FieldLabel>
                     <input
                       id="pack-cost"
                       type="number"
@@ -1221,7 +1311,7 @@ export default function ProductsPage() {
 
           <FormSection title="Notes" description="Optional product details for your team.">
           <div className="umkm-field">
-            <label>Details</label>
+            <FieldLabel>Details</FieldLabel>
             <input
               value={form.details}
               onChange={(e) => setForm({ ...form, details: e.target.value })}
@@ -1246,6 +1336,7 @@ export default function ProductsPage() {
       ) : null}
 
       {!formOpen && !viewing ? (
+      <>
       <ContentSection
         eyebrow="Catalog"
         title="Products"
@@ -1253,7 +1344,7 @@ export default function ProductsPage() {
       >
         <div className="umkm-catalog-toolbar">
           <div className="umkm-field umkm-catalog-search">
-            <label htmlFor="product-search">Search</label>
+            <FieldLabel htmlFor="product-search">Search</FieldLabel>
             <input
               id="product-search"
               value={search}
@@ -1266,7 +1357,8 @@ export default function ProductsPage() {
             activeCount={
               (unitFilters.length > 0 ? 1 : 0) +
               (costSetFilters.length > 0 ? 1 : 0) +
-              (packReadyFilters.length > 0 ? 1 : 0)
+              (packReadyFilters.length > 0 ? 1 : 0) +
+              (stockStatusFilters.length > 0 ? 1 : 0)
             }
           >
             <MultiSelectFilter
@@ -1274,7 +1366,10 @@ export default function ProductsPage() {
               label="Unit"
               allLabel="All units"
               value={unitFilters}
-              onChange={setUnitFilters}
+              onChange={(next) => {
+                setUnitFilters(next);
+                setPage(1);
+              }}
               options={PRODUCT_UNITS.map((unit) => ({
                 value: unit,
                 label: unitLabel(unit),
@@ -1285,7 +1380,10 @@ export default function ProductsPage() {
               label="Cost set"
               allLabel="Any cost"
               value={costSetFilters}
-              onChange={setCostSetFilters}
+              onChange={(next) => {
+                setCostSetFilters(next);
+                setPage(1);
+              }}
               options={COST_SET_FILTER_OPTIONS.map((option) => ({
                 value: option.value,
                 label: option.label,
@@ -1296,8 +1394,25 @@ export default function ProductsPage() {
               label="Pack ready"
               allLabel="Any pack status"
               value={packReadyFilters}
-              onChange={setPackReadyFilters}
+              onChange={(next) => {
+                setPackReadyFilters(next);
+                setPage(1);
+              }}
               options={PACK_READY_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+            <MultiSelectFilter
+              id="product-stock-status-filter"
+              label="Stock"
+              allLabel="Any stock"
+              value={stockStatusFilters}
+              onChange={(next) => {
+                setStockStatusFilters(next);
+                setPage(1);
+              }}
+              options={STOCK_STATUS_FILTER_OPTIONS.map((option) => ({
                 value: option.value,
                 label: option.label,
               }))}
@@ -1306,13 +1421,13 @@ export default function ProductsPage() {
           <p className="umkm-catalog-count">
             {listLoading
               ? 'Loading…'
-              : listMeta.total === 0
-                ? filtersActive
-                  ? 'No matches'
-                  : 'No products yet'
-                : catalog.length >= listMeta.total
-                  ? `${listMeta.total.toLocaleString('en-US')} product${listMeta.total === 1 ? '' : 's'}`
-                  : `Showing ${catalog.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
+                : listMeta.total === 0
+                  ? filtersActive
+                    ? 'No matches'
+                    : 'No products yet'
+                  : items.length >= listMeta.total
+                    ? `Showing all ${listMeta.total.toLocaleString('en-US')} products`
+                    : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
@@ -1421,8 +1536,8 @@ export default function ProductsPage() {
                                 {unitLabel(p.unit)}
                               </span>
                               <EntityIdBadge
-                                id={p.sku || p.id}
-                                literal={Boolean(p.sku)}
+                                id={p.productId || p.id}
+                                literal={Boolean(p.productId)}
                                 compact
                                 soft
                               />
@@ -1533,8 +1648,8 @@ export default function ProductsPage() {
                             </span>
                           ) : null}
                           <EntityIdBadge
-                            id={p.sku || p.id}
-                            literal={Boolean(p.sku)}
+                            id={p.productId || p.id}
+                            literal={Boolean(p.productId)}
                             compact
                             soft
                           />
@@ -1602,9 +1717,34 @@ export default function ProductsPage() {
                 );
               })}
             </ul>
+            <ListPager
+              ariaLabel="Products pages"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              total={listMeta.total}
+              loading={listLoading}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() =>
+                setPage((p) => Math.min(listMeta.totalPages, p + 1))
+              }
+            />
           </>
         )}
       </ContentSection>
+
+      <ContentSection eyebrow="Statistics" quiet>
+        <ProductStatisticsSection
+          statistics={stageSummary?.statistics}
+          productCount={stageSummary?.productCount ?? 0}
+          loading={statisticsLoading}
+        />
+      </ContentSection>
+      </>
       ) : null}
     </section>
   );

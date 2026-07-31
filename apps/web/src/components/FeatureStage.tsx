@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { formatRatePercent } from '@/lib/format-money';
 import { AppTooltip, type AppTooltipContent } from '@/components/AppTooltip';
+import { useTr } from '@/components/Tr';
 
 export type FeatureStageTip = AppTooltipContent;
 
@@ -55,6 +56,7 @@ export function FeatureStage({
   rates,
   ratesLabel,
 }: FeatureStageProps) {
+  const tr = useTr();
   return (
     <header
       className={`umkm-stage${loading ? ' is-loading' : ''}`}
@@ -62,8 +64,8 @@ export function FeatureStage({
     >
       <div className="umkm-stage-top">
         <div className="umkm-stage-copy">
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
+          <h1>{tr(title)}</h1>
+          <p>{typeof subtitle === 'string' ? tr(subtitle) : subtitle}</p>
         </div>
         {action}
       </div>
@@ -75,7 +77,7 @@ export function FeatureStage({
               key={stat.label}
               className={`umkm-stage-stat${stat.hero ? ' is-hero' : ''}`}
             >
-              <dt>{stat.label}</dt>
+              <dt>{tr(stat.label)}</dt>
               <dd>
                 {stat.tip ? (
                   <AppTooltip
@@ -95,7 +97,7 @@ export function FeatureStage({
           ))}
         </dl>
 
-        <dl className="umkm-stage-rates" aria-label={ratesLabel}>
+        <dl className="umkm-stage-rates" aria-label={tr(ratesLabel)}>
           {rates.map((rate) => {
             const shown = loading ? '···' : formatRatePercent(rate.value);
             return (
@@ -125,7 +127,7 @@ export function FeatureStage({
                   style={rateMeterStyle(rate.value, loading)}
                 >
                   <div className="umkm-stage-rate-row">
-                    <dt>{rate.label}</dt>
+                    <dt>{tr(rate.label)}</dt>
                     <dd>{shown}</dd>
                   </div>
                   <span className="umkm-stage-meter" aria-hidden>

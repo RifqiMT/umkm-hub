@@ -26,16 +26,26 @@ import {
   formatMoneyExact,
 } from '@/lib/format-money';
 import {
-  DASHBOARD_PERIOD_LABELS,
   dashboardPeriodRange,
   type DashboardPeriod,
 } from '@/lib/dashboard-period';
+import { useLabels } from '@/hooks/useLabels';
+import { useTr } from '@/components/Tr';
 
 type DashboardData = {
   orders: OrderSummary | null;
   products: ProductSummary | null;
   customers: CustomerSummary | null;
 };
+
+const WORKSPACE_RAIL_LINKS = [
+  { href: '/products', label: 'Products' },
+  { href: '/warehouse', label: 'Warehouse' },
+  { href: '/customers', label: 'Customers' },
+  { href: '/orders', label: 'Orders' },
+  { href: '/targets', label: 'Targets' },
+  { href: '/analytics', label: 'Analytics' },
+] as const;
 
 function rateMeterStyle(
   value: number | null | undefined,
@@ -154,6 +164,7 @@ function DomainPanel({
   index: number;
   featured?: boolean;
 }) {
+  const tr = useTr();
   return (
     <Link
       className={`umkm-dash-domain${featured ? ' is-featured' : ''}`}
@@ -202,7 +213,7 @@ function DomainPanel({
       {spotlight}
 
       <span className="umkm-dash-domain-go">
-        View {eyebrow.toLowerCase()}
+        {tr('View')} {eyebrow.toLowerCase()}
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
           <path
             d="M3.5 8h9M8.5 4l4 4-4 4"
@@ -218,6 +229,8 @@ function DomainPanel({
 }
 
 export default function DashboardPage() {
+  const tr = useTr();
+  const { dashboardPeriod } = useLabels();
   const [period, setPeriod] = useState<DashboardPeriod>('this_month');
   const [data, setData] = useState<DashboardData>({
     orders: null,
@@ -228,7 +241,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const orderRange = useMemo(() => dashboardPeriodRange(period), [period]);
-  const periodLabel = DASHBOARD_PERIOD_LABELS[period];
+  const periodLabel = dashboardPeriod[period];
 
   // Product / customer tiles are period-independent — load once.
   useEffect(() => {
@@ -249,7 +262,7 @@ export default function DashboardPage() {
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Failed to load dashboard',
+                : tr('Failed to load dashboard'),
           );
         }
       }
@@ -283,7 +296,7 @@ export default function DashboardPage() {
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Failed to load dashboard',
+                : tr('Failed to load dashboard'),
           );
         }
       } finally {
@@ -318,7 +331,7 @@ export default function DashboardPage() {
 
   const rangeCaption =
     period === 'all'
-      ? 'All orders'
+      ? tr('All orders')
       : orderRange.orderDateFrom && orderRange.orderDateTo
         ? orderRange.orderDateFrom === orderRange.orderDateTo
           ? orderRange.orderDateFrom
@@ -328,12 +341,12 @@ export default function DashboardPage() {
   return (
     <section className="umkm-dashboard">
       <FeatureStage
-        title="Dashboard"
+        title={tr('Dashboard')}
         loading={ordersLoading}
         subtitle={
           period === 'all'
-            ? 'Order pulse across your workspace.'
-            : `Order pulse · ${periodLabel.toLowerCase()}.`
+            ? tr('Order pulse across your workspace.')
+            : `${tr('Order pulse')} · ${periodLabel.toLowerCase()}.`
         }
         action={
           <DashboardPeriodFilter
@@ -345,12 +358,13 @@ export default function DashboardPage() {
         }
         stats={[
           {
-            label: 'Revenue',
+            label: tr('Revenue'),
             hero: true,
             tip: {
               value: orders ? formatMoneyExact(orders.totalRevenue) : undefined,
-              description:
+              description: tr(
                 'Total sales from non-cancelled orders in the selected period.',
+              ),
             },
             value: revenueParts ? (
               <>
@@ -362,11 +376,12 @@ export default function DashboardPage() {
             ),
           },
           {
-            label: 'Orders',
+            label: tr('Orders'),
             tip: {
               value: orders ? formatQty(orders.orderCount) : undefined,
-              description:
+              description: tr(
                 'How many orders were placed in the selected period.',
+              ),
             },
             value: orderCountParts ? (
               <>
@@ -380,11 +395,12 @@ export default function DashboardPage() {
             ),
           },
           {
-            label: 'Packs',
+            label: tr('Packs'),
             tip: {
               value: orders ? formatQty(orders.productsSold) : undefined,
-              description:
+              description: tr(
                 'Total pack quantity sold across orders in this period.',
+              ),
             },
             value: packsParts ? (
               <>
@@ -396,44 +412,49 @@ export default function DashboardPage() {
             ),
           },
         ]}
-        ratesLabel="Order health"
+        ratesLabel={tr('Order health')}
         rates={[
           {
             tone: 'tone-margin',
-            label: 'Margin',
+            label: tr('Margin'),
             tip: {
-              description:
+              description: tr(
                 'Estimated profit as a share of revenue, when product cost is known.',
-              detail: 'Profit ÷ revenue on orders with cost',
+              ),
+              detail: tr('Profit ÷ revenue on orders with cost'),
             },
             value: orders?.profitMarginRate,
           },
           {
             tone: 'tone-paid',
-            label: 'Paid in full',
+            label: tr('Paid in full'),
             tip: {
-              description:
+              description: tr(
                 'Share of active orders where installments already cover the total.',
-              detail: 'Fully paid ÷ non-cancelled orders',
+              ),
+              detail: tr('Fully paid ÷ non-cancelled orders'),
             },
             value: orders?.fullPaymentRate,
           },
           {
             tone: 'tone-discount',
-            label: 'Discount',
+            label: tr('Discount'),
             tip: {
-              description:
+              description: tr(
                 'How much of the list price was given away as discounts.',
-              detail: 'Discount ÷ pre-discount line totals',
+              ),
+              detail: tr('Discount ÷ pre-discount line totals'),
             },
             value: orders?.discountRate,
           },
           {
             tone: 'tone-cancel',
-            label: 'Cancelled',
+            label: tr('Cancelled'),
             tip: {
-              description: 'Share of orders that were cancelled in this period.',
-              detail: 'Cancelled ÷ all orders',
+              description: tr(
+                'Share of orders that were cancelled in this period.',
+              ),
+              detail: tr('Cancelled ÷ all orders'),
             },
             value: orders?.cancellationRate,
           },
@@ -444,23 +465,24 @@ export default function DashboardPage() {
 
       <div className="umkm-dash-board">
         <div className="umkm-dash-board-head">
-          <h2>Workspace</h2>
-          <p>Open a domain for detail. Catalog and CRM stay live.</p>
+          <h2>{tr('Workspace')}</h2>
+          <p>{tr('Open a domain for detail. Catalog and CRM stay live.')}</p>
         </div>
 
-        <div className="umkm-dash-domains" aria-label="Domain snapshots">
+        <div className="umkm-dash-domains" aria-label={tr('Domain snapshots')}>
           <DomainPanel
             href="/orders"
             index={0}
             featured
-            eyebrow="Orders"
-            title="Fulfillment"
+            eyebrow={tr('Orders')}
+            title={tr('Fulfillment')}
             caption={periodLabel}
             hero={{
-              label: 'Revenue',
+              label: tr('Revenue'),
               tipValue: orders ? formatMoneyExact(orders.totalRevenue) : undefined,
-              description:
+              description: tr(
                 'Sales from non-cancelled orders in the selected period.',
+              ),
               value: (
                 <FigureValue
                   value={orders?.totalRevenue}
@@ -471,17 +493,17 @@ export default function DashboardPage() {
             }}
             side={[
               {
-                label: 'Orders',
+                label: tr('Orders'),
                 tipValue: orders ? formatQty(orders.orderCount) : undefined,
-                description: 'Order count for the selected period.',
+                description: tr('Order count for the selected period.'),
                 value: (
                   <FigureValue value={orders?.orderCount} loading={ordersLoading} />
                 ),
               },
               {
-                label: 'Packs',
+                label: tr('Packs'),
                 tipValue: orders ? formatQty(orders.productsSold) : undefined,
-                description: 'Pack quantity sold in the selected period.',
+                description: tr('Pack quantity sold in the selected period.'),
                 value: (
                   <FigureValue value={orders?.productsSold} loading={ordersLoading} />
                 ),
@@ -489,11 +511,11 @@ export default function DashboardPage() {
             ]}
             spotlight={
               <SpotlightRate
-                label="Paid in full"
+                label={tr('Paid in full')}
                 value={orders?.fullPaymentRate}
                 tone="tone-paid"
-                description="Share of active orders already paid in full."
-                detail="Fully paid ÷ non-cancelled"
+                description={tr('Share of active orders already paid in full.')}
+                detail={tr('Fully paid ÷ non-cancelled')}
                 loading={ordersLoading}
               />
             }
@@ -502,16 +524,17 @@ export default function DashboardPage() {
           <DomainPanel
             href="/products"
             index={1}
-            eyebrow="Products"
-            title="Catalog"
-            caption="Live stock"
+            eyebrow={tr('Products')}
+            title={tr('Catalog')}
+            caption={tr('Live stock')}
             hero={{
-              label: 'Inventory',
+              label: tr('Inventory'),
               tipValue: products
                 ? formatMoneyExact(products.inventorySellValue)
                 : undefined,
-              description:
+              description: tr(
                 'Catalog sell value of stock currently on hand.',
+              ),
               value: (
                 <FigureValue
                   value={products?.inventorySellValue}
@@ -522,11 +545,11 @@ export default function DashboardPage() {
             }}
             side={[
               {
-                label: 'SKUs',
+                label: tr('SKUs'),
                 tipValue: products
                   ? formatQty(products.productCount)
                   : undefined,
-                description: 'Number of products in your catalog.',
+                description: tr('Number of products in your catalog.'),
                 value: (
                   <FigureValue
                     value={products?.productCount}
@@ -535,12 +558,13 @@ export default function DashboardPage() {
                 ),
               },
               {
-                label: 'On hand',
+                label: tr('On hand'),
                 tipValue: products
                   ? formatQty(products.totalStockQty)
                   : undefined,
-                description:
+                description: tr(
                   'Total stock quantity available in warehouse (stock units, not packs).',
+                ),
                 value: (
                   <FigureValue
                     value={products?.totalStockQty}
@@ -551,11 +575,11 @@ export default function DashboardPage() {
             ]}
             spotlight={
               <SpotlightRate
-                label="In stock"
+                label={tr('In stock')}
                 value={products?.inStockRate}
                 tone="tone-paid"
-                description="Share of products that still have stock left."
-                detail="Products with stock ÷ catalog"
+                description={tr('Share of products that still have stock left.')}
+                detail={tr('Products with stock ÷ catalog')}
                 loading={productsLoading}
               />
             }
@@ -564,15 +588,15 @@ export default function DashboardPage() {
           <DomainPanel
             href="/customers"
             index={2}
-            eyebrow="Customers"
-            title="Pipeline"
-            caption="CRM"
+            eyebrow={tr('Customers')}
+            title={tr('Pipeline')}
+            caption={tr('CRM')}
             hero={{
-              label: 'Customers',
+              label: tr('Customers'),
               tipValue: customers
                 ? formatQty(customers.customerCount)
                 : undefined,
-              description: 'People and companies in your CRM.',
+              description: tr('People and companies in your CRM.'),
               value: (
                 <FigureValue
                   value={customers?.customerCount}
@@ -582,11 +606,11 @@ export default function DashboardPage() {
             }}
             side={[
               {
-                label: 'Interested',
+                label: tr('Interested'),
                 tipValue: customers
                   ? formatQty(customers.interestedCount)
                   : undefined,
-                description: 'Contacts currently marked as Interested.',
+                description: tr('Contacts currently marked as Interested.'),
                 value: (
                   <FigureValue
                     value={customers?.interestedCount}
@@ -595,12 +619,12 @@ export default function DashboardPage() {
                 ),
               },
               {
-                label: 'Approval',
+                label: tr('Approval'),
                 tipValue:
                   customers?.avgApproval != null
                     ? formatRatePercent(customers.avgApproval)
                     : undefined,
-                description: 'Average approval score across customers.',
+                description: tr('Average approval score across customers.'),
                 value: loading ? (
                   <b>···</b>
                 ) : customers?.avgApproval != null ? (
@@ -612,21 +636,25 @@ export default function DashboardPage() {
             ]}
             spotlight={
               <SpotlightRate
-                label="Closing"
+                label={tr('Closing')}
                 value={customers?.closingRate}
                 tone="tone-margin"
-                description="Share of customers at Closing / first-order stage."
-                detail="Closing ÷ all customers"
+                description={tr(
+                  'Share of customers at Closing / first-order stage.',
+                )}
+                detail={tr('Closing ÷ all customers')}
                 loading={customersLoading}
               />
             }
           />
         </div>
 
-        <nav className="umkm-dash-rail" aria-label="More workspaces">
-          <Link href="/warehouse">Warehouse</Link>
-          <Link href="/targets">Targets</Link>
-          <Link href="/analytics">Analytics</Link>
+        <nav className="umkm-dash-rail" aria-label={tr('All workspaces')}>
+          {WORKSPACE_RAIL_LINKS.map((link) => (
+            <Link key={link.href} href={link.href}>
+              {tr(link.label)}
+            </Link>
+          ))}
         </nav>
       </div>
     </section>

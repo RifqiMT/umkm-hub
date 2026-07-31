@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
+import { UI_LANGUAGE_BOOTSTRAP_SCRIPT } from '@/lib/ui-language';
+import { TranslationProvider } from '@/lib/translation';
 import './globals.css';
 
 const sans = Manrope({
@@ -26,8 +28,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${sans.variable} antialiased`}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: UI_LANGUAGE_BOOTSTRAP_SCRIPT }}
+        />
+      </head>
+      <body className={`${sans.variable} antialiased`}>
+        <TranslationProvider>{children}</TranslationProvider>
+      </body>
     </html>
   );
 }

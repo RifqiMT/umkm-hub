@@ -24,6 +24,20 @@ function toStockStatusList(
     .filter((part): part is 'in_stock' | 'out_of_stock' => allowed.has(part));
 }
 
+function toCostSetList(value: unknown): Array<'set' | 'unset'> {
+  const allowed = new Set(['set', 'unset']);
+  return toStringList(value)
+    .map((part) => part.toLowerCase())
+    .filter((part): part is 'set' | 'unset' => allowed.has(part));
+}
+
+function toPackReadyList(value: unknown): Array<'ready' | 'not_ready'> {
+  const allowed = new Set(['ready', 'not_ready']);
+  return toStringList(value)
+    .map((part) => part.toLowerCase())
+    .filter((part): part is 'ready' | 'not_ready' => allowed.has(part));
+}
+
 export class WarehouseSummaryQueryDto {
   @IsOptional()
   @IsString()
@@ -38,4 +52,14 @@ export class WarehouseSummaryQueryDto {
   @Transform(({ value }) => toStockStatusList(value))
   @IsIn(['in_stock', 'out_of_stock'], { each: true })
   stockStatus?: Array<'in_stock' | 'out_of_stock'>;
+
+  @IsOptional()
+  @Transform(({ value }) => toCostSetList(value))
+  @IsIn(['set', 'unset'], { each: true })
+  costSet?: Array<'set' | 'unset'>;
+
+  @IsOptional()
+  @Transform(({ value }) => toPackReadyList(value))
+  @IsIn(['ready', 'not_ready'], { each: true })
+  packReady?: Array<'ready' | 'not_ready'>;
 }

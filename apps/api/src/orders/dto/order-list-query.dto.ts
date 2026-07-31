@@ -9,7 +9,8 @@ import {
   Min,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, BillStatus, InvoiceStatus } from '@prisma/client';
+import { LIST_PAGE_MAX } from '../../common/dto/pagination.dto';
 
 const SORT_KEYS = ['date', 'product', 'status', 'total', 'payment'] as const;
 const SORT_DIRS = ['asc', 'desc'] as const;
@@ -35,6 +36,26 @@ function toPaymentStatusList(value: unknown): PaymentStatus[] {
     );
 }
 
+function toBillStatusList(value: unknown): BillStatus[] {
+  if (value == null || value === '') return [];
+  const raw = Array.isArray(value) ? value : String(value).split(',');
+  const allowed = new Set(Object.values(BillStatus));
+  return raw
+    .map((part) => String(part).trim().toUpperCase())
+    .filter((part): part is BillStatus => allowed.has(part as BillStatus));
+}
+
+function toInvoiceStatusList(value: unknown): InvoiceStatus[] {
+  if (value == null || value === '') return [];
+  const raw = Array.isArray(value) ? value : String(value).split(',');
+  const allowed = new Set(Object.values(InvoiceStatus));
+  return raw
+    .map((part) => String(part).trim().toUpperCase())
+    .filter(
+      (part): part is InvoiceStatus => allowed.has(part as InvoiceStatus),
+    );
+}
+
 function emptyToUndefined({ value }: { value: unknown }): string | undefined {
   if (value == null || value === '') return undefined;
   return String(value).trim();
@@ -51,7 +72,7 @@ export class OrderListQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(LIST_PAGE_MAX)
   limit?: number = 20;
 
   @IsOptional()
@@ -69,6 +90,18 @@ export class OrderListQueryDto {
   @Transform(({ value }) => toPaymentStatusList(value))
   @IsEnum(PaymentStatus, { each: true })
   paymentStatus?: PaymentStatus[];
+
+  /** Comma-separated or repeated BillStatus values. */
+  @IsOptional()
+  @Transform(({ value }) => toBillStatusList(value))
+  @IsEnum(BillStatus, { each: true })
+  billStatus?: BillStatus[];
+
+  /** Comma-separated or repeated InvoiceStatus values. */
+  @IsOptional()
+  @Transform(({ value }) => toInvoiceStatusList(value))
+  @IsEnum(InvoiceStatus, { each: true })
+  invoiceStatus?: InvoiceStatus[];
 
   @IsOptional()
   @Transform(emptyToUndefined)

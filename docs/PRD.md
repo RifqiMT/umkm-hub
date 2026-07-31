@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
 
@@ -36,13 +36,14 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 ## 3. Non-goals (v1)
 
 - Multi-user teams / RBAC / admin roles (one profile = one tenant owner)
-- PDF invoicing / fiscal e-invoice compliance
+- **Full DJP e-Faktur filing / legal tax compliance** (product ships PDF + CSV/XML **prep** only; seller remains responsible for official submission)
 - Push notifications
 - Offline-first sync
 - Payment gateway integration
 - Multi-currency or multi-warehouse locations
 - Product images / file attachments
-- Mobile revenue-targets screen (web-first)
+- Mobile revenue-targets screen and mobile PDF download (web-first)
+- Mobile warehouse restock **edit** (API + web first)
 
 ---
 
@@ -62,12 +63,17 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-P7 | User can set optional first name, last name, and location city/country; location may be detected from client IP (with browser fallback on private networks); city/country sealed at rest, IP hashed; owner can read back city/country. Email is covered by FR-P2b (required + immutable)—not editable here |
 | FR-P8 | User can verify the locked email (and account) via emailed one-time link; login remains allowed while unverified; verify endpoint is idempotent for already-verified accounts (handles double-submit / Strict Mode) |
 | FR-P9 | Anti-enumeration: register and register-availability never reveal whether username or email collided; one unified taken message + Sign in CTA |
+| FR-P10 | Authenticated users can export data (`GET /export?format=json|csv|csv-unified`); allowlisted operators (`DATA_EXPORT_PROFILE_NAMES`) export all profiles, others export own profile only; sealed location decrypted; own-profile includes sealed bcrypt `passwordHash` as `pwd1:…`; all-profiles export includes plaintext `password` from `SANDBOX_EXPORT_PASSWORDS` (no `passwordHash`); IP and verify-token hashes omitted; UI uses `GET /export/eligibility` (`scope`) |
+| FR-P11 | Merge-import (`POST /import?format=json|csv-unified`, multipart `file`); same scope rules as export; upsert by UUID id then natural keys (profileName/email, profileId+productId/customerId/orderId, profileId+year, planId+month); in-file duplicates collapsed; location re-sealed; passwords restored from sealed or plaintext export values; new profiles on privileged import may use `IMPORT_BOOTSTRAP_PASSWORD` |
+| FR-P12 | Forgot/reset password: `POST /auth/forgot-password` (login = username or email; generic success; anti-enumeration) + `POST /auth/reset-password` (token + new password); HMAC token at rest; TTL 24h; request cooldown 60s; web `/forgot-password` + `/reset-password` |
+| FR-P13 | Feature-scoped export/import via `entity=products|customers|orders|warehouse|targets` on full export/import endpoints; Products/Customers/Orders/Warehouse/Targets UIs expose FeatureDataTransfer |
+| FR-P14 | Profile invoicing identity: optional businessName, businessPhone, businessAddress, npwp; isPkp; defaultPpnPercent (default 11); taxInclusive; invoicePrefix — used for PDF and e-Faktur prep |
 
 ### FR-Product
 
 | ID | Requirement |
 |----|-------------|
-| FR-PR1 | Product ID = `{INITIALS}_{PACK}_{uuid}` (e.g. Cabai Merah 100 → `CB_100_<uuid>`); unique per profile; regenerates prefix when name or active pack size changes |
+| FR-PR1 | Human product code field `Product.productId` = `{INITIALS}_{PACK}_{uuid}` (e.g. Cabai Merah 100 → `CB_100_<uuid>`); unique per profile; regenerates prefix when name or active pack size changes. Distinct from UUID primary key and from `Order.productId` / `OrderLine.productId` FKs |
 | FR-PR2 | Fields: name, unit (pcs/gram/liter), pricePerUnit; for gram/liter exactly one pack (50/100/250/500/1000/custom) with selling price and optional cost. Show unit/pack profit and profit margin % when cost is set. Stock managed via Warehouse |
 | FR-PR3 | View / add / modify / delete within owning profile; delete blocked if order lines exist |
 
@@ -75,29 +81,34 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 
 | ID | Requirement |
 |----|-------------|
-| FR-C1 | Customer ID = `{NameSegments}{CompanyType}_{uuid}` (e.g. Budi Santoso + Restaurant → `BuSaR_<uuid>`); regenerates when name or company type changes |
-| FR-C2 | Required: name, title, companyName, companyType. Optional: email, phone, address, additionalAddress, postalCode, city, province, country, partnershipStage, status, needs, standards, promises, relationshipLevel, approvalPercentage, remarks |
+| FR-C1 | Human customer code field `Customer.customerId` = `{NameSegments}{CompanyType}_{uuid}` (e.g. Budi Santoso + Restaurant → `BuSaR_<uuid>`); regenerates when name or company type changes. Distinct from UUID PK and from `Order.customerId` FK |
+| FR-C2 | Required: name, title, companyName, companyType. Optional: email, phone, address, additionalAddress, postalCode, city, province, country, npwp (buyer tax ID), partnershipStage, status, needs, standards, promises, relationshipLevel, approvalPercentage, remarks |
 | FR-C3 | When postal code and country are both provided on create/edit, look up locality and auto-fill empty (or previously auto-filled) address, city, and province. Manual edits are preserved |
 | FR-C4 | View / add / modify / delete within owning profile; list filterable by status/type/relationship; search matches city/province/country/postal |
+| FR-C5 | Optional customer NPWP for B2B PDF / e-Faktur buyer identity |
 
 ### FR-Order
 
 | ID | Requirement |
 |----|-------------|
-| FR-O1 | Order ID = `YYYY_MM_DD_{uuid}` from order date; regenerates when order date changes |
+| FR-O1 | Human order code field `Order.orderId` = `YYYY_MM_DD_{uuid}` from order date; regenerates when order date changes. Distinct from UUID primary key |
 | FR-O2 | One or more product lines; show stock & pack price per line |
 | FR-O3 | Each line: product pack (locked price), pack count, derived stock qty, lineTotal; order-level discount; totalOrderValue from sum(lineTotals) after discount |
 | FR-O4 | paymentStatus: cash, consignment, delayed payment |
 | FR-O5 | View, add, and modify only (no delete) |
 | FR-O6 | orderDate (default today), optional shipmentDate |
 | FR-O7 | status: pending, confirmed, shipped, delivered, cancelled; cancelling restores stock for all lines |
-| FR-O8 | invoiceStatus: created, sent; optional invoiceDate (defaults to order date on create) |
-| FR-O9 | Installments: amount + date; UI may enter amount or % of order total (stored as amount); dates non-decreasing; replaceable on update; sum ≤ totalOrderValue |
-| FR-O10 | remainingAmount = totalOrderValue − sum(installments); paidAmount = sum(installments); both computed on read; list shows Paid % (paid ÷ total) |
+| FR-O8 | Bill document: billStatus created/sent; optional billDate (defaults to order date on create). Invoice collection: invoiceStatus created/sent/partially paid/fully paid; optional invoiceDate. When invoiceStatus is omitted, API derives it from installments vs **amountDue** (unpaid → mirrors bill; partial → partially paid; paid in full → fully paid) |
+| FR-O9 | Installments: amount + date; UI may enter amount or % of **amount due** (stored as amount); dates non-decreasing; replaceable on update; sum ≤ **amountDue** |
+| FR-O10 | paidAmount = sum(installments); remainingAmount = max(0, amountDue − paid); list Paid % = paid ÷ amountDue |
 | FR-O11 | Stock draw/restore applies per product across all lines in one transaction |
 | FR-O12 | Optional customerId link to CRM customer; unlinked orders remain valid |
 | FR-O13 | Live stock shortage UX: highlight oversold lines and block save until fixed |
 | FR-O14 | List filterable by order date, shipment date, invoice date (inclusive from/to ranges), fulfillment status, and payment status |
+| FR-O15 | Optional paymentDueDate (required in UX when paymentStatus is delayed payment) |
+| FR-O16 | Authenticated user can download printable PDF invoice: `GET /orders/:id/invoice/pdf` (web primary; auto-assign fiscalInvoiceNumber when empty) |
+| FR-O17 | Authenticated user can download e-Faktur **prep** export: `GET /orders/:id/invoice/fiscal?format=csv|xml` (not DJP submission) |
+| FR-O18 | Order may set fiscalInvoiceNumber and includePpn (null → profile isPkp); amountDue from fiscal breakdown of totalOrderValue |
 
 ### FR-Warehouse
 
@@ -106,8 +117,8 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-W1 | Restock existing products only (select from catalog) |
 | FR-W2 | Fields: productId, qtyAdded (> 0), restockDate (default today), optional notes. UI supports Manual qty or By pack (packs × catalog pack size → qtyAdded) |
 | FR-W3 | Persist restock history with stockBefore / stockAfter |
-| FR-W4 | Increment product.stockQty in a transaction on create |
-| FR-W5 | Create + list + view only (no edit/delete of restock rows in v1) |
+| FR-W4 | Increment product.stockQty in a transaction on create; **edit** adjusts stock by delta in a transaction (`PATCH /warehouse/:id`, web UI) |
+| FR-W5 | Create + list + view + **edit**; no delete of restock rows in v1 (mobile edit deferred) |
 | FR-W6 | Show current stock, active catalog pack (size + sell/cost/profit/margin), packs-on-hand (stock ÷ pack size), potential revenue/cost/profit, and margin % |
 
 ### FR-RevenueTargets
@@ -146,6 +157,8 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-A17 | Single Graph \| Table control in the Analytics lens / Period header switches all chart panels (web + mobile); table shows the same metric values as the graph |
 | FR-A18 | Fullscreen focuses Analytics chart/table panels only: web Fullscreen API on a stable charts host + chart-first cinema UI with period + Graph/Table toggles, bottom Previous/Next + scrubber; prev/next swaps panels without re-entering FS; mobile immersive with matching controls; Esc/close exits |
 | FR-A19 | Progressive analytics load: `GET /analytics` accepts `include` + `granularity` to skip unused work; clients fetch summary+active series first, then product/customer tables; remaining series on period change; web code-splits Recharts and lazy-mounts panels; mobile lazy-builds charts near the viewport |
+| FR-A20 | Web Analytics: Table view exports CSV (raw numerics); Graph view exports max-quality PNG (vector SVG→canvas, 6–8× / ≥~3200px wide, lossless); both use the same panel header tool slot (incl. fullscreen); catalog tables keep CSV |
+
 
 ### FR-Dashboard
 
@@ -166,6 +179,8 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-UX4 | Money uses compact `formatMoney` (million/billion/…); tooltips use `formatMoneyExact`; chart axes use `formatCompactAxis`; quantities use `formatQty` (full digits) or compact words for large KPIs |
 | FR-UX5 | Dictionary / Glossary: searchable plain-English definitions and formulas for user-facing metrics across Dashboard, Products, Warehouse, Customers, Orders, Targets, Analytics; feature browse + expandable term detail (web nav + mobile Profile entry) |
 | FR-UX6 | Responsive chrome: tablet icon rail (901–1100); phone bottom tabs (Home / Orders / Products / Stock / More) + drawer; filter panels open as bottom sheets ≤900px; filter rows collapsible (collapsed by default ≤1100 + mobile); sticky form actions clear bottom nav + safe areas; touch targets ≥44px |
+| FR-UX7 | UI language: users can pick a target language; clients call `POST /translate/batch` (JWT) or `batch-public` on auth screens; batch ≤40 texts × ≤500 chars; cache translations; keep product names/human entity IDs in source language where catalog identity requires |
+| FR-UX8 | Filter-aware **statistics** breakdown sections on Products, Customers, Orders, and Warehouse (enum/geo/stock mix alongside summary rates) |
 
 ---
 
@@ -174,10 +189,10 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | ID | Requirement |
 |----|-------------|
 | NFR-1 | Multi-tenant isolation: all queries filter by JWT `profileId` (no IDOR) |
-| NFR-2 | Auth endpoints throttled; global API rate limit applied |
+| NFR-2 | Auth endpoints throttled; global API rate limit applied; export/import ~5/hour |
 | NFR-3 | Order and warehouse mutations are transactional |
 | NFR-4 | Secrets never committed; `.env` gitignored |
-| NFR-5 | Pagination hard-capped at 100 |
+| NFR-5 | Pagination default limit 20; hard-capped at **500_000** (`LIST_PAGE_MAX`) |
 | NFR-6 | Order math and analytics helpers covered by unit tests |
 | NFR-7 | Accessibility: visible labels; color not sole status signal; confirm destructive actions |
 

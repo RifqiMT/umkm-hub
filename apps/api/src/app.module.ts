@@ -13,6 +13,8 @@ import { RevenueTargetsModule } from './revenue-targets/revenue-targets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { GeoModule } from './geo/geo.module';
 import { EmailModule } from './email/email.module';
+import { ExportModule } from './export/export.module';
+import { TranslateModule } from './translate/translate.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -30,6 +32,8 @@ import { HealthController } from './health.controller';
     RevenueTargetsModule,
     AnalyticsModule,
     GeoModule,
+    ExportModule,
+    TranslateModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -11,6 +11,7 @@ import '../services/product_packs.dart';
 import '../theme/umkm_theme.dart';
 import '../timeline.dart';
 import '../widgets/ui.dart';
+import '../widgets/feature_data_transfer.dart';
 
 String _todayDate() {
   final now = DateTime.now();
@@ -19,7 +20,38 @@ String _todayDate() {
   return '${now.year}-$m-$d';
 }
 
+String _defaultPaymentDueDate(String orderDate, {int days = 30}) {
+  final day = orderDate.length >= 10 ? orderDate.substring(0, 10) : orderDate;
+  final parsed = DateTime.tryParse('${day}T00:00:00.000');
+  if (parsed == null) return day;
+  final due = parsed.add(Duration(days: days));
+  final m = due.month.toString().padLeft(2, '0');
+  final d = due.day.toString().padLeft(2, '0');
+  return '${due.year}-$m-$d';
+}
+
+bool _isPaymentOverdue(OrderItem order) {
+  final due = order.paymentDueDate;
+  if (due == null || due.isEmpty) return false;
+  if (order.invoiceStatus == 'FULLY_PAID') return false;
+  return due.substring(0, 10).compareTo(_todayDate()) < 0;
+}
+
 String _invoiceStatusLabel(String status) {
+  switch (status) {
+    case 'SENT':
+      return 'Sent';
+    case 'PARTIALLY_PAID':
+      return 'Partially paid';
+    case 'FULLY_PAID':
+      return 'Fully paid';
+    case 'CREATED':
+    default:
+      return 'Created';
+  }
+}
+
+String _billStatusLabel(String status) {
   switch (status) {
     case 'SENT':
       return 'Sent';
@@ -148,6 +180,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   String? error;
   bool loading = true;
   bool loadingMore = false;
+  bool _dataSyncOpen = false;
   int page = 1;
   int totalOrders = 0;
   int totalPages = 1;
@@ -419,9 +452,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
       text: (fullExisting?.discountValue ?? 0).toString(),
     );
     String payment = fullExisting?.paymentStatus ?? 'CASH';
-    String invoiceStatus = fullExisting?.invoiceStatus ?? 'CREATED';
+    String billStatus = fullExisting?.billStatus ?? 'CREATED';
+    String billDate =
+        fullExisting?.billDate?.substring(0, 10) ?? _todayDate();
     String invoiceDate =
         fullExisting?.invoiceDate?.substring(0, 10) ?? _todayDate();
+    String paymentDueDate = fullExisting?.paymentDueDate ?? '';
     final installmentRows = (fullExisting?.installments ?? [])
         .map(
           (row) => _InstallmentFormRow(
@@ -1018,7 +1054,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   const SizedBox(height: 6),
                   ChoiceChipGroup<String>(
                     value: payment,
-                    onChanged: (v) => setLocal(() => payment = v ?? payment),
+                    onChanged: (v) => setLocal(() {
+                      payment = v ?? payment;
+                      if (payment == 'DELAYED_PAYMENT' &&
+                          paymentDueDate.isEmpty) {
+                        paymentDueDate = _defaultPaymentDueDate(orderDate);
+                      } else if (payment != 'DELAYED_PAYMENT') {
+                        paymentDueDate = '';
+                      }
+                    }),
                     options: const [
                       ChoiceOption(value: 'CASH', label: 'Cash'),
                       ChoiceOption(
@@ -1031,14 +1075,64 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                     ],
                   ),
+                  if (payment == 'DELAYED_PAYMENT') ...[
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Payment due date'),
+                      subtitle: Text(
+                        paymentDueDate.isEmpty ? 'Required' : paymentDueDate,
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () => _pickDate(
+                        label: 'Payment due date',
+                        initial: paymentDueDate.isEmpty
+                            ? _defaultPaymentDueDate(orderDate)
+                            : paymentDueDate,
+                        onPicked: (v) =>
+                            setLocal(() => paymentDueDate = v),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             FormSection(
-              title: 'Invoice & payments',
+              title: 'Bill, invoice & payments',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Text(
+                    'Bill status',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: UmkmColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ChoiceChipGroup<String>(
+                    value: billStatus,
+                    onChanged: (v) =>
+                        setLocal(() => billStatus = v ?? billStatus),
+                    options: const [
+                      ChoiceOption(value: 'CREATED', label: 'Created'),
+                      ChoiceOption(value: 'SENT', label: 'Sent'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Bill date'),
+                    subtitle: Text(billDate),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () => _pickDate(
+                      label: 'Bill date',
+                      initial: billDate,
+                      onPicked: (v) => setLocal(() => billDate = v),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   const Text(
                     'Invoice status',
                     style: TextStyle(
@@ -1048,14 +1142,25 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
-                    value: invoiceStatus,
-                    onChanged: (v) =>
-                        setLocal(() => invoiceStatus = v ?? invoiceStatus),
-                    options: const [
-                      ChoiceOption(value: 'CREATED', label: 'Created'),
-                      ChoiceOption(value: 'SENT', label: 'Sent'),
-                    ],
+                  Text(
+                    _invoiceStatusLabel(
+                      deriveInvoiceStatusFromPayments(
+                        amountDue: total,
+                        paidAmount: paid,
+                        billStatus: billStatus,
+                      ),
+                    ),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Derived from installments and bill status on save.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: UmkmColors.muted.withOpacity(0.9),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   ListTile(
@@ -1485,8 +1590,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
       'discountType': discountType,
       'discountValue': discountValue,
       'paymentStatus': payment,
-      'invoiceStatus': invoiceStatus,
+      'billStatus': billStatus,
+      'billDate': billDate,
       'invoiceDate': invoiceDate,
+      if (payment == 'DELAYED_PAYMENT' && paymentDueDate.isNotEmpty)
+        'paymentDueDate': paymentDueDate,
       'installments': installmentsPayload,
     };
 
@@ -1527,8 +1635,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
     if (!mounted) return;
 
-    final paidPct = order.totalOrderValue > 0
-        ? (order.paidAmount / order.totalOrderValue).clamp(0.0, 1.0)
+    final due = order.invoiceAmountDue;
+    final paidPct = due > 0
+        ? (order.paidAmount / due).clamp(0.0, 1.0)
         : 0.0;
     final action = await showDialog<String>(
       context: context,
@@ -1548,12 +1657,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     StatusChip(label: order.status, tone: StatusTone.brand),
                     StatusChip(label: order.paymentStatus),
                     StatusChip(
-                      label: _invoiceStatusLabel(order.invoiceStatus),
+                      label: 'Bill · ${_billStatusLabel(order.billStatus)}',
+                    ),
+                    StatusChip(
+                      label:
+                          'Invoice · ${_invoiceStatusLabel(order.invoiceStatus)}',
                     ),
                     if (order.lineCount > 1)
                       StatusChip(
                         label: '+${order.lineCount - 1} more',
                         tone: StatusTone.neutral,
+                      ),
+                    if (_isPaymentOverdue(order))
+                      const StatusChip(
+                        label: 'Payment overdue',
+                        tone: StatusTone.danger,
                       ),
                   ],
                 ),
@@ -1564,7 +1682,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${(paidPct * 100).toStringAsFixed(0)}% paid · ${formatMoney(order.paidAmount)} of ${formatMoney(order.totalOrderValue)}',
+                  '${(paidPct * 100).toStringAsFixed(0)}% paid · ${formatMoney(order.paidAmount)} of ${formatMoney(due)}',
                   style: const TextStyle(
                     color: UmkmColors.muted,
                     fontSize: 13,
@@ -1582,6 +1700,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ),
                 const SizedBox(height: 16),
                 DetailRow(label: 'Order ID', value: order.displayId),
+                if (order.customerName != null &&
+                    order.customerName!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Customer',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  DetailRow(label: 'Name', value: order.customerName!),
+                  DetailRow(
+                    label: 'Company',
+                    value: order.customerCompany?.isNotEmpty == true
+                        ? order.customerCompany!
+                        : '—',
+                  ),
+                ],
                 const SizedBox(height: 8),
                 const Text(
                   'Products',
@@ -1697,9 +1831,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   value: order.shipmentDate ?? '—',
                 ),
                 DetailRow(
+                  label: 'Bill date',
+                  value: order.billDate ?? '—',
+                ),
+                DetailRow(
                   label: 'Invoice date',
                   value: order.invoiceDate ?? '—',
                 ),
+                if (order.paymentDueDate?.isNotEmpty == true)
+                  DetailRow(
+                    label: 'Payment due',
+                    value: order.paymentDueDate!,
+                  ),
                 DetailRow(
                   label: 'Subtotal',
                   value: formatMoney(order.lineTotal),
@@ -1744,7 +1887,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   ),
                   const SizedBox(height: 8),
                   for (final row in _installmentProgressRows(
-                    total: order.totalOrderValue,
+                    total: due,
                     installments: order.installments,
                   ))
                     Container(
@@ -1794,7 +1937,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${row.date} · ${order.totalOrderValue > 0 ? ((row.amount / order.totalOrderValue) * 100).toStringAsFixed(1) : '0.0'}% of total',
+                                    '${row.date} · ${due > 0 ? ((row.amount / due) * 100).toStringAsFixed(1) : '0.0'}% of total',
                                     style: const TextStyle(
                                       color: UmkmColors.muted,
                                       fontSize: 13,
@@ -2071,6 +2214,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  Widget _buildDataSyncSection() {
+    return FeatureDataSyncSection(
+      open: _dataSyncOpen,
+      onToggle: () => setState(() => _dataSyncOpen = !_dataSyncOpen),
+      entity: FeatureExportEntity.orders,
+      label: 'Orders',
+      onImported: _load,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
@@ -2092,6 +2245,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   const PageIntro(
                     subtitle: 'Pack-based orders with locked product prices.',
                   ),
+                  _buildDataSyncSection(),
                   _buildSummarySection(),
                   const SectionLabel(
                     'Fulfillment',
@@ -2116,6 +2270,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           subtitle:
                               'Pack-based orders with locked product prices.',
                         ),
+                        _buildDataSyncSection(),
                         _buildSummarySection(),
                         SectionLabel(
                           'Fulfillment',
@@ -2155,8 +2310,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       StatusChip(label: o.status, tone: StatusTone.brand),
                     ],
                     details: [
-                      o.sku.isNotEmpty
-                          ? compactLiteralId(o.sku)
+                      o.orderId.isNotEmpty
+                          ? compactLiteralId(o.orderId)
                           : entityIdLabel(o.id),
                       if (o.orderDate.isNotEmpty) o.orderDate,
                     ],
@@ -2165,8 +2320,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ('Payment', o.paymentStatus),
                       if (o.installments.isNotEmpty || o.paidAmount > 0)
                         ('Left', formatMoney(o.remainingAmount)),
+                      if (o.billStatus.isNotEmpty)
+                        ('Bill', _billStatusLabel(o.billStatus)),
                       if (o.invoiceStatus.isNotEmpty)
-                        ('Invoice', o.invoiceStatus),
+                        ('Invoice', _invoiceStatusLabel(o.invoiceStatus)),
                     ],
                     onTap: () => _openView(o),
                     actions: [

@@ -2,8 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { dedupeById } from '@/lib/dedupe-by-id';
 import { confirmDelete } from '@/lib/confirm';
-import { ContentSection, DetailGrid, DetailItem, EmptyState, FormSection, PageHeader } from '@/components/PageHeader';
+import { ContentSection, DetailGrid, DetailItem, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
 import {
   ViewBlock,
   ViewChip,
@@ -15,17 +16,24 @@ import { CountryCombobox } from '@/components/CountryCombobox';
 import { OptionChips } from '@/components/OptionChips';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
+import {
+  FeatureDataTransfer,
+  FeatureDataTransferToggle,
+} from '@/components/FeatureDataTransfer';
+import { CustomerStatisticsSection } from '@/app/(app)/customers/CustomerStatisticsSection';
+import { ListPager } from '@/components/ListPager';
+import type { ListPageSize } from '@/lib/list-page-size';
 import { FeatureStage } from '@/components/FeatureStage';
 import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
   COMPANY_TYPES,
   CUSTOMER_STATUSES,
-  LABELS,
   PARTNERSHIP_STAGES,
   RELATIONSHIP_LEVELS,
 } from '@/lib/enums';
 import type { Customer, CustomerSummary, Paginated } from '@/lib/types';
 import { formatRatePercent } from '@/lib/format-money';
+import { useCustomerLabelHelpers } from '@/hooks/useCustomerLabelHelpers';
 
 type SortKey = 'name' | 'company' | 'city' | 'status' | 'relationship' | 'approval';
 type SortDir = 'asc' | 'desc';
@@ -35,6 +43,7 @@ const emptyForm = {
   title: '',
   companyName: '',
   companyType: 'RESTAURANT',
+  npwp: '',
   email: '',
   phone: '',
   address: '',
@@ -54,30 +63,6 @@ const emptyForm = {
   approvalPercentage: 0,
   remarks: '',
 };
-
-function statusLabel(status?: string | null): string {
-  if (!status) return '—';
-  return (
-    LABELS.customerStatus[status as keyof typeof LABELS.customerStatus] ??
-    status
-  );
-}
-
-function relationshipLabel(level?: string | null): string {
-  if (!level) return '—';
-  return (
-    LABELS.relationshipLevel[
-      level as keyof typeof LABELS.relationshipLevel
-    ] ?? level
-  );
-}
-
-function companyTypeLabel(type?: string | null) {
-  if (!type) return '—';
-  return (
-    LABELS.companyType[type as keyof typeof LABELS.companyType] ?? type
-  );
-}
 
 function IconView() {
   return (
@@ -127,6 +112,7 @@ function buildCustomerPayload(form: typeof emptyForm) {
     title: form.title,
     companyName: form.companyName,
     companyType: form.companyType,
+    npwp: form.npwp.trim() || undefined,
     email: form.email || undefined,
     phone: form.phone || undefined,
     address: form.address || undefined,
@@ -149,10 +135,18 @@ function buildCustomerPayload(form: typeof emptyForm) {
 }
 
 export default function CustomersPage() {
+  const {
+    statusLabel,
+    relationshipLabel,
+    companyTypeLabel,
+    partnershipStageLabel,
+    labels,
+  } = useCustomerLabelHelpers();
   const [items, setItems] = useState<Customer[]>([]);
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formOpen, setFormOpen] = useState(false);
+  const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postalLookupStatus, setPostalLookupStatus] = useState<
     'idle' | 'loading' | 'filled' | 'miss'
@@ -162,15 +156,24 @@ export default function CustomersPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<ListPageSize>(20);
   const [listMeta, setListMeta] = useState({
     total: 0,
     page: 1,
-    limit: 50,
+    limit: 20,
     totalPages: 0,
   });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [companyTypeFilters, setCompanyTypeFilters] = useState<string[]>([]);
+  const [relationshipLevelFilters, setRelationshipLevelFilters] = useState<
+    string[]
+  >([]);
+  const [partnershipStageFilters, setPartnershipStageFilters] = useState<
+    string[]
+  >([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const loadSeq = useRef(0);
@@ -211,7 +214,7 @@ export default function CustomersPage() {
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [items, sortKey, sortDir]);
+  }, [items, sortKey, sortDir, statusLabel, relationshipLabel]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -229,29 +232,51 @@ export default function CustomersPage() {
     return sortDir;
   }
 
-  async function load(
-    searchTerm = debouncedSearch,
-    statuses = statusFilters,
-  ) {
+  function customerFilterParams(searchTerm = debouncedSearch) {
+    return {
+      search: searchTerm.trim() || undefined,
+      status: statusFilters.length > 0 ? statusFilters : undefined,
+      companyType:
+        companyTypeFilters.length > 0 ? companyTypeFilters : undefined,
+      relationshipLevel:
+        relationshipLevelFilters.length > 0
+          ? relationshipLevelFilters
+          : undefined,
+      partnershipStage:
+        partnershipStageFilters.length > 0
+          ? partnershipStageFilters
+          : undefined,
+    };
+  }
+
+  async function loadSummary(searchTerm = debouncedSearch) {
+    const filterParams = customerFilterParams(searchTerm);
+    try {
+      const customerSummary = await api<CustomerSummary>('/customers/summary', {
+        searchParams: filterParams,
+      });
+      setSummary(customerSummary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customers');
+    }
+  }
+
+  async function loadList(searchTerm = debouncedSearch, nextPage = page) {
     const seq = ++loadSeq.current;
     setListLoading(true);
-    const filterParams = {
-      search: searchTerm.trim() || undefined,
-      status: statuses.length > 0 ? statuses : undefined,
-    };
+    const filterParams = customerFilterParams(searchTerm);
     try {
-      const [data, customerSummary] = await Promise.all([
-        api<Paginated<Customer>>('/customers', {
-          searchParams: { ...filterParams, limit: listMeta.limit || 50 },
-        }),
-        api<CustomerSummary>('/customers/summary', {
-          searchParams: filterParams,
-        }),
-      ]);
+      const data = await api<Paginated<Customer>>('/customers', {
+        searchParams: {
+          ...filterParams,
+          page: nextPage,
+          limit: pageSize,
+        },
+      });
       if (seq !== loadSeq.current) return;
-      setItems(data.items);
+      setItems(dedupeById(data.items));
       setListMeta(data.meta);
-      setSummary(customerSummary);
+      setPage(data.meta.page);
       setError('');
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -264,14 +289,34 @@ export default function CustomersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search);
+      setPage(1);
     }, 280);
     return () => window.clearTimeout(timer);
   }, [search]);
 
   useEffect(() => {
-    void load(debouncedSearch, statusFilters);
+    void loadSummary(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, statusFilters]);
+  }, [
+    debouncedSearch,
+    statusFilters,
+    companyTypeFilters,
+    relationshipLevelFilters,
+    partnershipStageFilters,
+  ]);
+
+  useEffect(() => {
+    void loadList(debouncedSearch, page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    page,
+    pageSize,
+    debouncedSearch,
+    statusFilters,
+    companyTypeFilters,
+    relationshipLevelFilters,
+    partnershipStageFilters,
+  ]);
 
   useEffect(() => {
     if (!formOpen) {
@@ -336,7 +381,7 @@ export default function CustomersPage() {
     return () => window.clearTimeout(timer);
   }, [formOpen, form.country, form.postalCode]);
 
-  function startEdit(c: Customer) {
+  function populateEditForm(c: Customer) {
     setViewing(null);
     setFormOpen(true);
     setEditingId(c.id);
@@ -347,6 +392,7 @@ export default function CustomersPage() {
       title: c.title,
       companyName: c.companyName,
       companyType: c.companyType,
+      npwp: c.npwp ?? '',
       email: c.email ?? '',
       phone: c.phone ?? '',
       address: c.address ?? '',
@@ -368,6 +414,15 @@ export default function CustomersPage() {
     });
   }
 
+  async function startEdit(c: Customer) {
+    try {
+      const full = await api<Customer>(`/customers/${c.id}`);
+      populateEditForm(full);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customer');
+    }
+  }
+
   function startCreate() {
     setViewing(null);
     setEditingId(null);
@@ -377,10 +432,15 @@ export default function CustomersPage() {
     setFormOpen(true);
   }
 
-  function startView(c: Customer) {
+  async function startView(c: Customer) {
     setFormOpen(false);
     setEditingId(null);
-    setViewing(c);
+    try {
+      const full = await api<Customer>(`/customers/${c.id}`);
+      setViewing(full);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customer');
+    }
   }
 
   function resetForm() {
@@ -408,7 +468,10 @@ export default function CustomersPage() {
         await api('/customers', { method: 'POST', body });
       }
       resetForm();
-      await load();
+      await Promise.all([
+        loadSummary(debouncedSearch),
+        loadList(debouncedSearch, page),
+      ]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Save failed');
     } finally {
@@ -421,19 +484,47 @@ export default function CustomersPage() {
     try {
       await api(`/customers/${id}`, { method: 'DELETE' });
       if (viewing?.id === id) setViewing(null);
-      await load();
+      await Promise.all([
+        loadSummary(debouncedSearch),
+        loadList(debouncedSearch, page),
+      ]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Delete failed');
     }
   }
 
+  const chipFiltersActive =
+    statusFilters.length > 0 ||
+    companyTypeFilters.length > 0 ||
+    relationshipLevelFilters.length > 0 ||
+    partnershipStageFilters.length > 0;
   const filtersActive =
-    debouncedSearch.trim().length > 0 || statusFilters.length > 0;
+    debouncedSearch.trim().length > 0 || chipFiltersActive;
   const stageSummary = summary;
+  const statisticsLoading = listLoading && !stageSummary?.statistics;
+  const statLabelForKey = useMemo(
+    () => ({
+      companyType: (key: string) =>
+        key === 'UNSET' ? 'Not set' : companyTypeLabel(key),
+      partnershipStage: (key: string) =>
+        key === 'UNSET' ? 'Not set' : partnershipStageLabel(key),
+      status: (key: string) =>
+        key === 'UNSET' ? 'Not set' : statusLabel(key),
+      relationshipLevel: (key: string) =>
+        key === 'UNSET' ? 'Not set' : relationshipLabel(key),
+      geo: (key: string) => {
+        if (key === 'EMPTY') return 'Not set';
+        if (key === 'OTHER') return 'Other';
+        return key;
+      },
+    }),
+    [companyTypeLabel, partnershipStageLabel, statusLabel, relationshipLabel],
+  );
 
   return (
     <section>
       {!formOpen && !viewing ? (
+        <>
         <FeatureStage
           title="Customers"
           loading={listLoading && !stageSummary}
@@ -443,9 +534,16 @@ export default function CustomersPage() {
               : 'Required: name, title, company name, company type.'
           }
           action={
-            <button type="button" className="umkm-btn" onClick={startCreate}>
-              Add customer
-            </button>
+            <div className="umkm-stage-actions">
+              <FeatureDataTransferToggle
+                open={dataSyncOpen}
+                controlsId="feature-sync-customers"
+                onClick={() => setDataSyncOpen((open) => !open)}
+              />
+              <button type="button" className="umkm-btn" onClick={startCreate}>
+                Add customer
+              </button>
+            </div>
           }
           stats={[
             {
@@ -520,6 +618,17 @@ export default function CustomersPage() {
             },
           ]}
         />
+        {dataSyncOpen ? (
+          <FeatureDataTransfer
+            entity="customers"
+            label="Customers"
+            onImported={() => {
+              void loadSummary(debouncedSearch);
+              void loadList(debouncedSearch, page);
+            }}
+          />
+        ) : null}
+        </>
       ) : (
         <PageHeader
           title="Customers"
@@ -588,14 +697,12 @@ export default function CustomersPage() {
               metricValue={`${viewing.approvalPercentage}%`}
               metricHint={
                 viewing.partnershipStage
-                  ? (LABELS.partnershipStage[
-                      viewing.partnershipStage as keyof typeof LABELS.partnershipStage
-                    ] ?? viewing.partnershipStage)
+                  ? partnershipStageLabel(viewing.partnershipStage)
                   : 'Pipeline readiness'
               }
             />
 
-            <EntityIdDetail id={viewing.sku || viewing.id} label="Customer ID" />
+            <EntityIdDetail id={viewing.customerId || viewing.id} label="Customer ID" />
 
             <ViewBlock
               title="Contact"
@@ -610,6 +717,9 @@ export default function CustomersPage() {
                 </DetailItem>
                 <DetailItem label="Company" wide>
                   {viewing.companyName}
+                </DetailItem>
+                <DetailItem label="NPWP">
+                  {viewing.npwp?.trim() ? viewing.npwp : '—'}
                 </DetailItem>
                 <DetailItem label="Title">
                   {viewing.title || '—'}
@@ -646,6 +756,11 @@ export default function CustomersPage() {
               description="Needs, standards, and commercial promises."
             >
               <DetailGrid>
+                <DetailItem label="Partnership stage">
+                  {viewing.partnershipStage
+                    ? partnershipStageLabel(viewing.partnershipStage)
+                    : '—'}
+                </DetailItem>
                 <DetailItem label="Needs" wide>
                   {viewing.customerNeeds || '—'}
                 </DetailItem>
@@ -684,7 +799,7 @@ export default function CustomersPage() {
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
-                  <label>Customer name *</label>
+                  <FieldLabel>Customer name *</FieldLabel>
                   <input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -692,7 +807,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Title *</label>
+                  <FieldLabel>Title *</FieldLabel>
                   <input
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -700,7 +815,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Company name *</label>
+                  <FieldLabel>Company name *</FieldLabel>
                   <input
                     value={form.companyName}
                     onChange={(e) =>
@@ -710,7 +825,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Company type *</label>
+                  <FieldLabel>Company type *</FieldLabel>
                   <OptionChips
                     aria-label="Company type"
                     value={
@@ -721,12 +836,12 @@ export default function CustomersPage() {
                     }
                     options={COMPANY_TYPES.map((t) => ({
                       value: t,
-                      label: LABELS.companyType[t],
+                      label: labels.companyType[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Email</label>
+                  <FieldLabel>Email</FieldLabel>
                   <input
                     type="email"
                     value={form.email}
@@ -734,11 +849,26 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Phone</label>
+                  <FieldLabel>Phone</FieldLabel>
                   <input
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
+                </div>
+                <div className="umkm-field">
+                  <FieldLabel>NPWP (buyer)</FieldLabel>
+                  <input
+                    value={form.npwp}
+                    onChange={(e) => setForm({ ...form, npwp: e.target.value })}
+                    maxLength={20}
+                    placeholder="Optional — for B2B invoices & e-Faktur"
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+                  <p className="umkm-product-meta-line">
+                    Used on PDF invoices and e-Faktur export when this customer
+                    is billed.
+                  </p>
                 </div>
               </div>
             </FormSection>
@@ -749,7 +879,7 @@ export default function CustomersPage() {
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
-                  <label>Postal code</label>
+                  <FieldLabel>Postal code</FieldLabel>
                   <input
                     value={form.postalCode}
                     onChange={(e) =>
@@ -759,7 +889,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label htmlFor="customer-country">Country</label>
+                  <FieldLabel htmlFor="customer-country">Country</FieldLabel>
                   <CountryCombobox
                     id="customer-country"
                     value={form.country}
@@ -786,7 +916,7 @@ export default function CustomersPage() {
                   ) : null}
                 </div>
                 <div className="umkm-field">
-                  <label>Address</label>
+                  <FieldLabel>Address</FieldLabel>
                   <input
                     value={form.address}
                     onChange={(e) => {
@@ -797,7 +927,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Additional address</label>
+                  <FieldLabel>Additional address</FieldLabel>
                   <input
                     value={form.additionalAddress}
                     onChange={(e) =>
@@ -807,7 +937,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>City</label>
+                  <FieldLabel>City</FieldLabel>
                   <input
                     value={form.city}
                     onChange={(e) => {
@@ -818,7 +948,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Province</label>
+                  <FieldLabel>Province</FieldLabel>
                   <input
                     value={form.province}
                     onChange={(e) => {
@@ -837,7 +967,7 @@ export default function CustomersPage() {
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
-                  <label>Partnership stage</label>
+                  <FieldLabel>Partnership stage</FieldLabel>
                   <OptionChips
                     aria-label="Partnership stage"
                     allowEmpty
@@ -851,12 +981,12 @@ export default function CustomersPage() {
                     }
                     options={PARTNERSHIP_STAGES.map((t) => ({
                       value: t,
-                      label: LABELS.partnershipStage[t],
+                      label: labels.partnershipStage[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Status</label>
+                  <FieldLabel>Status</FieldLabel>
                   <OptionChips
                     aria-label="Customer status"
                     allowEmpty
@@ -868,12 +998,12 @@ export default function CustomersPage() {
                     onChange={(status) => setForm({ ...form, status })}
                     options={CUSTOMER_STATUSES.map((t) => ({
                       value: t,
-                      label: LABELS.customerStatus[t],
+                      label: labels.customerStatus[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Relationship level</label>
+                  <FieldLabel>Relationship level</FieldLabel>
                   <OptionChips
                     aria-label="Relationship level"
                     allowEmpty
@@ -887,12 +1017,12 @@ export default function CustomersPage() {
                     }
                     options={RELATIONSHIP_LEVELS.map((t) => ({
                       value: t,
-                      label: LABELS.relationshipLevel[t],
+                      label: labels.relationshipLevel[t],
                     }))}
                   />
                 </div>
                 <div className="umkm-field">
-                  <label>Approval %</label>
+                  <FieldLabel>Approval %</FieldLabel>
                   <input
                     type="number"
                     min={0}
@@ -908,7 +1038,7 @@ export default function CustomersPage() {
                 </div>
               </div>
               <div className="umkm-field">
-                <label>Customer needs</label>
+                <FieldLabel>Customer needs</FieldLabel>
                 <textarea
                   value={form.customerNeeds}
                   onChange={(e) =>
@@ -917,7 +1047,7 @@ export default function CustomersPage() {
                 />
               </div>
               <div className="umkm-field">
-                <label>Desired standards</label>
+                <FieldLabel>Desired standards</FieldLabel>
                 <textarea
                   value={form.desiredStandards}
                   onChange={(e) =>
@@ -926,7 +1056,7 @@ export default function CustomersPage() {
                 />
               </div>
               <div className="umkm-field">
-                <label>Customer promise</label>
+                <FieldLabel>Customer promise</FieldLabel>
                 <label className="umkm-check">
                   <input
                     type="checkbox"
@@ -965,7 +1095,7 @@ export default function CustomersPage() {
                 </label>
               </div>
               <div className="umkm-field">
-                <label>Remarks</label>
+                <FieldLabel>Remarks</FieldLabel>
                 <textarea
                   value={form.remarks}
                   onChange={(e) => setForm({ ...form, remarks: e.target.value })}
@@ -990,6 +1120,7 @@ export default function CustomersPage() {
       ) : null}
 
       {!formOpen && !viewing ? (
+      <>
       <ContentSection
         eyebrow="Directory"
         title="Customers"
@@ -997,7 +1128,7 @@ export default function CustomersPage() {
       >
         <div className="umkm-catalog-toolbar">
           <div className="umkm-field umkm-catalog-search">
-            <label htmlFor="customer-search">Search</label>
+            <FieldLabel htmlFor="customer-search">Search</FieldLabel>
             <input
               id="customer-search"
               value={search}
@@ -1007,30 +1138,80 @@ export default function CustomersPage() {
             />
           </div>
           <CollapsibleFilters
-            activeCount={statusFilters.length > 0 ? 1 : 0}
+            activeCount={
+              (statusFilters.length > 0 ? 1 : 0) +
+              (companyTypeFilters.length > 0 ? 1 : 0) +
+              (relationshipLevelFilters.length > 0 ? 1 : 0) +
+              (partnershipStageFilters.length > 0 ? 1 : 0)
+            }
           >
             <MultiSelectFilter
               id="customer-status-filter"
               label="Status"
               allLabel="All statuses"
               value={statusFilters}
-              onChange={setStatusFilters}
+              onChange={(next) => {
+                setStatusFilters(next);
+                setPage(1);
+              }}
               options={CUSTOMER_STATUSES.map((status) => ({
                 value: status,
                 label: statusLabel(status),
+              }))}
+            />
+            <MultiSelectFilter
+              id="customer-company-type-filter"
+              label="Company type"
+              allLabel="All company types"
+              value={companyTypeFilters}
+              onChange={(next) => {
+                setCompanyTypeFilters(next);
+                setPage(1);
+              }}
+              options={COMPANY_TYPES.map((type) => ({
+                value: type,
+                label: companyTypeLabel(type),
+              }))}
+            />
+            <MultiSelectFilter
+              id="customer-relationship-filter"
+              label="Relationship"
+              allLabel="All relationship levels"
+              value={relationshipLevelFilters}
+              onChange={(next) => {
+                setRelationshipLevelFilters(next);
+                setPage(1);
+              }}
+              options={RELATIONSHIP_LEVELS.map((level) => ({
+                value: level,
+                label: relationshipLabel(level),
+              }))}
+            />
+            <MultiSelectFilter
+              id="customer-partnership-filter"
+              label="Partnership stage"
+              allLabel="All partnership stages"
+              value={partnershipStageFilters}
+              onChange={(next) => {
+                setPartnershipStageFilters(next);
+                setPage(1);
+              }}
+              options={PARTNERSHIP_STAGES.map((stage) => ({
+                value: stage,
+                label: partnershipStageLabel(stage),
               }))}
             />
           </CollapsibleFilters>
           <p className="umkm-catalog-count">
             {listLoading
               ? 'Loading…'
-              : listMeta.total === 0
-                ? filtersActive
-                  ? 'No matches'
-                  : 'No customers yet'
-                : directory.length >= listMeta.total
-                  ? `${listMeta.total.toLocaleString('en-US')} customer${listMeta.total === 1 ? '' : 's'}`
-                  : `Showing ${directory.length.toLocaleString('en-US')} of ${listMeta.total.toLocaleString('en-US')}`}
+                : listMeta.total === 0
+                  ? filtersActive
+                    ? 'No matches'
+                    : 'No customers yet'
+                  : items.length >= listMeta.total
+                    ? `Showing all ${listMeta.total.toLocaleString('en-US')} customers`
+                    : `Showing ${(listMeta.page - 1) * listMeta.limit + 1}–${Math.min(listMeta.page * listMeta.limit, listMeta.total)} of ${listMeta.total.toLocaleString('en-US')}`}
           </p>
         </div>
 
@@ -1140,8 +1321,8 @@ export default function CustomersPage() {
                             <span className="umkm-product-name">{c.name}</span>
                             <div className="umkm-product-meta">
                               <EntityIdBadge
-                                id={c.sku || c.id}
-                                literal={Boolean(c.sku)}
+                                id={c.customerId || c.id}
+                                literal={Boolean(c.customerId)}
                                 compact
                               />
                               {c.title ? (
@@ -1243,8 +1424,8 @@ export default function CustomersPage() {
                         <span className="umkm-product-name">{c.name}</span>
                         <div className="umkm-product-meta">
                           <EntityIdBadge
-                            id={c.sku || c.id}
-                            literal={Boolean(c.sku)}
+                            id={c.customerId || c.id}
+                            literal={Boolean(c.customerId)}
                             compact
                           />
                           {c.status ? (
@@ -1313,9 +1494,35 @@ export default function CustomersPage() {
                 );
               })}
             </ul>
+            <ListPager
+              ariaLabel="Customers pages"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              total={listMeta.total}
+              loading={listLoading}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() =>
+                setPage((p) => Math.min(listMeta.totalPages, p + 1))
+              }
+            />
           </>
         )}
       </ContentSection>
+
+      <ContentSection eyebrow="Statistics" quiet>
+        <CustomerStatisticsSection
+          statistics={stageSummary?.statistics}
+          customerCount={stageSummary?.customerCount ?? 0}
+          loading={statisticsLoading}
+          labelForKey={statLabelForKey}
+        />
+      </ContentSection>
+      </>
       ) : null}
     </section>
   );

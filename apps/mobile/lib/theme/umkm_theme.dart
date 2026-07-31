@@ -36,7 +36,13 @@ class UmkmType {
     FontWeight weight = FontWeight.w700,
     Color color = UmkmColors.brandDeep,
   }) {
-    return display(size: size, weight: weight, color: color, letterSpacing: -0.3);
+    return display(
+      size: size,
+      weight: weight,
+      color: color,
+      letterSpacing: -0.3,
+      height: 1.35,
+    );
   }
 
   static TextStyle body({

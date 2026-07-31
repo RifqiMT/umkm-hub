@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Purpose** | Technical and business limitations that constrain product development |
 
 ---
@@ -15,17 +15,19 @@
 |-----------|-----------|
 | Never commit secrets (`.env` gitignored); rotate JWT secrets for production | Prevent credential leaks |
 | Do not log passwords, tokens, or full Authorization headers | Security & compliance hygiene |
-| Profile location/IP: city/country sealed AES-256-GCM (`loc1:…`) at rest; IP one-way HMAC (`h1:…`); never plaintext IP in DB; decrypt city/country only for the authenticated owner | Privacy |
+| Profile location/IP: city/country sealed AES-256-GCM (`loc1:…`) at rest; IP one-way HMAC (`h1:…`); never plaintext IP in DB; decrypt city/country only for the authenticated owner **or** a privileged data-export allowlist (`DATA_EXPORT_PROFILE_NAMES`) | Privacy |
 | Email verify tokens: store HMAC only; single-use; 24h TTL; do not log raw tokens; resend cooldown | Security |
-| All resource queries filter by `profileId` from JWT (no IDOR) | Multi-tenant isolation |
+| All resource queries filter by `profileId` from JWT (no IDOR), **except** allowlisted `GET /export` / `POST /import` which may merge all tenants (`scope=all-profiles`) | Multi-tenant isolation |
+| Data export/import: every authenticated user may export/import own data (`scope=own-profile`); merge-import upserts by id + natural keys; own-profile exports seal `passwordHash` as `pwd1:…`; allowlisted `all-profiles` dumps include plaintext `password` from `SANDBOX_EXPORT_PASSWORDS` (no `passwordHash`); `locationIpHash` and verification token hashes never included; optional `entity=` feature scope; throttle ≤5/hour | Abuse + secret hygiene |
 | Order create/update runs in a DB transaction with stock updates | Consistency under concurrency |
-| Warehouse restock runs in a DB transaction (increment stock + history) | Auditability |
+| Installment sum must be ≤ **`amountDue`** (fiscal total), not raw `totalOrderValue` alone | Correct collection when PPN applies |
+| Warehouse restock create/edit runs in a DB transaction (stock + history snapshots) | Auditability |
 | Reject order qty > available stock | Prevent negative inventory |
-| Reject warehouse `qtyAdded` ≤ 0 | Data integrity |
+| Reject warehouse `qtyAdded` ≤ 0 on create; edit adjusts stock by signed delta with validation | Data integrity |
 | Reject discount % > 100 or amount > line total | Commercial sanity |
 | Block product delete when order lines exist | Referential integrity (`onDelete: Restrict`) |
 | Auth + global endpoints throttled (Nest Throttler) | Abuse resistance |
-| Pagination hard-capped at **100** | Performance / DoS bound |
+| Pagination default limit 20; hard-capped at **500_000** (`LIST_PAGE_MAX`) | Large sandbox catalogs; still DoS-bounded |
 | Do not auto-migrate on API process start | Sandboxes use `sync` / `migrate deploy` |
 | Never overwrite existing local `.env` / `.env.local` from automation | Protect local secrets & overrides |
 | Schema PRs without committed Prisma migration are rejected | Sandbox compatibility |
@@ -45,14 +47,15 @@
 | Orders may include multiple lines; discount is **order-level** only | Simpler commercial model |
 | **No order delete** in v1 — edit or cancel | Audit trail; stock restore via cancel |
 | Payment status is **terms classification**, not PSP result | Avoid false “paid” semantics |
-| Invoice status is operational (created/sent), not fiscal e-invoice | Legal scope |
+| Bill status is operational (created/sent) + bill date; invoice status tracks collection from installments vs **amountDue** | Ops collection — not DJP filing |
+| PDF + e-Faktur CSV/XML are **prep aids**; seller remains responsible for official DJP submission | Legal scope |
 | Profile deletion is irreversible and removes owned data | Explicit user confirmation required |
 | Analytics LTV & customer performance only include orders with `customerId` | Honest metrics; unlinked orders omitted |
 | Revenue targets: clearing monthly **or** annual clears the **whole year** | Prevent month/annual divergence |
 | Annual displayed target always equals sum of months when months exist | Single source of plan truth |
-| Product stock is **not** edited on Products UI — Warehouse only | Clear ownership of inventory mutations |
+| Product stock is **not** edited on Products UI — Warehouse only (create + **web edit**) | Clear ownership of inventory mutations |
 | Gram/liter products allow **exactly one** active pack | Avoid ambiguous pricing |
-| Mobile **Targets** UI deferred (web-first) | Focus field app on CRM/orders |
+| Mobile **Targets** UI, **PDF/fiscal download**, and warehouse **edit** deferred (web-first) | Focus field app on CRM/orders |
 
 ---
 
@@ -105,7 +108,7 @@
 - Multi-user teams / roles / invitations  
 - Offline sync / conflict resolution  
 - Push notifications  
-- PDF / e-invoice fiscal compliance  
+- **Full DJP e-Faktur filing / legal tax compliance** (PDF + CSV/XML prep are in-product; official submission is out of scope)  
 - Payment gateway capture/settle  
 - Multi-warehouse / multi-currency  
 - Product images / attachments  

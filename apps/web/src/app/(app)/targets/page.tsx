@@ -3,8 +3,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { confirmClear } from '@/lib/confirm';
-import { EmptyState } from '@/components/PageHeader';
+import { EmptyState, FieldLabel } from '@/components/PageHeader';
+import { useTr } from '@/components/Tr';
 import { FeatureStage } from '@/components/FeatureStage';
+import {
+  FeatureDataTransfer,
+  FeatureDataTransferToggle,
+} from '@/components/FeatureDataTransfer';
 import { OptionChips } from '@/components/OptionChips';
 import { YearSelect } from '@/components/YearSelect';
 import { appYearOptions } from '@/lib/app-timeline';
@@ -77,6 +82,7 @@ function monthsAreEven(amounts: number[]) {
 }
 
 export default function TargetsPage() {
+  const tr = useTr();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [data, setData] = useState<RevenueTargetYear | null>(null);
@@ -85,6 +91,7 @@ export default function TargetsPage() {
 
   const [planView, setPlanView] = useState<PlanView>('monthly');
   const [editing, setEditing] = useState(false);
+  const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [monthlyMode, setMonthlyMode] = useState<TargetMode>('MANUAL');
@@ -339,7 +346,12 @@ export default function TargetsPage() {
             : 'Set a yearly revenue plan and track attainment by month.'
         }
         action={
-          <div className="umkm-targets-stage-actions">
+          <div className="umkm-stage-actions umkm-targets-stage-actions">
+            <FeatureDataTransferToggle
+              open={dataSyncOpen}
+              controlsId="feature-sync-targets"
+              onClick={() => setDataSyncOpen((open) => !open)}
+            />
             <button
               type="button"
               className="umkm-btn"
@@ -458,6 +470,14 @@ export default function TargetsPage() {
         ]}
       />
 
+      {dataSyncOpen ? (
+        <FeatureDataTransfer
+          entity="targets"
+          label="Targets"
+          onImported={() => void load()}
+        />
+      ) : null}
+
       {error ? <div className="umkm-error">{error}</div> : null}
 
       <section
@@ -510,8 +530,8 @@ export default function TargetsPage() {
             >
               <header className="umkm-targets-edit-head">
                 <div>
-                  <h2>Set monthly targets</h2>
-                  <p>Manual entry or January base with month-over-month growth.</p>
+                  <h2>{tr('Set monthly targets')}</h2>
+                  <p>{tr('Manual entry or January base with month-over-month growth.')}</p>
                 </div>
                 <OptionChips
                   aria-label="Monthly mode"
@@ -531,7 +551,7 @@ export default function TargetsPage() {
               {monthlyMode === 'SYSTEMATIC' ? (
                 <div className="umkm-targets-edit-fields">
                   <div className="umkm-field">
-                    <label htmlFor="base-month">January base</label>
+                    <FieldLabel htmlFor="base-month">January base</FieldLabel>
                     <input
                       id="base-month"
                       type="number"
@@ -543,7 +563,7 @@ export default function TargetsPage() {
                     />
                   </div>
                   <div className="umkm-field">
-                    <label htmlFor="mom-growth">Monthly growth %</label>
+                    <FieldLabel htmlFor="mom-growth">Monthly growth %</FieldLabel>
                     <input
                       id="mom-growth"
                       type="number"
@@ -613,8 +633,8 @@ export default function TargetsPage() {
             >
               <header className="umkm-targets-edit-head">
                 <div>
-                  <h2>Set from year total</h2>
-                  <p>We’ll split the amount evenly across twelve months.</p>
+                  <h2>{tr('Set from year total')}</h2>
+                  <p>{tr('We’ll split the amount evenly across twelve months.')}</p>
                 </div>
                 <OptionChips
                   aria-label="Annual mode"
@@ -634,7 +654,7 @@ export default function TargetsPage() {
               <div className="umkm-targets-edit-fields">
                 {annualMode === 'MANUAL' ? (
                   <div className="umkm-field">
-                    <label htmlFor="annual-amount">Annual target</label>
+                    <FieldLabel htmlFor="annual-amount">Annual target</FieldLabel>
                     <input
                       id="annual-amount"
                       type="number"
@@ -648,7 +668,7 @@ export default function TargetsPage() {
                 ) : (
                   <>
                     <div className="umkm-field">
-                      <label htmlFor="base-annual">This year base</label>
+                      <FieldLabel htmlFor="base-annual">This year base</FieldLabel>
                       <input
                         id="base-annual"
                         type="number"
@@ -660,7 +680,7 @@ export default function TargetsPage() {
                       />
                     </div>
                     <div className="umkm-field">
-                      <label htmlFor="yoy-growth">YoY growth %</label>
+                      <FieldLabel htmlFor="yoy-growth">YoY growth %</FieldLabel>
                       <input
                         id="yoy-growth"
                         type="number"
@@ -677,7 +697,7 @@ export default function TargetsPage() {
 
               <div className="umkm-targets-split-preview" aria-live="polite">
                 <div className="umkm-targets-split-copy">
-                  <span>Monthly split preview</span>
+                  <span>{tr('Monthly split preview')}</span>
                   <strong>
                     {annualPreviewAmount > 0
                       ? `~${formatMoney(annualMonthPreview[0] ?? 0)} / mo`
@@ -699,7 +719,7 @@ export default function TargetsPage() {
                             100,
                         )}%`,
                       }}
-                      title={`${MONTH_LABELS[i]}: ${formatMoney(amount)}`}
+                      title={`${tr(MONTH_LABELS[i]!)}: ${formatMoney(amount)}`}
                     />
                   ))}
                 </div>
@@ -757,9 +777,9 @@ export default function TargetsPage() {
                     <table className="umkm-table umkm-catalog-table">
                       <thead>
                         <tr>
-                          <th>Month</th>
-                          <th className="is-num">Target</th>
-                          <th className="is-num">Actual</th>
+                          <th>{tr('Month')}</th>
+                          <th className="is-num">{tr('Target')}</th>
+                          <th className="is-num">{tr('Actual')}</th>
                           <th className="is-num">% of target</th>
                           <th>Progress</th>
                         </tr>
@@ -954,7 +974,7 @@ export default function TargetsPage() {
                           style={{
                             ['--h' as string]: `${Math.max(10, (amount / maxMonthAmount) * 100)}%`,
                           }}
-                          title={`${MONTH_LABELS[i]}: ${formatMoney(amount)}`}
+                          title={`${tr(MONTH_LABELS[i]!)}: ${formatMoney(amount)}`}
                         />
                       ))}
                     </div>

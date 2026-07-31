@@ -5,8 +5,40 @@ import '../format_money.dart';
 import '../models/models.dart';
 import '../format_id.dart';
 import '../services/api_service.dart';
+import '../services/product_packs.dart';
 import '../theme/umkm_theme.dart';
 import '../widgets/ui.dart';
+import '../widgets/feature_data_transfer.dart';
+
+String _formatPackMargin(double? margin) {
+  if (margin == null) return '—';
+  return '${margin.toStringAsFixed(1)}%';
+}
+
+List<Widget> _productEconomicsRows(ActivePack? pack) {
+  if (pack == null) {
+    return [
+      const DetailRow(label: 'Active pack', value: 'No pack price set'),
+    ];
+  }
+  final cost = pack.cost;
+  final profit = cost != null ? pack.price - cost : null;
+  final margin =
+      profit != null && pack.price > 0 ? (profit / pack.price) * 100 : null;
+  return [
+    DetailRow(label: 'Active pack', value: pack.sizeLabel),
+    DetailRow(label: 'Pack sell', value: formatMoney(pack.price)),
+    DetailRow(
+      label: 'Pack cost',
+      value: cost != null ? formatMoney(cost) : '—',
+    ),
+    DetailRow(
+      label: 'Pack profit',
+      value: profit != null ? formatMoney(profit) : '—',
+    ),
+    DetailRow(label: 'Margin', value: _formatPackMargin(margin)),
+  ];
+}
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -19,6 +51,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> items = [];
   String? error;
   bool loading = true;
+  bool _dataSyncOpen = false;
 
   @override
   void initState() {
@@ -300,6 +333,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Future<void> _openView(Product product) async {
+    final pack = getActivePack(product);
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -317,24 +351,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   label: 'Stock',
                   value: '${product.stockQty} ${product.unit.toLowerCase()}',
                 ),
-                DetailRow(
-                  label: 'Unit sell',
-                  value: formatMoney(product.pricePerUnit),
-                ),
-                DetailRow(
-                  label: 'Unit cost',
-                  value: product.costPerUnit != null ? formatMoney(product.costPerUnit!) : '—',
-                ),
-                DetailRow(
-                  label: 'Unit profit',
-                  value: product.unitProfit != null ? formatMoney(product.unitProfit!) : '—',
-                ),
-                DetailRow(
-                  label: 'Margin',
-                  value: product.profitMarginPercent != null
-                      ? '${product.profitMarginPercent}%'
-                      : '—',
-                ),
+                ..._productEconomicsRows(pack),
                 DetailRow(
                   label: 'Details',
                   value: product.details.isEmpty ? '—' : product.details,
@@ -398,6 +415,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  Widget _buildDataSyncSection() {
+    return FeatureDataSyncSection(
+      open: _dataSyncOpen,
+      onToggle: () => setState(() => _dataSyncOpen = !_dataSyncOpen),
+      entity: FeatureExportEntity.products,
+      label: 'Products',
+      onImported: _load,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
@@ -415,12 +442,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
         onRefresh: _load,
         child: items.isEmpty
             ? ListView(
-                children: const [
-                  PageIntro(
+                children: [
+                  const PageIntro(
                     subtitle:
                         'Catalog items and pricing. Stock lives in Warehouse.',
                   ),
-                  SectionLabel(
+                  _buildDataSyncSection(),
+                  const SectionLabel(
                     'Catalog',
                     subtitle: 'Products in this workspace.',
                   ),
@@ -436,14 +464,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 itemCount: items.length + 1,
                 itemBuilder: (context, i) {
                   if (i == 0) {
-                    return const Column(
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        PageIntro(
+                        const PageIntro(
                           subtitle:
                               'Catalog items and pricing. Stock lives in Warehouse.',
                         ),
-                        SectionLabel(
+                        _buildDataSyncSection(),
+                        const SectionLabel(
                           'Catalog',
                           subtitle: 'Products in this workspace.',
                         ),
@@ -451,18 +480,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     );
                   }
                   final p = items[i - 1];
+                  final pack = getActivePack(p);
                   return EntityCard(
                     title: p.name,
                     subtitle: p.unit,
                     details: [
-                      p.sku.isNotEmpty
-                          ? compactLiteralId(p.sku)
+                      p.productId.isNotEmpty
+                          ? compactLiteralId(p.productId)
                           : entityIdLabel(p.id),
                       if (p.unit == 'PCS')
                         'Sell ${formatMoney(p.pricePerUnit)}'
                             '${p.costPerUnit != null ? ' · cost ${formatMoney(p.costPerUnit!)}' : ''}'
+                      else if (pack != null)
+                        'Pack ${pack.sizeLabel} · ${formatMoney(pack.price)}'
+                            '${pack.cost != null ? ' · cost ${formatMoney(pack.cost!)}' : ''}'
                       else
-                        'Rate ${formatMoney(p.pricePerUnit)}/${p.unit.toLowerCase()}',
+                        'No pack price',
                     ],
                     metrics: [
                       ('Stock', formatQty(p.stockQty)),

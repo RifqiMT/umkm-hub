@@ -64,3 +64,4 @@ export function calculateOrderTotals(input: {
 }
 
 export * from './labels';
+export * from './translation';

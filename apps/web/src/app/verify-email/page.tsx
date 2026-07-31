@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth';
+import { useTr } from '@/components/Tr';
 
 type VerifyState =
   | { status: 'pending' }
@@ -72,6 +73,7 @@ function verifyEmailOnce(token: string): Promise<VerifyOk> {
 }
 
 function VerifyEmailInner() {
+  const tr = useTr();
   const searchParams = useSearchParams();
   const token = searchParams.get('token')?.trim() ?? '';
   const [state, setState] = useState<VerifyState>({ status: 'pending' });
@@ -85,7 +87,7 @@ function VerifyEmailInner() {
     if (!token) {
       setState({
         status: 'error',
-        message: 'This verification link is missing a token.',
+        message: tr('This verification link is missing a token.'),
       });
       return;
     }
@@ -107,7 +109,7 @@ function VerifyEmailInner() {
           message:
             err instanceof ApiError
               ? err.message
-              : 'Could not verify this link. Request a new one from Profile.',
+              : tr('Could not verify this link. Request a new one from Profile.'),
         });
       }
     }
@@ -121,13 +123,13 @@ function VerifyEmailInner() {
     <main className="umkm-auth">
       <section className="umkm-auth-hero" aria-hidden={false}>
         <h1>UMKM Hub</h1>
-        <p>Confirm your email to verify your workspace account.</p>
+        <p>{tr('Confirm your email to verify your workspace account.')}</p>
       </section>
       <section className="umkm-auth-panel">
         <div className="umkm-panel umkm-auth-card">
-          <h1 className="umkm-title">Email verification</h1>
+          <h1 className="umkm-title">{tr('Email verification')}</h1>
           {state.status === 'pending' ? (
-            <p className="umkm-sub">Verifying your link…</p>
+            <p className="umkm-sub">{tr('Verifying your link…')}</p>
           ) : null}
           {state.status === 'ok' ? (
             <>
@@ -142,7 +144,7 @@ function VerifyEmailInner() {
                   className="umkm-btn"
                   href={signedIn ? '/profile' : '/login'}
                 >
-                  {signedIn ? 'Back to Profile' : 'Sign in'}
+                  {signedIn ? tr('Back to Profile') : tr('Sign in')}
                 </Link>
               </div>
             </>
@@ -157,7 +159,7 @@ function VerifyEmailInner() {
                   className="umkm-btn"
                   href={signedIn ? '/profile' : '/login'}
                 >
-                  {signedIn ? 'Request a new link' : 'Sign in'}
+                  {signedIn ? tr('Request a new link') : tr('Sign in')}
                 </Link>
               </div>
             </>
@@ -169,13 +171,14 @@ function VerifyEmailInner() {
 }
 
 export default function VerifyEmailPage() {
+  const tr = useTr();
   return (
     <Suspense
       fallback={
         <main className="umkm-auth">
           <section className="umkm-auth-panel">
             <div className="umkm-panel umkm-auth-card">
-              <p className="umkm-sub">Loading…</p>
+              <p className="umkm-sub">{tr('Loading…')}</p>
             </div>
           </section>
         </main>

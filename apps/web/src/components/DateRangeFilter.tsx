@@ -15,6 +15,7 @@ import {
   type DateRangeValue,
 } from '@/lib/date-range-filter';
 import { useAnchoredPanel } from '@/lib/use-anchored-panel';
+import { useTr } from '@/components/Tr';
 
 export type { DateRangeValue };
 
@@ -37,6 +38,7 @@ export function DateRangeFilter({
   className = '',
   disabled = false,
 }: DateRangeFilterProps) {
+  const tr = useTr();
   const autoId = useId();
   const rootId = id ?? autoId;
   const panelId = `${rootId}-panel`;
@@ -115,7 +117,7 @@ export function DateRangeFilter({
               <button
                 type="button"
                 className="umkm-filter-sheet-backdrop"
-                aria-label="Close filter"
+                aria-label={tr('Close filter')}
                 onClick={() => setOpen(false)}
               />
             ) : null}
@@ -129,13 +131,13 @@ export function DateRangeFilter({
             >
               {isSheet ? (
                 <div className="umkm-filter-sheet-head">
-                  <span className="umkm-filter-sheet-title">{label}</span>
+                  <span className="umkm-filter-sheet-title">{tr(label)}</span>
                   <button
                     type="button"
                     className="umkm-filter-sheet-done"
                     onClick={() => setOpen(false)}
                   >
-                    Done
+                    {tr('Done')}
                   </button>
                 </div>
               ) : null}
@@ -146,7 +148,7 @@ export function DateRangeFilter({
                   onClick={showAll}
                   disabled={!active && !draft.from && !draft.to}
                 >
-                  Show all
+                  {tr('Show all')}
                 </button>
               </div>
               <div className="umkm-date-range-filter-fields">
@@ -154,7 +156,7 @@ export function DateRangeFilter({
                   className="umkm-date-range-filter-field"
                   htmlFor={`${rootId}-from`}
                 >
-                  <span>From</span>
+                  <span>{tr('From')}</span>
                   <input
                     id={`${rootId}-from`}
                     type="date"
@@ -171,7 +173,7 @@ export function DateRangeFilter({
                   className="umkm-date-range-filter-field"
                   htmlFor={`${rootId}-to`}
                 >
-                  <span>To</span>
+                  <span>{tr('To')}</span>
                   <input
                     id={`${rootId}-to`}
                     type="date"
@@ -194,7 +196,7 @@ export function DateRangeFilter({
   return (
     <div className={rootClass} ref={rootRef}>
       <span className="umkm-date-range-filter-label" id={`${rootId}-label`}>
-        {label}
+        {tr(label)}
       </span>
       <button
         type="button"

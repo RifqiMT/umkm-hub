@@ -48,6 +48,13 @@ enum PaymentStatus {
 enum InvoiceStatus {
   CREATED
   SENT
+  PARTIALLY_PAID
+  FULLY_PAID
+}
+
+enum BillStatus {
+  CREATED
+  SENT
 }
 
 enum OrderStatus {
@@ -94,6 +101,19 @@ model Profile {
   locationCountry   String?
   locationIpHash    String?
   locationSource    LocationSource?
+  /// Business identity for invoices (defaults to profile name when empty).
+  businessName      String          @default("")
+  businessPhone     String          @default("")
+  businessAddress   String          @default("")
+  /// Seller NPWP for fiscal invoices / e-Faktur prep.
+  npwp              String          @default("")
+  /// PKP — VAT-registered business (shows PPN on invoices).
+  isPkp             Boolean         @default(false)
+  defaultPpnPercent Decimal         @default(11) @db.Decimal(5, 2)
+  /// When true, order totals already include PPN.
+  taxInclusive      Boolean         @default(false)
+  /// Optional prefix for generated invoice numbers (e.g. INV).
+  invoicePrefix     String          @default("")
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -103,9 +123,25 @@ model Profile {
   restocks               WarehouseRestock[]
   revenueTargetPlans     RevenueTargetPlan[]
   emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
 }
 
 model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  profileId  String
+  email      String
+  /// HMAC-SHA256 of the raw token — raw token is never stored.
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+}
+
+model PasswordResetToken {
   id         String    @id @default(uuid())
   profileId  String
   email      String
@@ -125,7 +161,7 @@ model Product {
   profileId    String
   name         String
   /// Human product code: {INITIALS}_{PACK}_ e.g. CB_100_
-  sku          String      @default("")
+  productId    String      @default("")
   unit         ProductUnit @default(PCS)
   stockQty     Decimal     @db.Decimal(28, 4)
   /// Valuation / order base price per 1 unit (pcs, gram, liter, or qty).
@@ -156,7 +192,7 @@ model Product {
   orderLines OrderLine[]
   restocks WarehouseRestock[]
 
-  @@unique([profileId, sku])
+  @@unique([profileId, productId])
   @@index([profileId])
   @@index([profileId, name])
   @@index([profileId, unit])
@@ -169,7 +205,7 @@ model Customer {
   profileId             String
   name                  String
   /// Human + system Customer ID: {NameSegments}{CompanyType}_{uuid} e.g. BuSaR_<uuid>
-  sku                   String             @default("")
+  customerId            String             @default("")
   title                 String
   companyName           String
   companyType           CompanyType
@@ -191,13 +227,15 @@ model Customer {
   relationshipLevel     RelationshipLevel?
   approvalPercentage    Int                @default(0)
   remarks               String             @default("")
+  /// Buyer NPWP for B2B fiscal invoices (optional).
+  npwp                  String             @default("")
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   orders  Order[]
 
-  @@unique([profileId, sku])
+  @@unique([profileId, customerId])
   @@index([profileId])
   @@index([profileId, status])
   @@index([profileId, companyType])
@@ -212,7 +250,7 @@ model Order {
   id                String        @id @default(uuid())
   profileId         String
   /// Human + system Order ID: YYYY_MM_DD_{uuid} e.g. 2026_07_25_<uuid>
-  sku               String        @default("")
+  orderId           String        @default("")
   /// Optional CRM customer for this order (analytics + delivery context).
   customerId        String?
   /// Primary / first line product (denormalized for list + legacy queries).
@@ -237,8 +275,18 @@ model Order {
   totalOrderValue   Decimal       @db.Decimal(18, 4)
   status            OrderStatus   @default(PENDING)
   paymentStatus     PaymentStatus
+  /// Document lifecycle for the customer bill.
+  billStatus        BillStatus    @default(CREATED)
+  billDate          DateTime?     @db.Date
+  /// Collection lifecycle for the invoice (may track paid progress).
   invoiceStatus     InvoiceStatus @default(CREATED)
   invoiceDate       DateTime?     @db.Date
+  /// When payment is expected (delayed payment / credit terms).
+  paymentDueDate    DateTime?     @db.Date
+  /// Human fiscal invoice number (auto-generated when empty on PDF export).
+  fiscalInvoiceNumber String      @default("")
+  /// Override profile PKP for this order; null = use profile default.
+  includePpn        Boolean?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -248,18 +296,21 @@ model Order {
   lines        OrderLine[]
   installments OrderInstallment[]
 
-  @@unique([profileId, sku])
+  @@unique([profileId, orderId])
   @@index([profileId])
   @@index([profileId, productId])
   @@index([profileId, customerId])
   @@index([profileId, paymentStatus])
   @@index([profileId, status])
   @@index([profileId, orderDate])
+  @@index([profileId, billStatus])
   @@index([profileId, invoiceStatus])
   @@index([profileId, orderDate, status])
   @@index([profileId, updatedAt])
   @@index([profileId, shipmentDate])
+  @@index([profileId, billDate])
   @@index([profileId, invoiceDate])
+  @@index([profileId, paymentDueDate])
 }
 
 /// One product/pack row on an order. Orders may have multiple lines.

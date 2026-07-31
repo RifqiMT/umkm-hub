@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
+import { useTr } from '@/components/Tr';
 
 /** Animated body for read-only View panels. Escape closes when onClose is set. */
 export function ViewSheetBody({
@@ -42,12 +43,13 @@ export function ViewIdentity({
   metricHint?: ReactNode;
   children?: ReactNode;
 }) {
+  const tr = useTr();
   const hasMetric = metricLabel != null || metricValue != null;
   return (
     <div className="umkm-view-identity">
       <div className="umkm-view-identity-main">
         {contextLabel ? (
-          <span className="umkm-view-identity-label">{contextLabel}</span>
+          <span className="umkm-view-identity-label">{tr(contextLabel)}</span>
         ) : null}
         {chips ? <div className="umkm-view-chips">{chips}</div> : null}
         {children}
@@ -55,7 +57,7 @@ export function ViewIdentity({
       {hasMetric ? (
         <div className="umkm-view-metric">
           {metricLabel ? (
-            <span className="umkm-view-metric-label">{metricLabel}</span>
+            <span className="umkm-view-metric-label">{tr(metricLabel)}</span>
           ) : null}
           {metricValue != null ? <strong>{metricValue}</strong> : null}
           {metricHint ? (
@@ -91,11 +93,12 @@ export function ViewBlock({
   children: ReactNode;
   className?: string;
 }) {
+  const tr = useTr();
   return (
     <div className={`umkm-view-block ${className}`.trim()}>
       <div className="umkm-view-block-head">
-        <h3>{title}</h3>
-        {description ? <p>{description}</p> : null}
+        <h3>{tr(title)}</h3>
+        {description ? <p>{tr(description)}</p> : null}
       </div>
       {children}
     </div>
@@ -118,6 +121,7 @@ export function ViewFacts({
   columns?: 2 | 3 | 4;
   variant?: 'tiles' | 'strip';
 }) {
+  const tr = useTr();
   return (
     <div
       className={`umkm-view-facts is-cols-${columns}${variant === 'strip' ? ' is-strip' : ''}`}
@@ -129,7 +133,7 @@ export function ViewFacts({
           className={`umkm-view-fact${item.tone && item.tone !== 'default' ? ` is-${item.tone}` : ''}`}
           role="listitem"
         >
-          <span className="umkm-view-fact-label">{item.label}</span>
+          <span className="umkm-view-fact-label">{tr(item.label)}</span>
           <strong className="umkm-view-fact-value">{item.value}</strong>
           {item.sub ? (
             <em className="umkm-view-fact-sub">{item.sub}</em>
@@ -142,6 +146,7 @@ export function ViewFacts({
 
 /** Soft promise / tag chips row. */
 export function ViewTagRow({ tags }: { tags: string[] }) {
+  const tr = useTr();
   if (tags.length === 0) {
     return <span className="umkm-num is-empty">—</span>;
   }
@@ -149,7 +154,7 @@ export function ViewTagRow({ tags }: { tags: string[] }) {
     <div className="umkm-view-tags">
       {tags.map((tag) => (
         <span key={tag} className="umkm-view-tag">
-          {tag}
+          {tr(tag)}
         </span>
       ))}
     </div>

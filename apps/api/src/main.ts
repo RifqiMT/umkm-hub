@@ -24,6 +24,7 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigin.split(',').map((o) => o.trim()),
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
 
   const port = config.get<number>('PORT', 3001);

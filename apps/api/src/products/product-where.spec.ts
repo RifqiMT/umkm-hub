@@ -31,12 +31,12 @@ describe('product where pack-ready merge', () => {
   it('keeps search OR when applying pack-ready', () => {
     const where: LooseWhere = {
       profileId: 'p1',
-      OR: [{ name: { contains: 'tea' } }, { sku: { contains: 'tea' } }],
+      OR: [{ name: { contains: 'tea' } }, { productId: { contains: 'tea' } }],
     };
     mergePackReady(where, 'ready');
     expect(where.OR).toEqual([
       { name: { contains: 'tea' } },
-      { sku: { contains: 'tea' } },
+      { productId: { contains: 'tea' } },
     ]);
     expect(where.AND).toHaveLength(1);
     expect(where.AND?.[0]).toMatchObject({

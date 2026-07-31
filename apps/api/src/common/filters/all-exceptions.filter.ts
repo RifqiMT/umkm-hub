@@ -39,6 +39,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.warn(
         exception instanceof Error ? exception.message : String(exception),
       );
+    } else if (isSchemaDrift(exception)) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = 'Service Unavailable';
+      message =
+        'Database schema is out of date. From the project root run npm run sync, then restart the API.';
+      this.logger.error(
+        exception instanceof Error ? exception.message : String(exception),
+      );
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack);
     } else {
@@ -64,5 +72,43 @@ function isNumericOverflow(exception: unknown): boolean {
   ) {
     return true;
   }
+  return false;
+}
+
+/** Prisma / Postgres errors when code and DB schema are mismatched. */
+function isSchemaDrift(exception: unknown): boolean {
+  if (!(exception instanceof Error)) return false;
+  const msg = exception.message ?? '';
+
+  if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    // Column/table missing, invalid enum value in DB, etc.
+    if (exception.code === 'P2022' || exception.code === 'P2023') {
+      return true;
+    }
+  }
+
+  if (exception instanceof Prisma.PrismaClientValidationError) {
+    return /Unknown (arg|field)|Invalid .* invocation/i.test(msg);
+  }
+
+  if (exception instanceof Prisma.PrismaClientUnknownRequestError) {
+    return (
+      /column .* does not exist/i.test(msg) ||
+      /type .* does not exist/i.test(msg) ||
+      /invalid input value for enum/i.test(msg)
+    );
+  }
+
+  // Prisma 6.x may throw while rendering unknown-field validation errors.
+  if (exception instanceof TypeError) {
+    const stack = exception.stack ?? '';
+    if (
+      /applyUnknownSelectionFieldError|getSubSelectionValue/.test(stack) ||
+      /Unknown field|Unknown arg/i.test(msg)
+    ) {
+      return true;
+    }
+  }
+
   return false;
 }

@@ -1,5 +1,69 @@
 # Changelog — UMKM Hub
 
+## 2026-07-31 — v1.5.233 Documentation suite refresh (fiscal / PDF / statistics)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit vs code tip **v1.5.232**. Documented previously shipped capabilities: Profile invoicing identity (NPWP, PKP, PPN %, taxInclusive, invoicePrefix); Customer NPWP; Order `amountDue` / `includePpn` / `fiscalInvoiceNumber` / `paymentDueDate`; PDF (`GET …/invoice/pdf`) + e-Faktur prep (`…/fiscal?format=csv|xml`); installments and Paid % vs **amountDue**; domain **statistics** embedded on `GET …/summary`; warehouse `PATCH` (web). Narrowed non-goals to **full DJP filing** (not PDF prep). Updated PRODUCT, PRD, USER_STORIES, PERSONAS, VARIABLES (+ charts), METRICS, GUARDRAILS, TRACEABILITY, ARCHITECTURE, DESIGN, PLAN, READMEs. Stamps → **1.5.233**.
+
+## 2026-07-31 — v1.5.232 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Demoted unused web stats/billing helpers and API statistics/invoice internals (`compactOrderReferenceLiteral`, `invoicePdfTemplateRef`, enum key constants, warehouse re-exports). Seed demo helpers made module-private. Kept ops scripts and nested types.
+
+## 2026-07-31 — v1.5.231 Documentation suite refresh (post-1.5.230)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit vs tip **v1.5.230**. Documented bill vs invoice collection, scoped export/import (`pwd1:` + `SANDBOX_EXPORT_PASSWORDS`), feature `entity=` transfer, forgot/reset password, UI translate, human entity ID rename (`productId`/`customerId`/`orderId`), pagination max **500_000**. Fixed FR-P10 “secrets omitted”, NFR-5 cap 100, privileged “bcrypt hashes” wording. Stamps → 1.5.231.
+
+## 2026-07-31 — v1.5.230 Dead code cleanup (translation layer)
+**Author:** Auto (Cursor agent)  
+**Impact:** Removed unused translation helpers (`useTrMap`, `Tr`/`TrInline`/`TrNode`, dead ui-language runtime wrappers, `allTranslateLanguageCodes`, unused number/catalog/cache exports) and demoted Google Translate client constants. Kept seed/backfill/repair scripts.
+
+## 2026-07-31 — v1.5.229 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Removed unused web helpers (`downloadSeriesTableCsv`, `filterLanguages`, `allTranslateLanguageCodes`, `resolveListLimit`, `INVOICE_STATUSES`) and deprecated API export-allowlist aliases. Demoted in-file-only exports (`downloadBlob`, `downloadAuthenticatedFile`, `isUiTranslationActive`, feature-export entity list, import merge stats type). Kept seed/backfill scripts.
+
+## 2026-07-31 — v1.5.228 Export password hashes (sealed vs privileged plaintext)
+**Author:** Auto (Cursor agent)  
+**Impact:** Own-profile exports include the bcrypt password hash sealed as `pwd1:…` (AES-GCM). Allowlisted operator (`rifqi_tjahyono`) all-profile exports include plaintext bcrypt hashes for full sandbox restore. Import restores password hashes from sealed or plaintext export values.
+
+## 2026-07-31 — v1.5.227 Unified JSON/CSV data import (merge)
+**Author:** Auto (Cursor agent)  
+**Impact:** Profile page adds **Import JSON** and **Import unified CSV** (`POST /import?format=json|csv-unified`). Merge-import upserts by id and natural keys (profileName/email, profileId+sku, profileId+year, planId+month); duplicates in the file are collapsed. Allowlisted users (`rifqi_tjahyono`) merge all profiles; others merge own profile only. Location re-sealed on import; passwords never imported.
+
+## 2026-07-31 — v1.5.226 Fix orders schema drift error
+**Author:** Auto (Cursor agent)  
+**Impact:** Idempotent repair migration for bill/invoice columns and enum values. API returns a clear “run npm run sync” message instead of a generic 500 when the DB schema is behind the code.
+
+## 2026-07-30 — v1.5.225 Bill & invoice collection on orders
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders split **bill** (status created/sent + bill date) from **invoice collection** (created, sent, partially paid, fully paid + invoice date). Invoice status is derived from installments and bill status on save; web and mobile show live preview. List rows show bill/invoice labels; API serializes `billDate`.
+
+## 2026-07-27 — v1.5.224 Fix Add order button (lazy catalog deadlock)
+**Author:** Auto (Cursor agent)  
+**Impact:** Orders “Add order” no longer stays permanently disabled when the product catalog is lazy-loaded. Click loads catalog first; empty catalog shows a clear error; button shows Loading… while fetching.
+
+## 2026-07-27 — v1.5.223 Max-quality analytics PNG export
+**Author:** Auto (Cursor agent)  
+**Impact:** Chart PNG export prefers vector SVG→canvas, uses 6–8× pixel ratio (min ~3200px wide), high image-smoothing, and lossless PNG encoding.
+
+## 2026-07-27 — v1.5.222 Analytics CSV button + raw numeric export
+**Author:** Auto (Cursor agent)  
+**Impact:** CSV control moved into the same panel header tools as PNG (incl. fullscreen). Series/rank/catalog CSV exports use raw numeric values (no compact money/qty/% display formatting).
+
+## 2026-07-27 — v1.5.221 Analytics table CSV + chart PNG export
+**Author:** Auto (Cursor agent)  
+**Impact:** Analytics panels: CSV download on every series/rank table (Table view) and product/customer catalog tables; high-resolution PNG (3×) on every graph panel (Graph view + fullscreen). Helpers in `lib/analytics-export.ts` (`html-to-image` + SVG fallback).
+
+## 2026-07-27 — v1.5.220 Unified CSV export
+**Author:** Auto (Cursor agent)  
+**Impact:** Added `GET /export?format=csv-unified` — one CSV with a leading `table` column covering all entities. Profile UI: Download unified CSV alongside JSON and CSV ZIP.
+
+## 2026-07-27 — v1.5.219 Scoped data export for all users
+**Author:** Auto (Cursor agent)  
+**Impact:** Every authenticated user can export JSON/CSV. Allowlisted names (`DATA_EXPORT_PROFILE_NAMES`, default `rifqi_tjahyono`) still dump **all** profiles; others get **own-profile** only (`scope` in eligibility + export payload). Profile UI copy follows scope.
+
+## 2026-07-27 — v1.5.218 Privileged cross-tenant data export
+**Author:** Auto (Cursor agent)  
+**Impact:** Allowlisted profile (`rifqi_tjahyono` by default via `DATA_EXPORT_PROFILE_NAMES`) can download all profiles + business data as JSON or CSV (ZIP). Sealed city/country decrypted to plaintext; `passwordHash`, `locationIpHash`, and verify-token hashes omitted. Profile UI export section + `GET /api/v1/export` / `eligibility`.
+
 ## 2026-07-26 — v1.5.217 Documentation suite refresh (post-1.5.216)
 **Author:** Auto (Cursor agent)  
 **Impact:** Full re-audit against tip **v1.5.216**. Aligned PRODUCT/PRD/USER_STORIES/VARIABLES/METRICS/TRACEABILITY/ARCHITECTURE/GUARDRAILS/PERSONAS/DESIGN/READMEs to live analytics (10-year window, Weekly/Quarterly, progressive `include`/`granularity`, UPT/APF, mix %, Top/Bottom 5), Targets FeatureStage rates (On plan / Pace / Coverage), and profile identity (required immutable email + username, anti-enumeration, verify, sealed location). Fixed contradictions (optional email; 5-year window; stage margin base). Version stamps → 1.5.217.

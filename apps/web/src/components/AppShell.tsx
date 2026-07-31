@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { getStoredProfile, type StoredProfile } from '@/lib/auth';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
+import { TranslationDomSync } from '@/components/TranslationDomSync';
+import { useTr } from '@/components/Tr';
 
 const LINKS = [
   { href: '/dashboard', label: 'Dashboard', icon: '◈' },
@@ -52,6 +54,7 @@ function accountMonogram(name: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const tr = useTr();
   const [profile, setProfile] = useState<StoredProfile | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const moreActive = isMoreRoute(pathname);
@@ -82,11 +85,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ConfirmProvider>
+      <TranslationDomSync />
       <div className={`umkm-shell${navOpen ? ' is-nav-open' : ''}`}>
         <button
           type="button"
           className={`umkm-nav-backdrop${navOpen ? ' is-visible' : ''}`}
-          aria-label="Close menu"
+          aria-label={tr('Close menu')}
           tabIndex={navOpen ? 0 : -1}
           onClick={() => setNavOpen(false)}
         />
@@ -95,18 +99,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           aria-hidden={false}
         >
           <div className="umkm-nav-top">
-            <div className="umkm-brand">
+            <div className="umkm-brand notranslate">
               <span className="umkm-brand-mark" data-short="UH">
                 UMKM Hub
               </span>
-              <span className="umkm-brand-tag">Workspace</span>
+              <span className="umkm-brand-tag">{tr('Workspace')}</span>
             </div>
             <button
               type="button"
               className="umkm-nav-toggle"
               aria-expanded={navOpen}
               aria-controls="umkm-primary-nav"
-              aria-label={navOpen ? 'Close menu' : 'Open menu'}
+              aria-label={navOpen ? tr('Close menu') : tr('Open menu')}
               onClick={() => setNavOpen((v) => !v)}
             >
               <span className="umkm-nav-toggle-bars" aria-hidden>
@@ -115,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <i />
               </span>
               <span className="umkm-nav-toggle-label">
-                {navOpen ? 'Close' : 'Menu'}
+                {navOpen ? tr('Close') : tr('Menu')}
               </span>
             </button>
           </div>
@@ -129,11 +133,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={link.href}
                 href={link.href}
                 data-icon={link.icon}
-                title={link.label}
-                aria-label={link.label}
+                title={tr(link.label)}
+                aria-label={tr(link.label)}
                 className={isActivePath(pathname, link.href) ? 'active' : ''}
               >
-                <span className="umkm-nav-link-label">{link.label}</span>
+                <span className="umkm-nav-link-label">{tr(link.label)}</span>
               </Link>
             ))}
           </nav>
@@ -141,17 +145,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/profile"
               className={`umkm-nav-account${profileActive ? ' is-active' : ''}`}
-              title="Open profile"
-              aria-label={`Account: ${profileName}`}
+              title={tr('Open profile')}
+              aria-label={`${tr('Account')}: ${profileName}`}
               aria-current={profileActive ? 'page' : undefined}
             >
               <span className="umkm-nav-account-mark" aria-hidden>
                 {accountMonogram(profileName === '…' ? 'UH' : profileName)}
+                {profileActive ? (
+                  <span className="umkm-nav-account-status" aria-hidden />
+                ) : null}
               </span>
               <span className="umkm-nav-account-text">
-                <span className="umkm-nav-account-label">Account</span>
-                <strong>{profileName}</strong>
+                <span className="umkm-nav-account-label">
+                  {profileActive ? tr('Your profile') : tr('Signed in')}
+                </span>
+                <strong className="notranslate">@{profileName}</strong>
               </span>
+              <svg
+                className="umkm-nav-account-chevron"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M9 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </Link>
           </div>
         </aside>
@@ -170,7 +195,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="umkm-bottom-nav-icon" aria-hidden>
                   {tab.icon}
                 </span>
-                <span className="umkm-bottom-nav-label">{tab.label}</span>
+                <span className="umkm-bottom-nav-label">{tr(tab.label)}</span>
               </Link>
             );
           })}
@@ -179,14 +204,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={`umkm-bottom-nav-item${moreActive || navOpen ? ' is-active' : ''}`}
             aria-expanded={navOpen}
             aria-controls="umkm-primary-nav"
-            aria-label="More destinations"
+            aria-label={tr('More destinations')}
             data-icon="☰"
             onClick={() => setNavOpen((v) => !v)}
           >
             <span className="umkm-bottom-nav-icon" aria-hidden>
               ☰
             </span>
-            <span className="umkm-bottom-nav-label">More</span>
+            <span className="umkm-bottom-nav-label">{tr('More')}</span>
           </button>
         </nav>
       </div>

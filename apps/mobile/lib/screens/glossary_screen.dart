@@ -285,11 +285,9 @@ class _SectionIntro extends StatelessWidget {
               if (trailing != null) trailing!,
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             body,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
             style: UmkmType.body(size: 13, color: UmkmColors.muted),
           ),
         ],

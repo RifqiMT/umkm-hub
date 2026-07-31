@@ -1,4 +1,7 @@
+'use client';
+
 import type { ReactNode } from 'react';
+import { useTr } from '@/components/Tr';
 
 export function PageHeader({
   title,
@@ -9,11 +12,12 @@ export function PageHeader({
   description?: string;
   actions?: ReactNode;
 }) {
+  const tr = useTr();
   return (
     <header className={`umkm-page-header${actions ? '' : ' is-solo'}`}>
       <div className="umkm-page-header-text">
-        <h1 className="umkm-title">{title}</h1>
-        {description ? <p className="umkm-sub">{description}</p> : null}
+        <h1 className="umkm-title">{tr(title)}</h1>
+        {description ? <p className="umkm-sub">{tr(description)}</p> : null}
       </div>
       {actions ? <div className="umkm-page-actions">{actions}</div> : null}
     </header>
@@ -29,10 +33,11 @@ export function EmptyState({
   description: string;
   children?: ReactNode;
 }) {
+  const tr = useTr();
   return (
     <div className="umkm-empty">
-      <strong>{title}</strong>
-      <p>{description}</p>
+      <strong>{tr(title)}</strong>
+      <p>{tr(description)}</p>
       {children}
     </div>
   );
@@ -56,6 +61,7 @@ export function ContentSection({
   className?: string;
   quiet?: boolean;
 }) {
+  const tr = useTr();
   const hasHead = Boolean(title || description || eyebrow || actions);
   const soloHead = hasHead && !actions;
   return (
@@ -65,10 +71,14 @@ export function ContentSection({
       {hasHead ? (
         <div className="umkm-panel-head">
           <div className="umkm-panel-head-text">
-            {eyebrow ? <span className="umkm-eyebrow">{eyebrow}</span> : null}
-            {title ? <h2 className="umkm-panel-title">{title}</h2> : null}
+            {eyebrow ? (
+              <span className="umkm-eyebrow">{tr(eyebrow)}</span>
+            ) : null}
+            {title ? (
+              <h2 className="umkm-panel-title">{tr(title)}</h2>
+            ) : null}
             {description ? (
-              <p className="umkm-panel-desc">{description}</p>
+              <p className="umkm-panel-desc">{tr(description)}</p>
             ) : null}
           </div>
           {actions ? (
@@ -93,11 +103,12 @@ export function FormSection({
   children: ReactNode;
   className?: string;
 }) {
+  const tr = useTr();
   return (
     <div className={`umkm-form-section ${className}`.trim()}>
       <div className="umkm-form-section-head">
-        <h3>{title}</h3>
-        {description ? <p>{description}</p> : null}
+        <h3>{tr(title)}</h3>
+        {description ? <p>{tr(description)}</p> : null}
       </div>
       {children}
     </div>
@@ -118,10 +129,27 @@ export function DetailItem({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const tr = useTr();
   return (
     <div className={`umkm-detail-item${wide ? ' is-wide' : ''}`}>
-      <dt>{label}</dt>
+      <dt>{tr(label)}</dt>
       <dd>{children ?? '—'}</dd>
     </div>
+  );
+}
+
+/** Form field label — auto-translated like DetailItem. */
+export function FieldLabel({
+  children,
+  htmlFor,
+}: {
+  children: ReactNode;
+  htmlFor?: string;
+}) {
+  const tr = useTr();
+  return (
+    <label htmlFor={htmlFor}>
+      {typeof children === 'string' ? tr(children) : children}
+    </label>
   );
 }

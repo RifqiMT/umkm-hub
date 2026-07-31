@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Sources of truth** | `apps/web/src/app/globals.css`; `apps/mobile/lib/theme/umkm_theme.dart` |
 
 ---
@@ -197,7 +197,9 @@ Rules:
 - Products catalog also filters **Cost set** and **Pack ready** (same readiness rules as Products stage rates)
 - Warehouse inventory also filters **In stock** / **Out of stock** (same rules as Warehouse stage rates)
 - **Products:** name + unit chip + soft SKU; details in View only
-- **Orders list:** date + soft order ID; shipment in View Timeline only; pack = `size × count` + quiet qty/@ price; **Paid** column = installments ÷ total (meter + %)
+- **Orders list:** date + soft order ID; shipment in View Timeline only; pack = `size × count` + quiet qty/@ price; **Paid** column = installments ÷ **amountDue** (meter + %); PDF / fiscal prep actions on order detail
+- **Domain statistics:** filter-aware mix sections below feature stage (Products / Customers / Orders / Warehouse) — complementary to summary rate meters, not a second dashboard
+- **Profile invoicing:** dedicated fiscal identity block (NPWP, PKP, PPN %, taxInclusive, invoice prefix) — calm form density, same tokens as personal details
 - Money: `formatMoney` (million / billion / …); chart axes: `formatCompactAxis` (Mn/Bn); Analytics packs/orders/qty: `formatCompactQty` (same magnitude words as money; under 1 million stays full digits)
 - Chart value axes: `paddedDomain` — **20% below the series minimum value** and **20% above the maximum value**; `axisTicks` for even labels
 

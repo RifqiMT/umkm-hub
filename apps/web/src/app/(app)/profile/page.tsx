@@ -1,18 +1,27 @@
 'use client';
 
-import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, downloadDataExport, uploadDataImport } from '@/lib/api';
 import { confirmDelete } from '@/lib/confirm';
-import { CountryCombobox } from '@/components/CountryCombobox';
-import {
-  ContentSection,
-  FormSection,
-  PageHeader,
-} from '@/components/PageHeader';
+import { useTr } from '@/components/Tr';
 import { clearSession } from '@/lib/auth';
-import { formatDateLabel, formatMoney, formatQty } from '@/lib/format-money';
+import { getUiLanguageCode, resetUiLanguage, setUiLanguageCode } from '@/lib/ui-language';
+import { useTranslationStatus } from '@/hooks/useTranslationStatus';
+import { ProfileInvoicingSection } from '@/app/(app)/profile/ProfileInvoicingSection';
+import { ProfileShell } from '@/app/(app)/profile/ProfileShell';
+import { ProfileSidebar } from '@/app/(app)/profile/ProfileSidebar';
+import { ProfileFeedback } from '@/app/(app)/profile/ProfileFeedback';
+import { ProfilePersonalSection } from '@/app/(app)/profile/ProfilePersonalSection';
+import { ProfileCredentialsSection } from '@/app/(app)/profile/ProfileCredentialsSection';
+import { ProfileOverview } from '@/app/(app)/profile/ProfileOverview';
+import { ProfileDataSection } from '@/app/(app)/profile/ProfileDataSection';
+import { ProfileDangerSection } from '@/app/(app)/profile/ProfileDangerSection';
+import {
+  computeProfileHealth,
+  profileSectionAlerts,
+} from '@/app/(app)/profile/profile-health';
+import { profileSectionDomId, type ProfileSectionId } from '@/app/(app)/profile/profile-sections';
 import type {
   CustomerSummary,
   DetectLocationResponse,
@@ -27,19 +36,6 @@ type WorkspaceSnapshot = {
   customers: CustomerSummary | null;
   orders: OrderSummary | null;
 };
-
-function monogram(name: string) {
-  const parts = name.trim().split(/[._\s-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase() || 'UH';
-}
-
-function shortId(id: string) {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 8)}…${id.slice(-4)}`;
-}
 
 function displayPersonName(profile: Profile | null, fallback: string) {
   const first = profile?.firstName?.trim() ?? '';
@@ -100,6 +96,7 @@ function validatePersonal(
 }
 
 export default function ProfilePage() {
+  const tr = useTr();
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileName, setProfileName] = useState('');
@@ -120,6 +117,15 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('');
   const [loadingCreds, setLoadingCreds] = useState(false);
   const [loadingPersonal, setLoadingPersonal] = useState(false);
+  const [loadingBusiness, setLoadingBusiness] = useState(false);
+  const [businessName, setBusinessName] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [npwp, setNpwp] = useState('');
+  const [isPkp, setIsPkp] = useState(false);
+  const [defaultPpnPercent, setDefaultPpnPercent] = useState(11);
+  const [taxInclusive, setTaxInclusive] = useState(false);
+  const [invoicePrefix, setInvoicePrefix] = useState('');
   const [sendingVerify, setSendingVerify] = useState(false);
   const [devVerifyUrl, setDevVerifyUrl] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
@@ -131,6 +137,22 @@ export default function ProfilePage() {
     orders: null,
   });
   const [snapshotLoading, setSnapshotLoading] = useState(true);
+  const [exportScope, setExportScope] = useState<
+    'all-profiles' | 'own-profile' | null
+  >(null);
+  const [exporting, setExporting] = useState<
+    'json' | 'csv' | 'csv-unified' | null
+  >(null);
+  const [importing, setImporting] = useState<
+    'json' | 'csv-unified' | null
+  >(null);
+  const [uiLanguage, setUiLanguage] = useState<string | null>(null);
+  const { status: translationStatus, progress: translationProgress, retry: retryTranslationUi } =
+    useTranslationStatus();
+
+  useEffect(() => {
+    setUiLanguage(getUiLanguageCode());
+  }, []);
 
   function applyProfile(me: Profile) {
     setProfile(me);
@@ -144,6 +166,14 @@ export default function ProfilePage() {
     setLocationSet(Boolean(me.locationSet));
     setClearLocation(false);
     setDevVerifyUrl(null);
+    setBusinessName(me.businessName ?? '');
+    setBusinessPhone(me.businessPhone ?? '');
+    setBusinessAddress(me.businessAddress ?? '');
+    setNpwp(me.npwp ?? '');
+    setIsPkp(Boolean(me.isPkp));
+    setDefaultPpnPercent(me.defaultPpnPercent ?? 11);
+    setTaxInclusive(Boolean(me.taxInclusive));
+    setInvoicePrefix(me.invoicePrefix ?? '');
   }
 
   async function onSendVerification() {
@@ -229,6 +259,20 @@ export default function ProfilePage() {
       } finally {
         setSnapshotLoading(false);
       }
+
+      try {
+        const eligibility = await api<{
+          allowed: boolean;
+          scope: 'all-profiles' | 'own-profile';
+        }>('/export/eligibility');
+        if (eligibility.allowed) {
+          setExportScope(eligibility.scope);
+        } else {
+          setExportScope(null);
+        }
+      } catch {
+        setExportScope(null);
+      }
     }
     void load();
   }, []);
@@ -297,7 +341,92 @@ export default function ProfilePage() {
     profile?.lastName,
   ]);
 
-  const strength = useMemo(() => passwordStrength(password), [password]);
+  const dirtyBusiness = useMemo(() => {
+    if (!profile) return false;
+    return (
+      businessName.trim() !== (profile.businessName ?? '') ||
+      businessPhone.trim() !== (profile.businessPhone ?? '') ||
+      businessAddress.trim() !== (profile.businessAddress ?? '') ||
+      npwp.trim() !== (profile.npwp ?? '') ||
+      isPkp !== Boolean(profile.isPkp) ||
+      defaultPpnPercent !== (profile.defaultPpnPercent ?? 11) ||
+      taxInclusive !== Boolean(profile.taxInclusive) ||
+      invoicePrefix.trim() !== (profile.invoicePrefix ?? '')
+    );
+  }, [
+    profile,
+    businessName,
+    businessPhone,
+    businessAddress,
+    npwp,
+    isPkp,
+    defaultPpnPercent,
+    taxInclusive,
+    invoicePrefix,
+  ]);
+
+  const invoicingValues = useMemo(
+    () => ({
+      businessName,
+      businessPhone,
+      businessAddress,
+      npwp,
+      isPkp,
+      defaultPpnPercent,
+      taxInclusive,
+      invoicePrefix,
+    }),
+    [
+      businessName,
+      businessPhone,
+      businessAddress,
+      npwp,
+      isPkp,
+      defaultPpnPercent,
+      taxInclusive,
+      invoicePrefix,
+    ],
+  );
+
+  const profileHealth = useMemo(
+    () =>
+      computeProfileHealth({
+        firstName,
+        lastName,
+        email: profile?.email,
+        emailVerified: Boolean(profile?.emailVerified),
+        locationCity,
+        locationCountry,
+        businessName,
+      }),
+    [
+      firstName,
+      lastName,
+      profile?.email,
+      profile?.emailVerified,
+      locationCity,
+      locationCountry,
+      businessName,
+    ],
+  );
+
+  const sectionAlerts = useMemo(
+    () => profileSectionAlerts(profileHealth),
+    [profileHealth],
+  );
+
+  const dirtySections = useMemo(() => {
+    const sections: ProfileSectionId[] = [];
+    if (dirtyPersonal) sections.push('personal');
+    if (dirtyBusiness) sections.push('invoicing');
+    if (dirtyCreds) sections.push('security');
+    return sections;
+  }, [dirtyPersonal, dirtyBusiness, dirtyCreds]);
+
+  const strength = useMemo(() => {
+    const s = passwordStrength(password);
+    return { ...s, label: s.label ? tr(s.label) : '' };
+  }, [password, tr]);
 
   function logout() {
     clearSession();
@@ -395,6 +524,34 @@ export default function ProfilePage() {
     }
   }
 
+  async function onSubmitBusiness(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    setLoadingBusiness(true);
+    try {
+      const updated = await api<Profile>('/profiles/me', {
+        method: 'PATCH',
+        body: {
+          businessName: businessName.trim() || null,
+          businessPhone: businessPhone.trim() || null,
+          businessAddress: businessAddress.trim() || null,
+          npwp: npwp.trim() || null,
+          isPkp,
+          defaultPpnPercent,
+          taxInclusive,
+          invoicePrefix: invoicePrefix.trim() || null,
+        },
+      });
+      applyProfile(updated);
+      setMessage('Invoice profile saved.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Update failed');
+    } finally {
+      setLoadingBusiness(false);
+    }
+  }
+
   async function onDetectLocation() {
     setError('');
     setMessage('');
@@ -474,6 +631,74 @@ export default function ProfilePage() {
     }
   }
 
+  async function onExport(format: 'json' | 'csv' | 'csv-unified') {
+    setError('');
+    setMessage('');
+    setExporting(format);
+    try {
+      const { blob, filename } = await downloadDataExport(format);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      setMessage(
+        format === 'csv'
+          ? 'CSV export downloaded (ZIP with one sheet per table).'
+          : format === 'csv-unified'
+            ? 'Unified CSV downloaded (all tables in one file).'
+            : 'JSON export downloaded.',
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Export failed—please try again.',
+      );
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function onImport(format: 'json' | 'csv-unified', file: File | undefined) {
+    if (!file) return;
+    setError('');
+    setMessage('');
+    setImporting(format);
+    try {
+      const result = await uploadDataImport(format, file);
+      const totals = Object.values(result.merged).reduce(
+        (acc, row) => ({
+          created: acc.created + row.created,
+          updated: acc.updated + row.updated,
+          skipped: acc.skipped + row.skipped,
+        }),
+        { created: 0, updated: 0, skipped: 0 },
+      );
+      setMessage(
+        `Import merged (${result.scope}): ${totals.created} created, ${totals.updated} updated, ${totals.skipped} skipped.`,
+      );
+      setSnapshotLoading(true);
+      try {
+        const [products, customers, orders] = await Promise.all([
+          api<ProductSummary>('/products/summary').catch(() => null),
+          api<CustomerSummary>('/customers/summary').catch(() => null),
+          api<OrderSummary>('/orders/summary').catch(() => null),
+        ]);
+        setSnapshot({ products, customers, orders });
+      } finally {
+        setSnapshotLoading(false);
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Import failed—please try again.',
+      );
+    } finally {
+      setImporting(null);
+    }
+  }
+
   const loginName = profile?.profileName ?? (profileName.trim() || '…');
   const personName = displayPersonName(profile, loginName);
   const avatarLabel =
@@ -489,559 +714,228 @@ export default function ProfilePage() {
 
   return (
     <section className="umkm-profile">
-      <PageHeader
-        title="Profile"
-        description="Your identity, workspace login, security, and a snapshot of what you manage in UMKM Hub."
-        actions={
-          <button
-            type="button"
-            className="umkm-btn secondary"
-            onClick={logout}
-          >
-            Log out
-          </button>
-        }
+      <ProfileShell
+        booting={booting}
+        personName={personName}
+        loginName={loginName}
+        avatarLabel={avatarLabel}
+        showData={Boolean(exportScope)}
+        sectionAlerts={sectionAlerts}
+        dirtySections={dirtySections}
+        onLogout={logout}
       />
 
-      {error ? (
-        <div className="umkm-error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {message ? (
-        <p className="umkm-profile-success" role="status">
-          {message}
-        </p>
-      ) : null}
+      <ProfileFeedback
+        error={error}
+        message={message}
+        onDismiss={() => {
+          setError('');
+          setMessage('');
+        }}
+      />
 
       <div className="umkm-profile-layout">
         <div className="umkm-profile-main-col">
-          <div className="umkm-profile-identity" aria-busy={booting}>
-            {booting ? (
-              <div className="umkm-profile-identity-skel" aria-hidden>
-                <span className="umkm-profile-skel-avatar" />
-                <span className="umkm-profile-skel-lines">
-                  <i />
-                  <i />
-                  <i />
-                </span>
-              </div>
-            ) : (
-              <>
-                <div className="umkm-profile-avatar" aria-hidden>
-                  {monogram(avatarLabel)}
-                </div>
-                <div className="umkm-profile-identity-text">
-                  <p className="umkm-profile-eyebrow">Signed in as</p>
-                  <h2 className="umkm-profile-name">{personName}</h2>
-                  {personName !== loginName ? (
-                    <p className="umkm-profile-login-name">@{loginName}</p>
-                  ) : null}
-                  <dl className="umkm-profile-meta">
-                    <div>
-                      <dt>Member since</dt>
-                      <dd>{formatDateLabel(profile?.createdAt) || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Last updated</dt>
-                      <dd>{formatDateLabel(profile?.updatedAt) || '—'}</dd>
-                    </div>
-                    <div className="umkm-profile-meta-id">
-                      <dt>Profile ID</dt>
-                      <dd>
-                        <code title={profile?.id}>
-                          {shortId(profile?.id ?? '')}
-                        </code>
-                        {profile?.id ? (
-                          <button
-                            type="button"
-                            className="umkm-profile-copy"
-                            onClick={() => void copyProfileId()}
-                          >
-                            {copied ? 'Copied' : 'Copy'}
-                          </button>
-                        ) : null}
-                      </dd>
-                    </div>
-                  </dl>
-                  {(profile?.email ||
-                    profile?.locationCity ||
-                    profile?.locationCountry ||
-                    profile?.accountVerified) && (
-                    <div className="umkm-profile-identity-extra">
-                      <p>
-                        {[
-                          profile?.email,
-                          [profile?.locationCity, profile?.locationCountry]
-                            .filter(Boolean)
-                            .join(', '),
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
-                      {profile?.email ? (
-                        <p className="umkm-profile-verify-row">
-                          <span
-                            className={`umkm-profile-verify-badge${profile.emailVerified ? ' is-ok' : ''}`}
-                          >
-                            {profile.emailVerified
-                              ? 'Email verified'
-                              : 'Email unverified'}
-                          </span>
-                          <span
-                            className={`umkm-profile-verify-badge${profile.accountVerified ? ' is-ok' : ''}`}
-                          >
-                            {profile.accountVerified
-                              ? 'Account verified'
-                              : 'Account unverified'}
-                          </span>
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+          <section
+            id={profileSectionDomId('overview')}
+            className="umkm-profile-section umkm-profile-section-overview"
+          >
+            <ProfileOverview
+              booting={booting}
+              profile={profile}
+              personName={personName}
+              loginName={loginName}
+              avatarLabel={avatarLabel}
+              copied={copied}
+              businessName={businessName}
+              firstName={firstName}
+              lastName={lastName}
+              snapshotLoading={snapshotLoading}
+              snapshot={snapshot}
+              onCopyProfileId={() => void copyProfileId()}
+            />
+          </section>
+
+          <div
+            id={profileSectionDomId('personal')}
+            className="umkm-profile-section"
+          >
+          <ProfilePersonalSection
+            booting={booting}
+            loading={loadingPersonal}
+            dirty={dirtyPersonal}
+            profile={profile}
+            firstName={firstName}
+            lastName={lastName}
+            email={email}
+            locationCity={locationCity}
+            locationCountry={locationCountry}
+            locationSource={locationSource}
+            locationSet={locationSet}
+            clearLocation={clearLocation}
+            locationHint={locationHint}
+            sendingVerify={sendingVerify}
+            devVerifyUrl={devVerifyUrl}
+            detecting={detecting}
+            onSubmit={onSubmitPersonal}
+            onDiscard={() => {
+              if (profile) applyProfile(profile);
+              setError('');
+              setMessage('');
+            }}
+            onFirstNameChange={(value) => {
+              setFirstName(value);
+              setMessage('');
+            }}
+            onLastNameChange={(value) => {
+              setLastName(value);
+              setMessage('');
+            }}
+            onSendVerification={() => void onSendVerification()}
+            onLocationCityChange={(value) => {
+              setLocationCity(value);
+              setLocationSource('MANUAL');
+              setClearLocation(false);
+              setMessage('');
+            }}
+            onLocationCountryChange={(country) => {
+              setLocationCountry(country);
+              setLocationSource('MANUAL');
+              setClearLocation(false);
+              setMessage('');
+            }}
+            onDetectLocation={() => void onDetectLocation()}
+            onClearLocation={() => {
+              setLocationCity('');
+              setLocationCountry('');
+              setLocationSource(null);
+              setClearLocation(true);
+              setMessage('');
+            }}
+          />
           </div>
 
-          <ContentSection
-            className="umkm-profile-snapshot"
-            eyebrow="Workspace"
-            title="At a glance"
-            description="Live counts from your catalog, CRM, and orders—so you know what this login owns."
+          <section
+            id={profileSectionDomId('invoicing')}
+            className="umkm-profile-section umkm-profile-section-invoicing"
           >
-            <ul className="umkm-profile-stats" aria-busy={snapshotLoading}>
-              <li>
-                <span>Products</span>
-                <strong>
-                  {snapshotLoading
-                    ? '…'
-                    : formatQty(snapshot.products?.productCount ?? 0)}
-                </strong>
-                <em>
-                  {snapshot.products
-                    ? `${formatMoney(snapshot.products.inventorySellValue)} stock value`
-                    : 'Catalog SKUs'}
-                </em>
-              </li>
-              <li>
-                <span>Customers</span>
-                <strong>
-                  {snapshotLoading
-                    ? '…'
-                    : formatQty(snapshot.customers?.customerCount ?? 0)}
-                </strong>
-                <em>
-                  {snapshot.customers?.interestedCount != null
-                    ? `${formatQty(snapshot.customers.interestedCount)} interested`
-                    : 'CRM contacts'}
-                </em>
-              </li>
-              <li>
-                <span>Orders</span>
-                <strong>
-                  {snapshotLoading
-                    ? '…'
-                    : formatQty(snapshot.orders?.orderCount ?? 0)}
-                </strong>
-                <em>
-                  {snapshot.orders
-                    ? `${formatMoney(snapshot.orders.totalRevenue)} revenue`
-                    : 'Active sales'}
-                </em>
-              </li>
-              <li>
-                <span>Margin</span>
-                <strong>
-                  {snapshotLoading
-                    ? '…'
-                    : snapshot.orders?.profitMarginRate != null
-                      ? `${snapshot.orders.profitMarginRate.toFixed(1)}%`
-                      : '—'}
-                </strong>
-                <em>From orders with known cost</em>
-              </li>
-            </ul>
-          </ContentSection>
+          <ProfileInvoicingSection
+            values={invoicingValues}
+            onChange={(patch) => {
+              if (patch.businessName !== undefined) {
+                setBusinessName(patch.businessName);
+              }
+              if (patch.businessPhone !== undefined) {
+                setBusinessPhone(patch.businessPhone);
+              }
+              if (patch.businessAddress !== undefined) {
+                setBusinessAddress(patch.businessAddress);
+              }
+              if (patch.npwp !== undefined) setNpwp(patch.npwp);
+              if (patch.isPkp !== undefined) setIsPkp(patch.isPkp);
+              if (patch.defaultPpnPercent !== undefined) {
+                setDefaultPpnPercent(patch.defaultPpnPercent);
+              }
+              if (patch.taxInclusive !== undefined) {
+                setTaxInclusive(patch.taxInclusive);
+              }
+              if (patch.invoicePrefix !== undefined) {
+                setInvoicePrefix(patch.invoicePrefix);
+              }
+              setMessage('');
+            }}
+            onSubmit={(e) => void onSubmitBusiness(e)}
+            onDiscard={() => {
+              if (profile) applyProfile(profile);
+              setError('');
+              setMessage('');
+            }}
+            loading={loadingBusiness}
+            booting={booting}
+            dirty={dirtyBusiness}
+            ownerEmail={profile?.email}
+            loginName={profile?.profileName}
+          />
+          </section>
 
-          <ContentSection
-            className="umkm-form-panel umkm-profile-personal"
-            eyebrow="Identity"
-            title="Personal details"
-            description="Optional contact details for this workspace owner. They are not used for sign-in."
+          <section
+            id={profileSectionDomId('security')}
+            className="umkm-profile-section"
           >
-            <form onSubmit={onSubmitPersonal}>
-              <FormSection
-                title="About you"
-                description="Shown on your profile so you recognize this account at a glance."
-              >
-                <div className="umkm-profile-field-grid">
-                  <div className="umkm-field">
-                    <label htmlFor="profile-first-name">First name</label>
-                    <input
-                      id="profile-first-name"
-                      value={firstName}
-                      onChange={(e) => {
-                        setFirstName(e.target.value);
-                        setMessage('');
-                      }}
-                      maxLength={64}
-                      autoComplete="given-name"
-                      disabled={booting}
-                    />
-                  </div>
-                  <div className="umkm-field">
-                    <label htmlFor="profile-last-name">Last name</label>
-                    <input
-                      id="profile-last-name"
-                      value={lastName}
-                      onChange={(e) => {
-                        setLastName(e.target.value);
-                        setMessage('');
-                      }}
-                      maxLength={64}
-                      autoComplete="family-name"
-                      disabled={booting}
-                    />
-                  </div>
-                </div>
-                <div className="umkm-field">
-                  <label htmlFor="profile-email">Email address</label>
-                  <input
-                    id="profile-email"
-                    type="email"
-                    value={email}
-                    readOnly
-                    maxLength={254}
-                    autoComplete="email"
-                    disabled
-                    aria-describedby="profile-email-status"
-                  />
-                  <p id="profile-email-status" className="umkm-name-check">
-                    Permanently linked to this username — email cannot be
-                    changed.
-                  </p>
-                  <div className="umkm-profile-email-verify">
-                    <p className="umkm-profile-field-hint">
-                      {profile?.emailVerified
-                        ? 'This email is verified and your account is verified.'
-                        : 'Send a verification link to confirm this email and verify your account.'}
-                    </p>
-                    {!profile?.emailVerified && profile?.email ? (
-                      <button
-                        type="button"
-                        className="umkm-btn secondary"
-                        disabled={booting || sendingVerify}
-                        onClick={() => void onSendVerification()}
-                      >
-                        {sendingVerify
-                          ? 'Sending…'
-                          : 'Send verification email'}
-                      </button>
-                    ) : null}
-                    {devVerifyUrl ? (
-                      <div className="umkm-profile-dev-verify" role="status">
-                        <strong>No email provider configured</strong>
-                        <p>
-                          Outbound email is not set up (`RESEND_API_KEY`), so
-                          nothing was sent to your inbox. Open this link to
-                          verify now:
-                        </p>
-                        <a className="umkm-btn" href={devVerifyUrl}>
-                          Open verification link
-                        </a>
-                        <p className="umkm-profile-dev-verify-url">
-                          <a href={devVerifyUrl}>{devVerifyUrl}</a>
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </FormSection>
-              <FormSection
-                className="umkm-profile-location"
-                title="Location"
-                description={locationHint}
-              >
-                <div className="umkm-profile-location-grid">
-                  <div className="umkm-field">
-                    <label htmlFor="profile-city">City</label>
-                    <input
-                      id="profile-city"
-                      value={locationCity}
-                      onChange={(e) => {
-                        setLocationCity(e.target.value);
-                        setLocationSource('MANUAL');
-                        setClearLocation(false);
-                        setMessage('');
-                      }}
-                      maxLength={120}
-                      autoComplete="address-level2"
-                      placeholder="e.g. Jakarta"
-                      disabled={booting}
-                    />
-                  </div>
-                  <div className="umkm-field">
-                    <label htmlFor="profile-country">Country</label>
-                    <CountryCombobox
-                      id="profile-country"
-                      value={locationCountry}
-                      onChange={(country) => {
-                        setLocationCountry(country);
-                        setLocationSource('MANUAL');
-                        setClearLocation(false);
-                        setMessage('');
-                      }}
-                      disabled={booting}
-                      placeholder="Search country…"
-                    />
-                  </div>
-                </div>
-                <div className="umkm-profile-location-actions">
-                  <button
-                    type="button"
-                    className="umkm-btn secondary"
-                    onClick={() => void onDetectLocation()}
-                    disabled={booting || detecting}
-                  >
-                    {detecting ? 'Detecting…' : 'Detect from network'}
-                  </button>
-                  {locationSet ||
-                  locationCity ||
-                  locationCountry ||
-                  clearLocation ? (
-                    <button
-                      type="button"
-                      className="umkm-btn secondary"
-                      disabled={booting}
-                      onClick={() => {
-                        setLocationCity('');
-                        setLocationCountry('');
-                        setLocationSource(null);
-                        setClearLocation(true);
-                        setMessage('');
-                      }}
-                    >
-                      Clear location
-                    </button>
-                  ) : null}
-                  {locationSource === 'IP' && locationSet ? (
-                    <span className="umkm-profile-location-badge">
-                      From network
-                    </span>
-                  ) : null}
-                </div>
-              </FormSection>
-              <div className="umkm-actions umkm-profile-actions">
-                <button
-                  className="umkm-btn"
-                  type="submit"
-                  disabled={loadingPersonal || booting || !dirtyPersonal}
-                >
-                  {loadingPersonal ? 'Saving…' : 'Save personal details'}
-                </button>
-                {dirtyPersonal ? (
-                  <button
-                    type="button"
-                    className="umkm-btn secondary"
-                    disabled={loadingPersonal}
-                    onClick={() => {
-                      if (profile) applyProfile(profile);
-                      setError('');
-                      setMessage('');
-                    }}
-                  >
-                    Discard
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </ContentSection>
-
-          <ContentSection
-            className="umkm-form-panel umkm-profile-credentials"
-            eyebrow="Security"
-            title="Credentials"
-            description="Your username is permanent and unique. You can update your password here."
-          >
-            <form onSubmit={onSubmitCredentials}>
-              <FormSection
-                title="Sign-in details"
-                description="Username was set at registration and cannot be changed."
-              >
-                <div className="umkm-field">
-                  <label htmlFor="profile-name">Username</label>
-                  <input
-                    id="profile-name"
-                    value={profileName}
-                    readOnly
-                    autoComplete="username"
-                    disabled
-                    aria-describedby="profile-name-status"
-                  />
-                  <p id="profile-name-status" className="umkm-name-check">
-                    Username cannot be changed or reused by another account.
-                  </p>
-                </div>
-                <div className="umkm-profile-field-grid">
-                  <div className="umkm-field">
-                    <label htmlFor="profile-password">New password</label>
-                    <div className="umkm-profile-password-wrap">
-                      <input
-                        id="profile-password"
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          setMessage('');
-                        }}
-                        minLength={8}
-                        maxLength={128}
-                        autoComplete="new-password"
-                        placeholder="Leave blank to keep current"
-                        disabled={booting}
-                      />
-                      <button
-                        type="button"
-                        className="umkm-profile-password-toggle"
-                        onClick={() => setShowPassword((v) => !v)}
-                        disabled={!password}
-                      >
-                        {showPassword ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    {password ? (
-                      <p
-                        className={`umkm-profile-strength is-${strength.score}`}
-                        aria-live="polite"
-                      >
-                        <span
-                          className="umkm-profile-strength-bar"
-                          style={{
-                            width: `${(strength.score / 4) * 100}%`,
-                          }}
-                        />
-                        <em>{strength.label}</em>
-                      </p>
-                    ) : (
-                      <p className="umkm-profile-field-hint">
-                        Use 8+ characters. Mixing letters and numbers helps.
-                      </p>
-                    )}
-                  </div>
-                  <div className="umkm-field">
-                    <label htmlFor="profile-password-confirm">
-                      Confirm password
-                    </label>
-                    <input
-                      id="profile-password-confirm"
-                      type={showPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setMessage('');
-                      }}
-                      minLength={8}
-                      maxLength={128}
-                      autoComplete="new-password"
-                      placeholder="Repeat new password"
-                      disabled={booting || !password}
-                    />
-                  </div>
-                </div>
-              </FormSection>
-              <div className="umkm-actions umkm-profile-actions">
-                <button
-                  className="umkm-btn"
-                  type="submit"
-                  disabled={loadingCreds || booting || !dirtyCreds}
-                >
-                  {loadingCreds ? 'Saving…' : 'Save password'}
-                </button>
-                {dirtyCreds ? (
-                  <button
-                    type="button"
-                    className="umkm-btn secondary"
-                    disabled={loadingCreds}
-                    onClick={() => {
-                      setPassword('');
-                      setConfirmPassword('');
-                      setShowPassword(false);
-                      setError('');
-                      setMessage('');
-                    }}
-                  >
-                    Discard
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </ContentSection>
+          <ProfileCredentialsSection
+            booting={booting}
+            loading={loadingCreds}
+            dirty={dirtyCreds}
+            profileName={profileName}
+            password={password}
+            confirmPassword={confirmPassword}
+            showPassword={showPassword}
+            strengthScore={strength.score}
+            strengthLabel={strength.label}
+            onSubmit={onSubmitCredentials}
+            onDiscard={() => {
+              setPassword('');
+              setConfirmPassword('');
+              setShowPassword(false);
+              setError('');
+              setMessage('');
+            }}
+            onPasswordChange={(value) => {
+              setPassword(value);
+              setMessage('');
+            }}
+            onConfirmPasswordChange={(value) => {
+              setConfirmPassword(value);
+              setMessage('');
+            }}
+            onToggleShowPassword={() => setShowPassword((v) => !v)}
+          />
+          </section>
         </div>
 
         <aside className="umkm-profile-side">
-          <ContentSection
-            className="umkm-profile-shortcuts"
-            eyebrow="Shortcuts"
-            title="Go further"
-            description="Jump to tools that help you understand and grow this workspace."
-          >
-            <nav className="umkm-profile-links" aria-label="Profile shortcuts">
-              <Link href="/glossary" className="umkm-profile-link">
-                <strong>Dictionary</strong>
-                <span>Plain-English meanings for every metric</span>
-              </Link>
-              <Link href="/analytics" className="umkm-profile-link">
-                <strong>Analytics</strong>
-                <span>Trends, mix, and lead times</span>
-              </Link>
-              <Link href="/targets" className="umkm-profile-link">
-                <strong>Targets</strong>
-                <span>Annual plan vs actual revenue</span>
-              </Link>
-              <Link href="/dashboard" className="umkm-profile-link">
-                <strong>Dashboard</strong>
-                <span>Period snapshot of the whole workspace</span>
-              </Link>
-            </nav>
-          </ContentSection>
-
-          <ContentSection
-            className="umkm-profile-tips"
-            eyebrow="Tips"
-            title="Keep the account healthy"
-            description="Small habits that protect your data."
-          >
-            <ul className="umkm-profile-checklist">
-              <li>Use a unique password you do not reuse elsewhere.</li>
-              <li>Log out on shared devices when you finish.</li>
-              <li>Delete the profile only after you have exported what you need.</li>
-            </ul>
-          </ContentSection>
+          <ProfileSidebar
+            booting={booting}
+            uiLanguage={uiLanguage}
+            translationStatus={translationStatus}
+            translationProgress={translationProgress}
+            onLanguageChange={(code) => {
+              setUiLanguage(code);
+              setUiLanguageCode(code);
+            }}
+            onRetryTranslation={() => retryTranslationUi()}
+            onResetTranslation={() => resetUiLanguage()}
+          />
         </aside>
       </div>
 
-      <ContentSection
-        className="umkm-profile-danger"
-        eyebrow="Danger zone"
-        title="Delete profile"
-        description="Permanently removes this login and all related products, customers, orders, targets, and warehouse history."
-      >
-        <div className="umkm-profile-danger-body">
-          <p>
-            Deletion cannot be undone. Export anything you need before
-            continuing.
-          </p>
-          <button
-            className="umkm-btn danger"
-            type="button"
-            onClick={() => void onDelete()}
-            disabled={booting || !profile}
-          >
-            Delete profile
-          </button>
+      {exportScope ? (
+        <div
+          id={profileSectionDomId('data')}
+          className="umkm-profile-section umkm-profile-section-wide"
+        >
+          <ProfileDataSection
+            exportScope={exportScope}
+            booting={booting}
+            hasProfile={Boolean(profile)}
+            exporting={exporting}
+            importing={importing}
+            onExport={(format) => void onExport(format)}
+            onImport={(format, file) => void onImport(format, file)}
+          />
         </div>
-      </ContentSection>
+      ) : null}
+
+      <div
+        id={profileSectionDomId('danger')}
+        className="umkm-profile-section umkm-profile-section-wide"
+      >
+        <ProfileDangerSection
+          booting={booting}
+          disabled={!profile}
+          onDelete={() => void onDelete()}
+        />
+      </div>
     </section>
   );
 }

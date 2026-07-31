@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Audience** | Product team, engineering, leadership |
 | **Horizon** | 90-day targets unless noted |
 
@@ -27,6 +27,10 @@
 | Dictionary opens | Metric literacy | Profiles opening `/glossary` or mobile Dictionary in 30d | distinct profiles | Track baseline | Shared language |
 | Target plan coverage | Planning adoption | Profiles with ≥1 target plan | `with_plan / activated` | Track baseline | Targets pull |
 | Installment usage | Payment tracking | Orders with ≥1 installment | `with_installments / orders` | Track baseline | Ops value (Dewi) |
+| PDF download rate | Invoice PDF adoption | Orders with ≥1 PDF download in 30d | `pdf_downloads / active_orders` | Track baseline | Document readiness |
+| Fiscal prep exports | e-Faktur prep usage | CSV/XML fiscal downloads in 30d | distinct profiles exporting | Track baseline | Tax-prep aid (not DJP filing) |
+| PKP profile setup | Invoicing identity | Profiles with `isPkp` or NPWP set | `configured / activated` | Track ↑ | Invoice quality |
+| Statistics panel opens | Domain stats adoption | Profiles opening filter-aware statistics sections | distinct profiles / 30d | Track baseline | Mix insight beyond summary |
 
 ### Metric notes
 - **Actuals** exclude `CANCELLED` and use UTC `orderDate` (shared Targets + Analytics).
@@ -68,10 +72,17 @@
 ### Objective 5 — Platform quality
 | KR | Description | Target |
 |----|-------------|--------|
-| KR1 | Analytics + order + target specs green | CI green |
+| KR1 | Analytics + order + target + fiscal specs green | CI green |
 | KR2 | Web production build | `npm run web:build` green |
 | KR3 | Mobile math + glossary sync tests | `flutter test` / glossary sync green |
 | KR4 | Progressive analytics first paint (summary+active series) | Track vs full overview |
+
+### Objective 6 — Invoice readiness
+| KR | Description | Target |
+|----|-------------|--------|
+| KR1 | Activated profiles with invoicing identity (NPWP or businessName) | Track ↑ |
+| KR2 | Installments never exceed amountDue (API validation) | **100%** of writes |
+| KR3 | PDF + fiscal prep available for non-cancelled orders | **100%** of eligible |
 
 ---
 
@@ -89,6 +100,8 @@ User-facing plain English: **Dictionary** (`/glossary`; mobile Profile → Dicti
 | Stage margin % | Profit ÷ **net** revenue × 100 | Sari |
 | Table margin % | Profit ÷ pre-discount gross × 100 | Sari |
 | Ship / Invoice / First pay / Last pay | Lead-time means (days) | Dewi |
+| Order Paid % | `paidAmount ÷ amountDue × 100` | Dewi |
+| amountDue | Fiscal breakdown total of `totalOrderValue` (PPN-aware) | Dewi |
 | Status mix % | Includes CANCELLED | Dewi |
 | Payment mix % | Non-cancelled payment modes | Dewi |
 | Avg LTV | Linked revenue ÷ active customers | Budi / Sari |

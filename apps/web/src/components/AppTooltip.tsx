@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useTr } from '@/components/Tr';
 
 export type AppTooltipContent = {
   /** Short metric name shown at the top of the bubble. */
@@ -63,19 +64,22 @@ function hasContent({
   return false;
 }
 
-function buildAriaLabel({
-  label,
-  value,
-  description,
-  detail,
-}: AppTooltipContent): string | undefined {
+function buildAriaLabel(
+  {
+    label,
+    value,
+    description,
+    detail,
+  }: AppTooltipContent,
+  tr: (text: string) => string,
+): string | undefined {
   const parts: string[] = [];
-  if (label) parts.push(label);
+  if (label) parts.push(tr(label));
   if (value != null && (typeof value === 'string' || typeof value === 'number')) {
     parts.push(String(value));
   }
-  if (description) parts.push(description);
-  if (detail) parts.push(detail);
+  if (description) parts.push(tr(description));
+  if (detail) parts.push(tr(detail));
   return parts.length ? parts.join('. ') : undefined;
 }
 
@@ -91,6 +95,7 @@ export function AppTooltip({
   embedded = false,
   tone,
 }: AppTooltipProps) {
+  const tr = useTr();
   const tipId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -240,7 +245,7 @@ export function AppTooltip({
     return <>{children}</>;
   }
 
-  const aria = buildAriaLabel(content);
+  const aria = buildAriaLabel(content, tr);
   const showValue = value != null && value !== '';
   const bubbleStyle: CSSProperties = coords
     ? {
@@ -290,16 +295,16 @@ export function AppTooltip({
               onMouseLeave={scheduleHide}
             >
               <div className="umkm-tip-inner">
-                {label ? <p className="umkm-tip-label">{label}</p> : null}
+                {label ? <p className="umkm-tip-label">{tr(label)}</p> : null}
                 {showValue ? (
                   <p className="umkm-tip-value">{value}</p>
                 ) : null}
                 {description ? (
-                  <p className="umkm-tip-desc">{description}</p>
+                  <p className="umkm-tip-desc">{tr(description)}</p>
                 ) : null}
                 {detail ? (
                   <p className="umkm-tip-detail">
-                    <span>{detail}</span>
+                    <span>{tr(detail)}</span>
                   </p>
                 ) : null}
               </div>

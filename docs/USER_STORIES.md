@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
-| **Date** | 2026-07-26 |
+| **Version** | 1.5.233 |
+| **Date** | 2026-07-31 |
 | **Format** | Epic → Story → Acceptance criteria (AC) |
 | **Personas** | Sari (owner), Budi (field), Dewi (ops) — see [PERSONAS.md](./PERSONAS.md) |
 
@@ -35,6 +35,28 @@
 ### US-1.6 Verify email & account
 **As** a user, **I want** to verify my locked email address, **so that** my account is confirmed.  
 **AC:** Send verification issues a 24h single-use link; opening it sets `emailVerifiedAt` and `accountVerifiedAt`; resend throttled; unverified users can still sign in; verify is idempotent; invalid/expired links show a clear error; when Resend unset, Profile may show Open verification link (`devVerifyUrl`).
+
+### US-1.7 Data export (own or all profiles)
+**As** any signed-in user, **I want** to download my profile data as JSON or CSV, **so that** I can back up or review it.  
+**As** an allowlisted operator (`rifqi_tjahyono` by default), **I want** the same export to include every profile, **so that** I can audit the full sandbox.  
+**AC:** `GET /export/eligibility` returns `{ allowed: true, scope }`; `GET /export?format=json|csv|csv-unified` requires JWT; `scope=all-profiles` only for `DATA_EXPORT_PROFILE_NAMES`; otherwise `own-profile`; sealed city/country decrypted; own-profile `passwordHash` sealed as `pwd1:…`; all-profiles dump uses plaintext `password` from `SANDBOX_EXPORT_PASSWORDS` (no `passwordHash`); `locationIpHash` and verify-token hashes omitted; throttled (~5/hour).
+
+### US-1.8 Data import (merge, own or all profiles)
+**As** any signed-in user, **I want** to merge-import a unified JSON or unified CSV export into my profile, **so that** I can restore or sync data without duplicates.  
+**As** an allowlisted operator, **I want** to import all profiles from a full export, **so that** I can restore the whole sandbox.  
+**AC:** `POST /import?format=json|csv-unified` with multipart `file`; same scope rules as export; upsert by id then natural keys (`Product.productId` / `Customer.customerId` / `Order.orderId`, etc.); in-file duplicates collapsed; location re-sealed; password restored from sealed or plaintext export; throttled.
+
+### US-1.9 Forgot / reset password
+**As** a user who forgot my password, **I want** to reset it via email link without revealing whether my login exists, **so that** I can regain access safely.  
+**AC:** Login shows Forgot password; `POST /auth/forgot-password` with username or email returns generic success; email (or `devResetUrl` when Resend unset) carries 24h single-use link; `/reset-password` sets new password ≥8; cooldown 60s; tokens HMAC-hashed at rest.
+
+### US-1.10 Feature-scoped data transfer
+**As** Sari, **I want** to export or import only Products (or Customers / Orders / Warehouse / Targets), **so that** I can move one domain without a full dump.  
+**AC:** UI FeatureDataTransfer on those pages; API `entity=` query on export/import; scope still own vs allowlisted all-profiles for full dumps; feature dumps are authenticated-profile scoped.
+
+### US-1.11 Invoicing identity
+**As** Sari, **I want** to save my business NPWP, PKP, and default PPN settings on Profile, **so that** invoices and e-Faktur prep use the right seller identity.  
+**AC:** Profile invoicing section: business name/phone/address, NPWP, isPkp, defaultPpnPercent, taxInclusive, invoicePrefix; used by PDF/fiscal endpoints.
 
 ---
 
@@ -76,9 +98,13 @@
 **As** Dewi, **I want** to adjust an existing order without delete, **so that** corrections stay auditable.  
 **AC:** Lines add/remove (min 1); stock restore-then-apply; CANCELLED restores stock; totals recalculate.
 
-### US-4.3 Installments & invoice
-**As** Dewi, **I want** to record installments and invoice status, **so that** I know remaining balance and whether the invoice was sent.  
-**AC:** Amount or % of total (stored as amount); dates non-decreasing; sum ≤ total; paidAmount/remainingAmount/Paid % on read; invoiceStatus created/sent.
+### US-4.3 Bill, invoice, installments & amount due
+**As** Dewi, **I want** to track bill delivery, invoice collection, installments, and PPN-aware amount due, **so that** I know what remains unpaid.  
+**AC:** Bill status/date; invoice collection statuses; installments sum ≤ **amountDue**; remaining/Paid % vs amountDue; unpaid invoice mirrors bill when derived; optional paymentDueDate for delayed payment; includePpn / fiscalInvoiceNumber available.
+
+### US-4.6 PDF & e-Faktur prep
+**As** Dewi, **I want** to download a printable PDF and e-Faktur prep files for an order, **so that** I can send documents and prepare tax filing.  
+**AC:** Web downloads `GET /orders/:id/invoice/pdf` and `…/fiscal?format=csv|xml`; uses profile invoicing identity + customer NPWP when set; auto invoice number when empty; files are prep aids—not DJP submission.
 
 ### US-4.4 Stock shortage UX
 **As** Budi, **I want** clear feedback when a line exceeds stock, **so that** I fix qty before save.  
@@ -93,8 +119,12 @@
 ## Epic E5 — Warehouse
 
 ### US-5.1 Restock product
-**As** Sari, **I want** to add stock with a restock date and see inventory valuation, **so that** inventory stays accurate.  
-**AC:** Product picker only; Manual or By pack; history before/after; no edit/delete of restock rows; summary rates filter-aware.
+**As** Sari, **I want** to add or correct stock for an existing product with a restock date and see inventory valuation, **so that** inventory stays accurate.  
+**AC:** Product picker only; Manual or By pack; create increments stock; **web can edit** restock (PATCH adjusts stock by delta); history before/after; no delete; summary + statistics filter-aware.
+
+### US-5.2 Domain statistics
+**As** Sari, **I want** breakdown statistics on Products / Customers / Orders / Warehouse, **so that** I see mix rates beyond headline KPIs.  
+**AC:** Statistics sections respect list filters; data from `statistics` on domain `GET …/summary`; show enum/geo/stock buckets as implemented in `*-statistics.ts`.
 
 ---
 
@@ -120,6 +150,10 @@
 **As** Budi, **I want** average LTV and Top/Bottom customer and product rankings, **so that** I prioritize accounts and SKUs.  
 **AC:** Avg LTV on summary/series; Top **and Bottom** 5 customers by LTV; Top **and Bottom** 5 products by revenue; unlinked orders omitted from LTV/customer views.
 
+### US-7.4 Panel export
+**As** Sari, **I want** to download each analytics table as CSV and each graph as a high-resolution PNG, **so that** I can share or archive a specific view.  
+**AC:** CSV only in Table view and PNG only in Graph view, both in the panel header tools (and fullscreen); catalog sections keep a CSV control; PNG is max practical quality (vector SVG→canvas, 6–8× / ≥~3200px wide, lossless); CSV uses raw numerics; filenames slug from panel/title.
+
 ---
 
 ## Epic E8 — Cross-cutting UX & platform
@@ -144,19 +178,23 @@
 **As** Sari, **I want** a dashboard that shows period-scoped order health and workspace domains, **so that** I start the day oriented.  
 **AC:** Period filter scopes order summary; catalog/CRM summaries workspace-wide; Orders featured with Products/Customers panels; rail to Warehouse/Targets/Analytics.
 
+### US-8.5 UI language
+**As** any user, **I want** to switch the UI language, **so that** I can operate the app in a language I read well.  
+**AC:** Language control in shell/Profile; auth pages use public translate batch; product names and human entity IDs stay source language; batch ≤40×500 chars; graceful degrade if translate fails.
+
 ---
 
 ## Story → requirement map (summary)
 
 | Epic | Primary FR IDs |
 |------|----------------|
-| E1 Profile | FR-P1–P9 |
+| E1 Profile | FR-P1–P14 |
 | E2 Products | FR-PR1–PR3 |
-| E3 Customers | FR-C1–C4 |
-| E4 Orders | FR-O1–O14 |
+| E3 Customers | FR-C1–C5 |
+| E4 Orders | FR-O1–O18 |
 | E5 Warehouse | FR-W1–W6 |
 | E6 Targets | FR-T1–T6 |
-| E7 Analytics | FR-A1–A19 |
-| E8 UX / Dashboard | FR-UX1–UX6, FR-D1–D4 |
+| E7 Analytics | FR-A1–A20 |
+| E8 UX / Dashboard | FR-UX1–UX8, FR-D1–D4 |
 
 Full FR text: [PRD.md](./PRD.md). Traceability: [TRACEABILITY.md](./TRACEABILITY.md).

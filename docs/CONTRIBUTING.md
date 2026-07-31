@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.217 |
+| **Version** | 1.5.233 |
 | **Related** | [ARCHITECTURE.md](./ARCHITECTURE.md), [GUARDRAILS.md](./GUARDRAILS.md), root [README.md](../README.md) |
 
 ---
@@ -45,6 +45,8 @@ What `scripts/sync-env.sh` does:
 |-----|----------|--------------------|
 | API | `apps/api/.env.example` | `apps/api/.env` |
 | Web | `apps/web/.env.example` | `apps/web/.env.local` |
+
+Notable optional API keys (never commit real values): `PASSWORD_RESET_SECRET`, `PROFILE_LOCATION_SECRET`, `DATA_EXPORT_PROFILE_NAMES`, `SANDBOX_EXPORT_PASSWORDS`, `IMPORT_BOOTSTRAP_PASSWORD`, `RESEND_API_KEY`, `APP_PUBLIC_URL`.
 
 If `npm run sync` warns about a missing key, copy the new line from the example into your local file and set a value.
 

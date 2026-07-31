@@ -25,28 +25,39 @@ export function orderPaidAmount(order: {
   return sumInstallmentAmounts(order.installments);
 }
 
+/** Invoice amount due; falls back to net order value when omitted. */
+function orderAmountDue(order: {
+  amountDue?: number | null;
+  totalOrderValue: number;
+}): number {
+  const due = order.amountDue ?? order.totalOrderValue;
+  return Number(due) || 0;
+}
+
 /** True when remaining ≈ 0 (same rule as summary full-payment SQL). */
 export function isOrderFullyPaid(order: {
+  amountDue?: number | null;
   totalOrderValue: number;
   paidAmount?: number | null;
   installments?: Array<{ amount: number }> | null;
 }): boolean {
-  const total = Number(order.totalOrderValue) || 0;
+  const total = orderAmountDue(order);
   if (!(total > 0)) return false;
   return orderPaidAmount(order) >= total - PAYMENT_EPSILON;
 }
 
 /**
- * Paid ÷ total × 100 for list/KPI display.
+ * Paid ÷ amount due × 100 for list/KPI display.
  * Fully paid orders always report 100 (avoids 99.99 vs 100 drift).
- * Null when total ≤ 0.
+ * Null when amount due ≤ 0.
  */
 export function orderPaymentRatePercent(order: {
+  amountDue?: number | null;
   totalOrderValue: number;
   paidAmount?: number | null;
   installments?: Array<{ amount: number }> | null;
 }): number | null {
-  const total = Number(order.totalOrderValue) || 0;
+  const total = orderAmountDue(order);
   if (!(total > 0)) return null;
   if (isOrderFullyPaid(order)) return 100;
   const paid = Math.max(0, orderPaidAmount(order));
@@ -61,6 +72,7 @@ export function orderPaymentRatePercent(order: {
 export function fullPaymentRateFromOrders(
   orders: Array<{
     status?: string | null;
+    amountDue?: number | null;
     totalOrderValue: number;
     paidAmount?: number | null;
     installments?: Array<{ amount: number }> | null;

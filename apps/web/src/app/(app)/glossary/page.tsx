@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { EmptyState, PageHeader } from '@/components/PageHeader';
+import { useTr } from '@/components/Tr';
 import {
   GLOSSARY_FEATURE_LABELS,
   GLOSSARY_FEATURES,
@@ -201,6 +202,7 @@ function TermList({
 }
 
 export default function GlossaryPage() {
+  const tr = useTr();
   const [search, setSearch] = useState('');
   const [feature, setFeature] = useState<FeatureFilter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
@@ -272,7 +274,7 @@ export default function GlossaryPage() {
   }
 
   const countLabel =
-    entries.length === 1 ? '1 term' : `${entries.length} terms`;
+    entries.length === 1 ? tr('1 term') : tr(`${entries.length} terms`);
 
   const showGrouped = !queryActive && feature === 'all';
 
@@ -283,7 +285,7 @@ export default function GlossaryPage() {
       <div className="umkm-glossary-toolbar">
         <div className="umkm-glossary-toolbar-top">
           <label className="umkm-glossary-search">
-            <span className="umkm-field-label">Search terms</span>
+            <span className="umkm-field-label">{tr('Search terms')}</span>
             <span className="umkm-glossary-search-field">
               <span className="umkm-glossary-search-icon" aria-hidden="true" />
               <input
@@ -303,9 +305,9 @@ export default function GlossaryPage() {
                     setSearch('');
                     searchRef.current?.focus();
                   }}
-                  aria-label="Clear search"
+                  aria-label={tr('Clear search')}
                 >
-                  Clear
+                  {tr('Clear')}
                 </button>
               ) : (
                 <kbd className="umkm-glossary-kbd" title="Press / to search">
@@ -319,9 +321,9 @@ export default function GlossaryPage() {
             <span>
               {feature === 'all'
                 ? queryActive
-                  ? ' matching'
-                  : ' across all features'
-                : ` in ${GLOSSARY_FEATURE_LABELS[feature]}`}
+                  ? tr(' matching')
+                  : tr(' across all features')
+                : ` ${tr('in')} ${tr(GLOSSARY_FEATURE_LABELS[feature])}`}
             </span>
           </p>
         </div>
@@ -358,18 +360,18 @@ export default function GlossaryPage() {
               <header className="umkm-glossary-section-head">
                 <div className="umkm-glossary-section-head-row">
                   <h2 id={`glossary-title-${group.feature}`}>
-                    {GLOSSARY_FEATURE_LABELS[group.feature]}
+                    {tr(GLOSSARY_FEATURE_LABELS[group.feature])}
                   </h2>
                   <div className="umkm-glossary-section-actions">
                     <span className="umkm-glossary-section-count">
-                      {group.entries.length} terms
+                      {group.entries.length} {tr('terms')}
                     </span>
                     <button
                       type="button"
                       className="umkm-glossary-focus"
                       onClick={() => selectFeature(group.feature)}
                     >
-                      Only this
+                      {tr('Only this')}
                     </button>
                   </div>
                 </div>
@@ -394,13 +396,13 @@ export default function GlossaryPage() {
           <header className="umkm-glossary-section-head">
             <h2 id="glossary-section-title">
               {queryActive
-                ? 'Search results'
-                : GLOSSARY_FEATURE_LABELS[feature as GlossaryFeature]}
+                ? tr('Search results')
+                : tr(GLOSSARY_FEATURE_LABELS[feature as GlossaryFeature])}
             </h2>
             {!queryActive && feature !== 'all' ? (
-              <p>{GLOSSARY_SECTION_INTROS[feature]}</p>
+              <p>{tr(GLOSSARY_SECTION_INTROS[feature])}</p>
             ) : (
-              <p>Open a card for the full meaning and formula.</p>
+              <p>{tr('Open a card for the full meaning and formula.')}</p>
             )}
           </header>
           <TermList

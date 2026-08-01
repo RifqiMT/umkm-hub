@@ -107,6 +107,8 @@ Vercel hosts your website. Some settings are already there; you only add the **t
 
 ### Step 2.1 — Open environment variables
 
+**Important:** In Vercel → **umkm-hub-web** → **Settings** → **General**, set **Root Directory** to `apps/web` (if not already). The repo also includes a root `vercel.json` as a fallback for monorepo builds.
+
 1. Go to: https://vercel.com/rifqimtjahyono-3455s-projects/umkm-hub-web/settings/environment-variables  
 2. You should see variables like `NEXT_PUBLIC_API_URL` already listed.
 

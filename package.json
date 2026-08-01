@@ -16,6 +16,7 @@
     "web:dev": "npm --prefix apps/web run dev",
     "web:dev:clean": "rm -rf apps/web/.next && npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
+    "build": "npm --prefix apps/web run build",
     "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "deploy:env": "bash scripts/print-production-env.sh",
     "setup:check": "bash scripts/setup-check.sh",

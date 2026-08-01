@@ -27,9 +27,9 @@ async function bootstrap() {
     exposedHeaders: ['Content-Disposition'],
   });
 
-  const port = config.get<number>('PORT', 3001);
-  await app.listen(port);
-  logger.log(`UMKM Hub API listening on http://localhost:${port}/api/v1`);
+  const port = Number(process.env.PORT) || config.get<number>('PORT', 3001);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`UMKM Hub API listening on port ${port} (/api/v1)`);
 }
 
 bootstrap().catch((err: unknown) => {

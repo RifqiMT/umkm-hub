@@ -1,36 +1,31 @@
 # Render Blueprint — UMKM Hub API + PostgreSQL (FREE tier)
 # https://render.com/docs/blueprint-spec
 #
-# Free tier notes (Render docs):
-# - Web service: spins down after ~15 min idle; first request may take 30–60s (cold start)
-# - Postgres free: deleted after 30 days — upgrade before then for production data retention
-# - Redis: use Upstash free tier (set UPSTASH_* env vars manually after deploy)
-#
-# After deploy:
-# 1. Environment → set FIREBASE_SERVICE_ACCOUNT_JSON (Firebase service account JSON)
-# 2. Environment → set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
-# 3. Vercel NEXT_PUBLIC_API_URL → https://umkm-hub-api.onrender.com/api/v1
+# Free tier notes:
+# - Web service sleeps after ~15 min idle (cold start ~30–60s)
+# - Postgres free DB is deleted after 30 days
+# - Redis: Upstash free tier (add UPSTASH_* manually after deploy)
 
 databases:
   - name: umkm-hub-db
     databaseName: umkm_hub
     user: umkm
-    plan: free # Render free Postgres (30-day limit — see note above)
+    plan: free
 
 services:
   - type: web
     name: umkm-hub-api
-    runtime: docker
-    plan: free # Render free web service (may sleep when idle)
-    rootDir: .
-    dockerfilePath: ./apps/api/Dockerfile
-    dockerContext: ./apps/api
+    runtime: node
+    plan: free
+    rootDir: apps/api
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start:prod
     healthCheckPath: /api/v1/health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "3001"
       - key: FIREBASE_PROJECT_ID
         value: umkm-hub-2b955
       - key: DATABASE_URL

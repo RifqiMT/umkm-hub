@@ -190,14 +190,20 @@ export type ProductStockSales = {
   /** Current on-hand stock. */
   currentStocks: number;
   soldStocks: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   /** Discount-allocated net revenue. */
   revenue: number;
   discount: number;
   discountPercent: number | null;
   /** sold × catalog costPerUnit; null when cost unset. */
   cost: number | null;
+  /** Cost as % of gross (revenue + discount). */
+  costPercent: number | null;
   /** revenue − cost; null when cost unset. */
   profit: number | null;
+  /** Profit margin as % of gross (revenue + discount). */
+  marginPercent: number | null;
   sellThroughRate: number | null;
   inventoryTurnover: number | null;
   stockToSalesRatio: number | null;
@@ -294,6 +300,8 @@ export type CustomerOrderTotals = {
   phone: string;
   /** Σ Order.lineTotal (pre-discount, non-cancelled). */
   totals: number;
+  /** Alias of totals — pre-discount gross revenue. */
+  grossRevenue: number;
   /** Σ (lineTotal − totalOrderValue) for non-cancelled. */
   discount: number;
   /** Σ Order.totalOrderValue (post-discount, non-cancelled). */
@@ -573,6 +581,8 @@ export type AnalyticsProductRow = {
   qtySold: number;
   /** Sum of pack counts across lines for this product. */
   packsSold: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   revenue: number;
   /** Net revenue ÷ distinct orders. */
   avgOrderValue: number | null;
@@ -600,6 +610,8 @@ export type AnalyticsCustomerRow = {
   orderCount: number;
   /** Sum of packs across the customer’s orders in scope. */
   packsSold: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   revenue: number;
   avgOrderValue: number | null;
   /** UTC days from first → second order for this customer. */

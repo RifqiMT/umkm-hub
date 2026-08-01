@@ -241,14 +241,29 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     aliases: ['Sold', 'sold stocks', 'units sold', 'qty sold'],
   },
   {
-    id: 'products.stockSales.revenue',
-    label: 'Product revenue (Stock & sales)',
+    id: 'products.stockSales.grossRevenue',
+    label: 'Gross revenue (Stock & sales)',
     description:
-      'Net sales money attributed to this product across all non-cancelled orders, after sharing each order’s discount across its lines. Same allocation idea as Analytics product revenue, but Stock & sales covers the full catalog history in view rather than an Analytics timeline.',
+      'Pre-discount sales attributed to this product: allocated net revenue plus allocated discount. On Stock & sales and Analytics tables it is the primary figure in the combined Revenue column.',
+    formula: 'Net revenue + discount (allocated)',
+    features: ['products', 'analytics'],
+    aliases: ['Gross', 'Gross revenue', 'pre-discount revenue', 'gross'],
+  },
+  {
+    id: 'products.stockSales.revenue',
+    label: 'Net revenue (Stock & sales)',
+    description:
+      'Post-discount sales attributed to this product across all non-cancelled orders, after sharing each order’s discount across its lines. On Stock & sales and Analytics tables it appears on the Revenue column subline as Net …, under the gross primary figure.',
     formula:
       'For each line: line total × (order total ÷ order subtotal); then add those shares',
-    features: ['products'],
-    aliases: ['Revenue', 'stock sales revenue', 'allocated revenue'],
+    features: ['products', 'analytics'],
+    aliases: [
+      'Net revenue',
+      'Revenue',
+      'stock sales revenue',
+      'allocated revenue',
+      'net',
+    ],
   },
   {
     id: 'products.stockSales.discount',
@@ -264,19 +279,21 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'products.stockSales.cost',
     label: 'Product cost (Stock & sales)',
     description:
-      'Estimated cost of goods sold for this product: units sold times the current catalog unit cost. If the product has no unit cost, Cost and Profit show as empty. This uses today’s catalog cost, not a historical cost snapshot.',
-    formula: 'Sold stocks × unit cost (blank when unit cost is unset)',
+      'Estimated cost of goods sold for this product: units sold times the current catalog unit cost. The column also shows cost as a percent of gross (revenue + discount), same basis as Discount % and Profit margin %. If the product has no unit cost, Cost and Profit show as empty. This uses today’s catalog cost, not a historical cost snapshot.',
+    formula:
+      'Sold stocks × unit cost; Cost % = cost ÷ (revenue + discount) × 100 (blank when unit cost is unset or gross is 0)',
     features: ['products'],
-    aliases: ['Cost', 'stock sales cost', 'COGS', 'product COGS'],
+    aliases: ['Cost', 'stock sales cost', 'COGS', 'product COGS', 'Cost %'],
   },
   {
     id: 'products.stockSales.profit',
     label: 'Product profit (Stock & sales)',
     description:
-      'Estimated profit for this product on Stock & sales: allocated net revenue minus estimated cost of units sold. Blank when unit cost is unset so profit is not invented.',
-    formula: 'Revenue − cost (blank when cost is unset)',
+      'Estimated profit for this product on Stock & sales: allocated net revenue minus estimated cost of units sold. The column also shows margin as a percent of gross (revenue + discount). Discount % + Cost % + Margin % is about 100% when cost is set. Blank when unit cost is unset so profit is not invented.',
+    formula:
+      'Revenue − cost; Margin % = profit ÷ (revenue + discount) × 100 (blank when cost is unset or gross is 0)',
     features: ['products'],
-    aliases: ['Profit', 'stock sales profit'],
+    aliases: ['Profit', 'stock sales profit', 'Margin %', 'profit margin'],
   },
   {
     id: 'products.stockSales.sellThroughRate',
@@ -394,31 +411,43 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
   // -- Customers Order totals table --
   {
     id: 'customers.orderTotals.totals',
-    label: 'Customer totals (pre-discount)',
+    label: 'Gross revenue (Order totals)',
     description:
-      'On the Customers Order totals table, the sum of linked order subtotals before order-level discounts. Only non-cancelled orders that name this customer are included. Compare with Order total to see how much discount was given.',
+      'On the Customers Order totals table, Gross revenue is the sum of linked order subtotals before order-level discounts (API fields totals and grossRevenue). Only non-cancelled orders that name this customer are included. Compare with Net revenue to see how much discount was given.',
     formula: 'Add line totals (subtotals) of linked non-cancelled orders',
     features: ['customers'],
-    aliases: ['Totals', 'customer totals', 'pre-discount totals'],
+    aliases: [
+      'Gross revenue',
+      'Gross',
+      'Totals',
+      'customer totals',
+      'pre-discount totals',
+    ],
   },
   {
     id: 'customers.orderTotals.discount',
     label: 'Customer discount',
     description:
-      'Absolute discount money taken off this customer’s linked non-cancelled orders (subtotal minus final total on each order). The column may also show discount as a percent of Totals.',
+      'Absolute discount money taken off this customer’s linked non-cancelled orders (subtotal minus final total on each order). The column may also show discount as a percent of Gross revenue.',
     formula:
-      'Add (order subtotal − order total) for linked non-cancelled orders; Discount % = discount ÷ totals × 100',
+      'Add (order subtotal − order total) for linked non-cancelled orders; Discount % = discount ÷ gross revenue × 100',
     features: ['customers'],
     aliases: ['Discount', 'customer discount amount'],
   },
   {
     id: 'customers.orderTotals.orderTotal',
-    label: 'Customer order total',
+    label: 'Net revenue (Order totals)',
     description:
-      'Post-discount commercial value of this customer’s linked non-cancelled orders. This is the money side of Order totals and the numerator for customer AOV.',
+      'Post-discount commercial value of this customer’s linked non-cancelled orders. UI label is Net revenue (same idea as Stock & sales / Analytics). This is the numerator for customer AOV.',
     formula: 'Add final order totals of linked non-cancelled orders',
     features: ['customers'],
-    aliases: ['Order total', 'customer order total', 'linked revenue'],
+    aliases: [
+      'Net revenue',
+      'Order total',
+      'customer order total',
+      'linked revenue',
+      'net',
+    ],
   },
   {
     id: 'customers.orderTotals.orderCount',

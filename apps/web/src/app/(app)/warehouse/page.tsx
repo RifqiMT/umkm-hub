@@ -11,7 +11,10 @@ import {
   PageHeader,
 } from '@/components/PageHeader';
 import { WarehouseStatisticsSection } from '@/app/(app)/warehouse/WarehouseStatisticsSection';
-import { WarehouseSoldHistorySection } from '@/app/(app)/warehouse/WarehouseSoldHistorySection';
+import {
+  WarehouseSoldHistorySection,
+  WarehouseSoldHistoryView,
+} from '@/app/(app)/warehouse/WarehouseSoldHistorySection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
@@ -42,6 +45,7 @@ import type {
   Paginated,
   Product,
   WarehouseRestock,
+  WarehouseSale,
   WarehouseSummary,
 } from '@/lib/types';
 import {
@@ -323,6 +327,7 @@ export default function WarehousePage() {
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [viewingRestock, setViewingRestock] =
     useState<WarehouseRestock | null>(null);
+  const [viewingSale, setViewingSale] = useState<WarehouseSale | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
@@ -558,6 +563,7 @@ export default function WarehousePage() {
   function startCreate() {
     setViewingProduct(null);
     setViewingRestock(null);
+    setViewingSale(null);
     setEditingRestockId(null);
     setForm(emptyForm(products[0]));
     setFormOpen(true);
@@ -566,6 +572,7 @@ export default function WarehousePage() {
   function startRestock(product: Product) {
     setViewingProduct(null);
     setViewingRestock(null);
+    setViewingSale(null);
     setEditingRestockId(null);
     setForm(emptyForm(product));
     setFormOpen(true);
@@ -576,6 +583,7 @@ export default function WarehousePage() {
       products.find((p) => p.id === restock.productId) ?? restock.product ?? null;
     setViewingProduct(null);
     setViewingRestock(null);
+    setViewingSale(null);
     setEditingRestockId(restock.id);
     setForm(formFromRestock(restock, product));
     setFormOpen(true);
@@ -584,19 +592,33 @@ export default function WarehousePage() {
   function startViewProduct(product: Product) {
     setFormOpen(false);
     setViewingRestock(null);
+    setViewingSale(null);
     setViewingProduct(product);
   }
 
   function startViewRestock(restock: WarehouseRestock) {
     setFormOpen(false);
     setViewingProduct(null);
+    setViewingSale(null);
     setViewingRestock(restock);
+  }
+
+  function openSoldHistoryView(row: WarehouseSale) {
+    setFormOpen(false);
+    setViewingProduct(null);
+    setViewingRestock(null);
+    setViewingSale(row);
+  }
+
+  function closeSoldHistoryView() {
+    setViewingSale(null);
   }
 
   function resetForm() {
     setFormOpen(false);
     setViewingProduct(null);
     setViewingRestock(null);
+    setViewingSale(null);
     setEditingRestockId(null);
     setForm(emptyForm(products[0]));
   }
@@ -604,6 +626,7 @@ export default function WarehousePage() {
   function closeView() {
     setViewingProduct(null);
     setViewingRestock(null);
+    setViewingSale(null);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -639,7 +662,11 @@ export default function WarehousePage() {
     }
   }
 
-  const focusMode = formOpen || Boolean(viewingProduct) || Boolean(viewingRestock);
+  const focusMode =
+    formOpen ||
+    Boolean(viewingProduct) ||
+    Boolean(viewingRestock) ||
+    Boolean(viewingSale);
   const filtersActive =
     debouncedSearch.trim().length > 0 ||
     unitFilters.length > 0 ||
@@ -801,6 +828,13 @@ export default function WarehousePage() {
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
+
+      {viewingSale ? (
+        <WarehouseSoldHistoryView
+          row={viewingSale}
+          onClose={closeSoldHistoryView}
+        />
+      ) : null}
 
       {viewingProduct ? (
         <ContentSection
@@ -2109,7 +2143,10 @@ export default function WarehousePage() {
             )}
           </ContentSection>
 
-          <WarehouseSoldHistorySection search={debouncedSearch} />
+          <WarehouseSoldHistorySection
+            search={debouncedSearch}
+            onView={openSoldHistoryView}
+          />
 
           <ContentSection eyebrow="Statistics" quiet>
             <WarehouseStatisticsSection

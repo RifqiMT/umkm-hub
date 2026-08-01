@@ -28,8 +28,13 @@ export type CustomerOrderTotalsRow = {
   companyType: string;
   email: string;
   phone: string;
-  /** Σ Order.lineTotal (pre-discount, non-cancelled). */
+  /**
+   * Σ Order.lineTotal (pre-discount, non-cancelled).
+   * Same value as grossRevenue; kept for existing clients.
+   */
   totals: number;
+  /** Alias of totals — pre-discount gross revenue. */
+  grossRevenue: number;
   /** Σ (lineTotal − totalOrderValue) for non-cancelled. */
   discount: number;
   /** Σ Order.totalOrderValue (post-discount, non-cancelled). */
@@ -87,6 +92,7 @@ export function serializeCustomerOrderTotals(
     email: row.email,
     phone: row.phone,
     totals,
+    grossRevenue: totals,
     discount,
     orderTotal,
     orderCount,

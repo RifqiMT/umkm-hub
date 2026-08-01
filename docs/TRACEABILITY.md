@@ -32,13 +32,13 @@
 | FR-PR1 Product code | `Product.productId` builder | `/products` | ProductsScreen | `product-sku.spec.ts` |
 | FR-PR2 Pack pricing + COGS | `/products` CRUD | `/products` | ProductsScreen | `product-pricing.spec.ts`, `product-pack-math.spec.ts` |
 | FR-PR3 Product CRUD / delete guard | ProductsService | `/products` | ProductsScreen | ProductsService |
-| FR-PR4 Product stock & sales | `GET /products/stock-sales` | `ProductStockSalesSection` | — (web-first) | `product-stock-sales.spec.ts` |
+| FR-PR4 Product stock & sales | `GET /products/stock-sales` | `ProductStockSalesSection` + exclusive **Product performance** View (`ProductStockSalesPerformanceView`, page focusMode) | — (web-first) | `product-stock-sales.spec.ts` |
 | FR-C1 Customer code | `Customer.customerId` builder | `/customers` | CustomersScreen | `customer-sku.spec.ts` |
 | FR-C2 Customer fields | `/customers` | `/customers` | CustomersScreen | CustomersService |
 | FR-C3 Postal geo fill | `GET /geo/postal-lookup` | Customer form | Customer form | `postal-lookup.util.spec.ts` |
 | FR-C4 Customer CRUD + filters | `/customers` query | `/customers` | CustomersScreen | — |
 | FR-C5 Customer NPWP | `Customer.npwp` | Customer form | Customer form | VARIABLES; US-3.x |
-| FR-C6 Customer order totals | `GET /customers/order-totals` | `CustomerOrderTotalsSection` | — (web-first) | `customer-order-totals.spec.ts` |
+| FR-C6 Customer order totals | `GET /customers/order-totals` | `CustomerOrderTotalsSection` + exclusive **Order performance** View (`CustomerOrderTotalsPerformanceView`, page focusMode) | — (web-first) | `customer-order-totals.spec.ts` |
 | FR-O1 Order code | `Order.orderId` builder | `/orders` | OrdersScreen | `order-sku.spec.ts` |
 | FR-O2–O3 Multi-line + discount | `/orders` + `order-math` | `/orders` | OrdersScreen | `order-math.spec.ts` |
 | FR-O4 Payment status | Order enum | `/orders` | OrdersScreen | shared enums |
@@ -58,7 +58,7 @@
 | FR-W1–W4, W6 Warehouse core | `/warehouse` create/list/get/summary | `/warehouse` | WarehouseScreen | `warehouse-dates.spec.ts` |
 | FR-W5 Warehouse edit | `PATCH /warehouse/:id` (stock delta) | `/warehouse` edit | — (mobile edit deferred) | WarehouseService |
 | FR-W7 Sold ledger write | `OrdersService.drawStockWithSales` / `clearOrderSales` | — | — | Order create/update/cancel tx |
-| FR-W8 Sold history read | `GET /warehouse/sales`, `GET /warehouse/sales/:id` | Sold history + **Open order** `/orders?view=` | WarehouseScreen Sold history | `serialize-warehouse-sale.spec.ts` |
+| FR-W8 Sold history read | `GET /warehouse/sales`, `GET /warehouse/sales/:id` | Sold history + exclusive Sold View (`WarehouseSoldHistoryView`, page focusMode) + **Open order** `/orders?view=` | WarehouseScreen Sold history | `serialize-warehouse-sale.spec.ts` |
 | FR-W9 Sold history backfill | `src/warehouse/backfill-sales.ts` / `npm run backfill:warehouse-sales -w api` | — | — | CLI idempotent insert |
 | FR-T1–T5 Revenue targets | `/revenue-targets` | `/targets` | — (web-first) | `revenue-target-math.spec.ts` |
 | FR-T6 Targets stage rates | annual + month actuals | `feature-stage-metrics.ts` on `/targets` | — | VARIABLES targets stage rates |

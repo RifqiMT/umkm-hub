@@ -1528,6 +1528,7 @@ function downloadProductPerformanceCsv(
     orderCount: number;
     packsSold: number;
     qtySold: number;
+    grossRevenue: number;
     revenue: number;
     avgOrderValue: number | null;
     firstRepeatOrderDays: number | null;
@@ -1548,12 +1549,13 @@ function downloadProductPerformanceCsv(
       'Orders',
       'Packs sold',
       'Qty sold',
-      'Revenue',
+      'Gross revenue',
+      'Discount',
+      'Discount %',
+      'Net revenue',
       'Avg order value',
       'First repeat days',
       'Avg repeat days',
-      'Discount',
-      'Discount %',
       'Cost',
       'Cost %',
       'Profit',
@@ -1565,12 +1567,13 @@ function downloadProductPerformanceCsv(
       Orders: p.orderCount,
       'Packs sold': p.packsSold,
       'Qty sold': p.qtySold,
-      Revenue: p.revenue,
+      'Gross revenue': p.grossRevenue,
+      Discount: p.discount,
+      'Discount %': p.discountPercent,
+      'Net revenue': p.revenue,
       'Avg order value': p.avgOrderValue,
       'First repeat days': p.firstRepeatOrderDays,
       'Avg repeat days': p.avgRepeatOrderDays,
-      Discount: p.discount,
-      'Discount %': p.discountPercent,
       Cost: p.cost,
       'Cost %': p.costPercent,
       Profit: p.profit,
@@ -1587,6 +1590,7 @@ function downloadCustomerPerformanceCsv(
     companyType: string;
     orderCount: number;
     packsSold: number;
+    grossRevenue: number;
     revenue: number;
     avgOrderValue: number | null;
     firstRepeatOrderDays: number | null;
@@ -1607,12 +1611,13 @@ function downloadCustomerPerformanceCsv(
       'Company type',
       'Orders',
       'Packs sold',
-      'Revenue',
+      'Gross revenue',
+      'Discount',
+      'Discount %',
+      'Net revenue',
       'Avg order value',
       'First repeat days',
       'Avg repeat days',
-      'Discount',
-      'Discount %',
       'Cost',
       'Cost %',
       'Profit',
@@ -1624,12 +1629,13 @@ function downloadCustomerPerformanceCsv(
       'Company type': c.companyType,
       Orders: c.orderCount,
       'Packs sold': c.packsSold,
-      Revenue: c.revenue,
+      'Gross revenue': c.grossRevenue,
+      Discount: c.discount,
+      'Discount %': c.discountPercent,
+      'Net revenue': c.revenue,
       'Avg order value': c.avgOrderValue,
       'First repeat days': c.firstRepeatOrderDays,
       'Avg repeat days': c.avgRepeatOrderDays,
-      Discount: c.discount,
-      'Discount %': c.discountPercent,
       Cost: c.cost,
       'Cost %': c.costPercent,
       Profit: c.profit,
@@ -2639,12 +2645,12 @@ export default function AnalyticsWorkspace() {
         }
         stats={[
           {
-            label: tr('Revenue'),
+            label: tr('Net revenue'),
             hero: true,
             tip: {
               value: stage ? formatMoneyExact(stage.revenue) : undefined,
               description: tr(
-                'Non-cancelled revenue for the selected analytics scope.',
+                'Post-discount sales from non-cancelled orders for the selected analytics scope.',
               ),
             },
             value: pulseRevenue ? (
@@ -2997,8 +3003,8 @@ export default function AnalyticsWorkspace() {
             title="Revenue & volume"
             description={
               hasChartTarget
-                ? 'Bars are actuals; the amber line is the revenue target. Ticket size and Units Per Transaction track order quality.'
-                : 'Bars are actuals. Ticket size and Units Per Transaction track order quality. Set Targets to overlay goals.'
+                ? 'Bars are net revenue (after discount); the amber line is the revenue target. Ticket size and Units Per Transaction track order quality.'
+                : 'Bars are net revenue (after discount). Ticket size and Units Per Transaction track order quality. Set Targets to overlay goals.'
             }
           >
             <div
@@ -3007,11 +3013,11 @@ export default function AnalyticsWorkspace() {
             >
               <ChartPanel
                 panelKey="revenue"
-                title="Revenue"
-                subtitle="Actual vs plan"
+                title="Net revenue"
+                subtitle="Actual vs plan (post-discount)"
                 tone="brand"
                 series={[
-                  { label: 'Revenue', color: REVENUE, style: 'bar' },
+                  { label: 'Net revenue', color: REVENUE, style: 'bar' },
                   ...(hasChartTarget
                     ? [{ label: 'Target', color: TARGET, style: 'line' as const }]
                     : []),
@@ -3023,7 +3029,7 @@ export default function AnalyticsWorkspace() {
                     <SeriesTable
                       columns={[
                         { key: 'period', label: axisPeriodLabel },
-                        { key: 'revenue', label: 'Revenue', align: 'end' },
+                        { key: 'revenue', label: 'Net revenue', align: 'end' },
                         ...(hasChartTarget
                           ? [
                               {
@@ -4356,7 +4362,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Products"
         title={`${scopeLabel} product performance`}
-        description="Revenue is after discount. Discount, cost of goods sold, and margin percent are shares of the pre-discount total (discount, cost, and profit), so they add up to about 100%."
+        description="Revenue shows gross (primary) and net (subline). Discount %, cost %, and margin % are shares of gross revenue, so they add up to about 100%."
         actions={
           data?.products?.length ? (
             <button
@@ -4385,7 +4391,7 @@ export default function AnalyticsWorkspace() {
         ) : !data?.products.length ? (
           <EmptyState
             title="No product sales yet"
-            description="Orders in this timeline will appear here with revenue, discount, cost, and margin."
+            description="Orders in this timeline will appear here with gross revenue, net revenue, discount, cost, and margin."
           />
         ) : (
           <>
@@ -4428,13 +4434,16 @@ export default function AnalyticsWorkspace() {
                       <td className="is-num">
                         <div className="umkm-num-stack">
                           <span className="umkm-num">
-                            {formatMoney(p.revenue)}
+                            {formatMoney(p.grossRevenue)}
                           </span>
-                          {p.avgOrderValue != null ? (
-                            <span className="umkm-num-sub">
-                              avg {formatMoney(p.avgOrderValue)}
-                            </span>
-                          ) : null}
+                          <span className="umkm-num-sub">
+                            Gross
+                            {' · '}
+                            Net {formatMoney(p.revenue)}
+                            {p.avgOrderValue != null
+                              ? ` · avg ${formatMoney(p.avgOrderValue)}`
+                              : ''}
+                          </span>
                         </div>
                       </td>
                       <td className="is-num">
@@ -4529,11 +4538,15 @@ export default function AnalyticsWorkspace() {
                     <div className="umkm-catalog-card-metrics umkm-catalog-card-metrics--analytics">
                       <div>
                         <span>Revenue</span>
-                        <strong>
+                        <strong>{formatMoney(p.grossRevenue)}</strong>
+                        <em className="umkm-num-sub">
+                          Gross
+                          {' · '}
+                          Net {formatMoney(p.revenue)}
                           {p.avgOrderValue != null
-                            ? `${formatMoney(p.revenue)} · avg ${formatMoney(p.avgOrderValue)}`
-                            : formatMoney(p.revenue)}
-                        </strong>
+                            ? ` · avg ${formatMoney(p.avgOrderValue)}`
+                            : ''}
+                        </em>
                       </div>
                       <div>
                         <span>Discount</span>
@@ -4767,7 +4780,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Customers"
         title={`${scopeLabel} customer performance`}
-        description="The same performance metrics as products, grouped by CRM customer. Only orders with an assigned customer appear here. Rates are shares of the pre-discount total."
+        description="The same performance metrics as products, grouped by CRM customer. Only orders with an assigned customer appear here. Revenue shows gross (primary) and net (subline). Rates are shares of gross revenue."
         actions={
           data?.customers?.length ? (
             <button
@@ -4796,7 +4809,7 @@ export default function AnalyticsWorkspace() {
         ) : !(data?.customers?.length ?? 0) ? (
           <EmptyState
             title="No customer sales yet"
-            description="Assign a customer on orders to see revenue, discount, cost, and profit here."
+            description="Assign a customer on orders to see gross revenue, net revenue, discount, cost, and profit here."
           />
         ) : (
           <>
@@ -4852,13 +4865,16 @@ export default function AnalyticsWorkspace() {
                       <td className="is-num">
                         <div className="umkm-num-stack">
                           <span className="umkm-num">
-                            {formatMoney(c.revenue)}
+                            {formatMoney(c.grossRevenue)}
                           </span>
-                          {c.avgOrderValue != null ? (
-                            <span className="umkm-num-sub">
-                              avg {formatMoney(c.avgOrderValue)}
-                            </span>
-                          ) : null}
+                          <span className="umkm-num-sub">
+                            Gross
+                            {' · '}
+                            Net {formatMoney(c.revenue)}
+                            {c.avgOrderValue != null
+                              ? ` · avg ${formatMoney(c.avgOrderValue)}`
+                              : ''}
+                          </span>
                         </div>
                       </td>
                       <td className="is-num">
@@ -4958,11 +4974,15 @@ export default function AnalyticsWorkspace() {
                     <div className="umkm-catalog-card-metrics umkm-catalog-card-metrics--analytics">
                       <div>
                         <span>Revenue</span>
-                        <strong>
+                        <strong>{formatMoney(c.grossRevenue)}</strong>
+                        <em className="umkm-num-sub">
+                          Gross
+                          {' · '}
+                          Net {formatMoney(c.revenue)}
                           {c.avgOrderValue != null
-                            ? `${formatMoney(c.revenue)} · avg ${formatMoney(c.avgOrderValue)}`
-                            : formatMoney(c.revenue)}
-                        </strong>
+                            ? ` · avg ${formatMoney(c.avgOrderValue)}`
+                            : ''}
+                        </em>
                       </div>
                       <div>
                         <span>Discount</span>

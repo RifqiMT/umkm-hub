@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.252 |
+| **Version** | 1.5.259 |
 | **Date** | 2026-08-01 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.252 |
-| **Docs stamp** | 1.5.252 |
+| **Code tip aligned** | v1.5.259 |
+| **Docs stamp** | 1.5.259 |
 
 ---
 
@@ -60,12 +60,14 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 ### 3.2 Products
 - CRUD; gram/liter packs **1 / 5 / 10 / 25 / 50 / 100 / 250 / 500 / 1000 / custom** + optional COGS; human `productId`; Warehouse-managed stock
-- **Stock & sales** table (web, `GET /products/stock-sales`): Stocks (total with current/sold detail), Revenue, Discount (+%), Cost, Profit, STR, ITR, SSR, Orders, AOV, UPT above Statistics
+- **Stock & sales** table (web, `GET /products/stock-sales`): Stocks (total with current/sold detail), Revenue (gross primary + net subline), Discount (+%), Cost (+%), Profit (+%), STR, ITR, SSR, Orders, AOV, UPT above Statistics
+- **Product performance View** (web): exclusive focus mode (hides stage/filters/catalog/siblings); catalog View unchanged
 - Filter-aware summary + **statistics** breakdowns; feature transfer
 
 ### 3.3 Customers
 - CRUD + postal geo; human `customerId`; optional **buyer NPWP**
 - **Order totals** table (web, `GET /customers/order-totals`): Totals / Discount / Order total / Orders / Packs / Cancelled (+ rate) / AOV / UPT above Statistics
+- **Order performance View** (web): exclusive focus mode (same as other feature Views)
 - Summary + **statistics**; feature transfer
 
 ### 3.4 Orders
@@ -80,6 +82,7 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 ### 3.5 Warehouse
 - Restock create + **edit** (web `PATCH /warehouse/:id`); list/view; no delete in v1
 - **Sold history** ledger (`WarehouseSale`) dual-written on order stock draw/restore; read-only `GET /warehouse/sales`; web **Open order** → `/orders?view=<uuid>`; CLI backfill for pre-ledger orders
+- **Sold View** (web): exclusive focus mode (hides stage/filters/inventory siblings)
 - Summary + **statistics**; feature transfer
 
 ### 3.6 Revenue targets (web-first)

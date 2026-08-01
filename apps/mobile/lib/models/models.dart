@@ -1058,6 +1058,7 @@ class AnalyticsProductRow {
     required this.orderCount,
     required this.qtySold,
     required this.packsSold,
+    required this.grossRevenue,
     required this.revenue,
     this.avgOrderValue,
     this.firstRepeatOrderDays,
@@ -1076,6 +1077,7 @@ class AnalyticsProductRow {
   final int orderCount;
   final double qtySold;
   final double packsSold;
+  final double grossRevenue;
   final double revenue;
   final double? avgOrderValue;
   final double? firstRepeatOrderDays;
@@ -1088,6 +1090,8 @@ class AnalyticsProductRow {
   final double? marginPercent;
 
   factory AnalyticsProductRow.fromJson(Map<String, dynamic> json) {
+    final revenue = (json['revenue'] as num).toDouble();
+    final discount = (json['discount'] as num?)?.toDouble() ?? 0;
     return AnalyticsProductRow(
       productId: json['productId'] as String,
       name: json['name'] as String,
@@ -1095,11 +1099,13 @@ class AnalyticsProductRow {
       orderCount: json['orderCount'] as int,
       qtySold: (json['qtySold'] as num).toDouble(),
       packsSold: (json['packsSold'] as num?)?.toDouble() ?? 0,
-      revenue: (json['revenue'] as num).toDouble(),
+      grossRevenue: (json['grossRevenue'] as num?)?.toDouble() ??
+          (revenue + discount),
+      revenue: revenue,
       avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
       firstRepeatOrderDays: (json['firstRepeatOrderDays'] as num?)?.toDouble(),
       avgRepeatOrderDays: (json['avgRepeatOrderDays'] as num?)?.toDouble(),
-      discount: (json['discount'] as num?)?.toDouble() ?? 0,
+      discount: discount,
       discountPercent: (json['discountPercent'] as num?)?.toDouble(),
       cost: (json['cost'] as num?)?.toDouble(),
       costPercent: (json['costPercent'] as num?)?.toDouble(),
@@ -1117,6 +1123,7 @@ class AnalyticsCustomerRow {
     required this.companyType,
     required this.orderCount,
     required this.packsSold,
+    required this.grossRevenue,
     required this.revenue,
     this.avgOrderValue,
     this.firstRepeatOrderDays,
@@ -1135,6 +1142,7 @@ class AnalyticsCustomerRow {
   final String companyType;
   final int orderCount;
   final double packsSold;
+  final double grossRevenue;
   final double revenue;
   final double? avgOrderValue;
   final double? firstRepeatOrderDays;
@@ -1147,6 +1155,8 @@ class AnalyticsCustomerRow {
   final double? marginPercent;
 
   factory AnalyticsCustomerRow.fromJson(Map<String, dynamic> json) {
+    final revenue = (json['revenue'] as num).toDouble();
+    final discount = (json['discount'] as num?)?.toDouble() ?? 0;
     return AnalyticsCustomerRow(
       customerId: json['customerId'] as String,
       name: json['name'] as String,
@@ -1154,11 +1164,13 @@ class AnalyticsCustomerRow {
       companyType: (json['companyType'] as String?) ?? '',
       orderCount: json['orderCount'] as int,
       packsSold: (json['packsSold'] as num?)?.toDouble() ?? 0,
-      revenue: (json['revenue'] as num).toDouble(),
+      grossRevenue: (json['grossRevenue'] as num?)?.toDouble() ??
+          (revenue + discount),
+      revenue: revenue,
       avgOrderValue: (json['avgOrderValue'] as num?)?.toDouble(),
       firstRepeatOrderDays: (json['firstRepeatOrderDays'] as num?)?.toDouble(),
       avgRepeatOrderDays: (json['avgRepeatOrderDays'] as num?)?.toDouble(),
-      discount: (json['discount'] as num?)?.toDouble() ?? 0,
+      discount: discount,
       discountPercent: (json['discountPercent'] as num?)?.toDouble(),
       cost: (json['cost'] as num?)?.toDouble(),
       costPercent: (json['costPercent'] as num?)?.toDouble(),

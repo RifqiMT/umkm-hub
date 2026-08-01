@@ -6,7 +6,10 @@ import { dedupeById } from '@/lib/dedupe-by-id';
 import { confirmDelete } from '@/lib/confirm';
 import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
 import { ProductStatisticsSection } from '@/app/(app)/products/ProductStatisticsSection';
-import { ProductStockSalesSection } from '@/app/(app)/products/ProductStockSalesSection';
+import {
+  ProductStockSalesPerformanceView,
+  ProductStockSalesSection,
+} from '@/app/(app)/products/ProductStockSalesSection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { OptionChips } from '@/components/OptionChips';
@@ -22,7 +25,12 @@ import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
 import {
   PRODUCT_UNITS,
 } from '@/lib/enums';
-import type { Paginated, Product, ProductSummary } from '@/lib/types';
+import type {
+  Paginated,
+  Product,
+  ProductStockSales,
+  ProductSummary,
+} from '@/lib/types';
 import { useLabels } from '@/hooks/useLabels';
 import {
   formatCompactQtyParts,
@@ -303,6 +311,8 @@ export default function ProductsPage() {
   const [dataSyncOpen, setDataSyncOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
+  const [performanceViewing, setPerformanceViewing] =
+    useState<ProductStockSales | null>(null);
   const [search, setSearch] = useState('');
   const [unitFilters, setUnitFilters] = useState<string[]>([]);
   const [costSetFilters, setCostSetFilters] = useState<string[]>([]);
@@ -635,6 +645,7 @@ export default function ProductsPage() {
 
   function populateEditForm(product: Product) {
     setViewing(null);
+    setPerformanceViewing(null);
     setFormOpen(true);
     setEditingId(product.id);
 
@@ -689,6 +700,7 @@ export default function ProductsPage() {
 
   function startCreate() {
     setViewing(null);
+    setPerformanceViewing(null);
     setEditingId(null);
     setForm(emptyForm);
     resetPackUi();
@@ -698,6 +710,7 @@ export default function ProductsPage() {
   async function startView(product: Product) {
     setFormOpen(false);
     setEditingId(null);
+    setPerformanceViewing(null);
     try {
       const full = await api<Product>(`/products/${product.id}`);
       setViewing(full);
@@ -710,12 +723,24 @@ export default function ProductsPage() {
     setFormOpen(false);
     setEditingId(null);
     setViewing(null);
+    setPerformanceViewing(null);
     setForm(emptyForm);
     resetPackUi();
   }
 
   function closeView() {
     setViewing(null);
+  }
+
+  function openPerformanceView(row: ProductStockSales) {
+    setFormOpen(false);
+    setEditingId(null);
+    setViewing(null);
+    setPerformanceViewing(row);
+  }
+
+  function closePerformanceView() {
+    setPerformanceViewing(null);
   }
 
   function clearAllPacks() {
@@ -799,6 +824,7 @@ export default function ProductsPage() {
     try {
       await api(`/products/${id}`, { method: 'DELETE' });
       if (viewing?.id === id) setViewing(null);
+      if (performanceViewing?.id === id) setPerformanceViewing(null);
       await Promise.all([
         loadSummary(debouncedSearch),
         loadList(debouncedSearch, page),
@@ -808,6 +834,8 @@ export default function ProductsPage() {
     }
   }
 
+  const focusMode =
+    formOpen || Boolean(viewing) || Boolean(performanceViewing);
   const viewingPack = viewing ? getActivePack(viewing) : null;
   const chipFiltersActive =
     unitFilters.length > 0 ||
@@ -829,7 +857,7 @@ export default function ProductsPage() {
 
   return (
     <section>
-      {!formOpen && !viewing ? (
+      {!focusMode ? (
         <>
         <FeatureStage
           title="Products"
@@ -958,6 +986,13 @@ export default function ProductsPage() {
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
+
+      {performanceViewing ? (
+        <ProductStockSalesPerformanceView
+          row={performanceViewing}
+          onClose={closePerformanceView}
+        />
+      ) : null}
 
       {viewing ? (
         <ContentSection
@@ -1241,7 +1276,7 @@ export default function ProductsPage() {
       </ContentSection>
       ) : null}
 
-      {!formOpen && !viewing ? (
+      {!focusMode ? (
       <>
       <ContentSection
         eyebrow="Catalog"
@@ -1651,6 +1686,7 @@ export default function ProductsPage() {
           packReady: packReadyFilters,
           stockStatus: stockStatusFilters,
         }}
+        onView={openPerformanceView}
       />
 
       <ContentSection eyebrow="Statistics" quiet>

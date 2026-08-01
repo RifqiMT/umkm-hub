@@ -48,6 +48,7 @@ describe('aggregateProductPerformance', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       productId: 'p2',
+      grossRevenue: 5000,
       revenue: 5000,
       avgOrderValue: 5000,
       discount: 0,
@@ -64,6 +65,7 @@ describe('aggregateProductPerformance', () => {
     expect(rows[1]).toMatchObject({
       productId: 'p1',
       name: 'Cabai',
+      grossRevenue: 3150,
       revenue: 3000,
       avgOrderValue: 1500,
       discount: 150,

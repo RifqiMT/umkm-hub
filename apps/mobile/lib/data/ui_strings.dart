@@ -118,6 +118,8 @@ const mobileUiStrings = <String>[
   'This month',
   'This year',
   'Revenue',
+  'Gross revenue',
+  'Net revenue',
   'Orders',
   'Customers',
   'Products sold',

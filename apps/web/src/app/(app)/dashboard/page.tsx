@@ -358,12 +358,12 @@ export default function DashboardPage() {
         }
         stats={[
           {
-            label: tr('Revenue'),
+            label: tr('Net revenue'),
             hero: true,
             tip: {
               value: orders ? formatMoneyExact(orders.totalRevenue) : undefined,
               description: tr(
-                'Total sales from non-cancelled orders in the selected period.',
+                'Post-discount sales from non-cancelled orders in the selected period.',
               ),
             },
             value: revenueParts ? (
@@ -478,7 +478,7 @@ export default function DashboardPage() {
             title={tr('Fulfillment')}
             caption={periodLabel}
             hero={{
-              label: tr('Revenue'),
+              label: tr('Net revenue'),
               tipValue: orders ? formatMoneyExact(orders.totalRevenue) : undefined,
               description: tr(
                 'Sales from non-cancelled orders in the selected period.',

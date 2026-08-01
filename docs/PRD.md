@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.259 |
+| **Date** | 2026-08-01 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
 
@@ -77,7 +77,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-PR1 | Human product code field `Product.productId` = `{INITIALS}_{PACK}_{uuid}` (e.g. Cabai Merah 100 → `CB_100_<uuid>`); unique per profile; regenerates prefix when name or active pack size changes. Distinct from UUID primary key and from `Order.productId` / `OrderLine.productId` FKs |
 | FR-PR2 | Fields: name, unit (pcs/gram/liter), pricePerUnit; for gram/liter exactly one pack from **1 / 5 / 10 / 25 / 50 / 100 / 250 / 500 / 1000 / custom** with selling price and optional cost (`priceN`/`costN`). Show unit/pack profit and profit margin % when cost is set. Stock managed via Warehouse |
 | FR-PR3 | View / add / modify / delete within owning profile; delete blocked if order lines exist |
-| FR-PR4 | Web Stock & sales table above Products Statistics: product (+ id/unit), Stocks (total = current + sold, with current/sold subline), Revenue (allocated net), Discount (+ %), Cost (sold × catalog cost), Profit (revenue − cost), STR (sold÷(sold+current)), ITR (sold÷average inventory; beginning≈current+sold), SSR (current÷sold), Orders, AOV (allocated net ÷ orders), UPT (packs ÷ orders); sold/orders from non-cancelled lines; same catalog filters; paginated `GET /products/stock-sales` |
+| FR-PR4 | Web Stock & sales table above Products Statistics: product (+ id/unit), Stocks (total = current + sold, with current/sold subline), Revenue (gross primary + `Gross · Net …` subline), Discount (+ %), Cost (+ % of gross; sold × catalog cost), Profit (+ % of gross; net − cost), STR (sold÷(sold+current)), ITR (sold÷average inventory; beginning≈current+sold), SSR (current÷sold), Orders, AOV (net ÷ orders), UPT (packs ÷ orders); row/View opens **product performance** View sheet (not catalog sheet); sold/orders from non-cancelled lines; same catalog filters; paginated `GET /products/stock-sales` |
 
 ### FR-Customer
 
@@ -88,7 +88,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-C3 | When postal code and country are both provided on create/edit, look up locality and auto-fill empty (or previously auto-filled) address, city, and province. Manual edits are preserved |
 | FR-C4 | View / add / modify / delete within owning profile; list filterable by status/type/relationship; search matches city/province/country/postal |
 | FR-C5 | Optional customer NPWP for B2B PDF / e-Faktur buyer identity |
-| FR-C6 | Web Order totals table above Customers Statistics: per linked customer, name (+ details), company (+ details), Totals (Σ lineTotal), Discount (Σ lineTotal − totalOrderValue), Order total (Σ totalOrderValue), Orders (active count), Packs (Σ packCount), Cancelled (+ cancel rate), AOV, UPT; money/packs from non-cancelled; same Directory filters; paginated `GET /customers/order-totals` |
+| FR-C6 | Web Order totals table above Customers Statistics: per linked customer, name (+ details), company (+ details), Revenue (gross primary + net subline; API `totals`/`grossRevenue` + `orderTotal`), Discount (Σ lineTotal − totalOrderValue), Orders (active count), Packs (Σ packCount), Cancelled (+ cancel rate), AOV, UPT; row/View opens **order performance** View sheet (not CRM sheet); money/packs from non-cancelled; same Directory filters; paginated `GET /customers/order-totals` |
 
 ### FR-Order
 
@@ -148,8 +148,8 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-A3 | Annual series: rolling window ending at selected year; multi-year shows selected years only; **All timelines** loads full app year range; **charts omit years with zero orders** |
 | FR-A4 | Actuals use the same rules as FR-T4 (shared aggregation helper) |
 | FR-A5 | Web `/analytics` + Flutter Analytics screen (entry from Profile) |
-| FR-A6 | Product performance for selected scope: revenue, order count, qty sold, packs sold, discount (+%), estimated cost/profit/margin (+%), AOV, first/avg repeat order days |
-| FR-A6b | Customer performance: same metric family as products, including first repeat days (1st→2nd order) and avg repeat days (mean consecutive gaps); null when fewer than 2 orders |
+| FR-A6 | Product performance for selected scope: Gross revenue + Net revenue labels, order count, qty sold, packs sold, discount (+%), estimated cost/profit/margin (+%), AOV, first/avg repeat order days |
+| FR-A6b | Customer performance: same metric family as products (incl. gross), including first repeat days (1st→2nd order) and avg repeat days (mean consecutive gaps); null when fewer than 2 orders |
 | FR-A7 | Attainment rate and profit margin rate charts (weekly, monthly, quarterly, or annual view) |
 | FR-A8 | Shipment duration, invoice duration, first/last payment duration, AOV, UPT, and average purchase frequency charts |
 | FR-A9 | UX: analytics lens (Weekly/Monthly/Quarterly/Annual + TimelineFilter multi-select years / All), sectioned chart groups |

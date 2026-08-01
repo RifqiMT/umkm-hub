@@ -48,6 +48,7 @@ describe('aggregateCustomerPerformance', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       customerId: 'c2',
+      grossRevenue: 5000,
       revenue: 5000,
       avgOrderValue: 5000,
       discount: 0,
@@ -62,6 +63,7 @@ describe('aggregateCustomerPerformance', () => {
       customerId: 'c1',
       name: 'Budi',
       companyName: 'Warung Budi',
+      grossRevenue: 3000,
       revenue: 2850,
       avgOrderValue: 1425,
       discount: 150,

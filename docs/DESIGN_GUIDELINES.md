@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.259 |
 | **Date** | 2026-08-01 |
 | **Sources of truth** | `apps/web/src/app/globals.css`; `apps/mobile/lib/theme/umkm_theme.dart` |
 
@@ -198,9 +198,10 @@ Rules:
 - Warehouse inventory also filters **In stock** / **Out of stock** (same rules as Warehouse stage rates)
 - **Products:** name + unit chip + soft SKU; details in View only
 - **Orders list:** date + soft order ID; shipment in View Timeline only; pack = `size × count` + quiet qty/@ price; **Paid** column = installments ÷ **amountDue** (meter + %); PDF / fiscal prep actions on order detail
-- **Stock & sales** (Products, web): dense insight table above Statistics — Stocks primary with current/sold subline; money + STR/ITR/SSR; same catalog filter context
-- **Order totals** (Customers, web): commercial + volume columns above Statistics; same Directory filters
-- **Sold history** (Warehouse): ledger table above Statistics; **Open order** navigates to Orders view sheet (`?view=`)
+- **Stock & sales** (Products, web): dense insight table above Statistics — Stocks primary with current/sold subline; money + STR/ITR/SSR; same catalog filter context; **View** opens product performance in exclusive focus mode (stage/filters/siblings hidden)
+- **Order totals** (Customers, web): commercial + volume columns above Statistics; same Directory filters; **View** opens order performance in exclusive focus mode
+- **Sold history** (Warehouse): ledger table above Statistics; **View** exclusive focus mode; **Open order** navigates to Orders view sheet (`?view=`)
+- **Exclusive View:** any feature View (catalog, directory, inventory, restock, performance, sold) must hide FeatureStage + list chrome; render the sheet at page level, not inside a sibling section
 - **Domain statistics:** filter-aware mix sections below feature stage (Products / Customers / Orders / Warehouse) — complementary to summary rate meters, not a second dashboard
 - **Profile invoicing:** dedicated fiscal identity block (NPWP, PKP, PPN %, taxInclusive, invoice prefix) — calm form density, same tokens as personal details
 - Money: `formatMoney` (million / billion / …); chart axes: `formatCompactAxis` (Mn/Bn); Analytics packs/orders/qty: `formatCompactQty` (same magnitude words as money; under 1 million stays full digits)

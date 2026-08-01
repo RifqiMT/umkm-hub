@@ -5,7 +5,14 @@ import { api } from '@/lib/api';
 import { dedupeById } from '@/lib/dedupe-by-id';
 import { ContentSection, EmptyState } from '@/components/PageHeader';
 import { ListPager } from '@/components/ListPager';
-import { EntityIdBadge } from '@/components/EntityId';
+import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
+import {
+  ViewBlock,
+  ViewChip,
+  ViewFacts,
+  ViewIdentity,
+  ViewSheetBody,
+} from '@/components/ViewSheet';
 import type { ListPageSize } from '@/lib/list-page-size';
 import type { CustomerOrderTotals, Paginated } from '@/lib/types';
 import {
@@ -38,6 +45,12 @@ type CustomerOrderTotalsFilters = {
 
 type CustomerOrderTotalsSectionProps = {
   filters: CustomerOrderTotalsFilters;
+  onView: (row: CustomerOrderTotals) => void;
+};
+
+type CustomerOrderTotalsPerformanceViewProps = {
+  row: CustomerOrderTotals;
+  onClose: () => void;
 };
 
 function compareNullable(a: number | null, b: number | null): number {
@@ -47,8 +60,167 @@ function compareNullable(a: number | null, b: number | null): number {
   return a - b;
 }
 
+function IconView() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+export function CustomerOrderTotalsPerformanceView({
+  row,
+  onClose,
+}: CustomerOrderTotalsPerformanceViewProps) {
+  const { companyTypeLabel } = useCustomerLabelHelpers();
+  const contact =
+    [row.email, row.phone].filter(Boolean).join(' · ') || 'No contact yet';
+
+  return (
+    <ContentSection
+      className="umkm-form-panel umkm-product-sheet umkm-view-sheet"
+      eyebrow="Order performance"
+      title={row.name}
+      description="Linked order totals for this customer in the current directory filters."
+      actions={
+        <button
+          type="button"
+          className="umkm-btn secondary"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      }
+    >
+      <ViewSheetBody onClose={onClose}>
+        <ViewIdentity
+          contextLabel="Company"
+          chips={
+            <>
+              <ViewChip>{companyTypeLabel(row.companyType)}</ViewChip>
+              {row.title ? <ViewChip>{row.title}</ViewChip> : null}
+            </>
+          }
+          metricLabel="Gross revenue"
+          metricValue={formatMoney(row.grossRevenue ?? row.totals)}
+          metricHint={`Net ${formatMoney(row.orderTotal)}`}
+        />
+
+        <EntityIdDetail
+          id={row.customerId || row.id}
+          label="Customer ID"
+        />
+
+        <ViewBlock
+          title="Customer"
+          description="Identity and contact from the linked CRM record."
+        >
+          <ViewFacts
+            columns={2}
+            items={[
+              {
+                key: 'company',
+                label: 'Company',
+                value: row.companyName || '—',
+              },
+              {
+                key: 'contact',
+                label: 'Contact',
+                value: contact,
+              },
+            ]}
+          />
+        </ViewBlock>
+
+        <ViewBlock
+          title="Money"
+          description="Gross is before discount; net is after. Discount % is share of gross."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'gross',
+                label: 'Gross revenue',
+                value: formatMoney(row.grossRevenue ?? row.totals),
+              },
+              {
+                key: 'net',
+                label: 'Net revenue',
+                value: formatMoney(row.orderTotal),
+              },
+              {
+                key: 'discount',
+                label: 'Discount',
+                value: formatMoney(row.discount),
+                sub:
+                  row.discountPercent != null
+                    ? formatRatePercent(row.discountPercent)
+                    : undefined,
+              },
+            ]}
+          />
+        </ViewBlock>
+
+        <ViewBlock
+          title="Volume & quality"
+          description="Orders, packs, cancellations, and typical ticket size for this buyer."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'orders',
+                label: 'Orders',
+                value: row.orderCount.toLocaleString('en-US'),
+              },
+              {
+                key: 'packs',
+                label: 'Packs',
+                value: formatCompactQty(row.packsSold),
+              },
+              {
+                key: 'cancelled',
+                label: 'Cancelled',
+                value: row.cancelledCount.toLocaleString('en-US'),
+                sub:
+                  row.cancelRate != null
+                    ? formatRatePercent(row.cancelRate)
+                    : undefined,
+              },
+              {
+                key: 'aov',
+                label: 'AOV',
+                value:
+                  row.avgOrderValue != null
+                    ? formatMoney(row.avgOrderValue)
+                    : '—',
+              },
+              {
+                key: 'upt',
+                label: 'UPT',
+                value:
+                  row.unitsPerTransaction != null
+                    ? formatCompactQty(row.unitsPerTransaction)
+                    : '—',
+              },
+            ]}
+          />
+        </ViewBlock>
+      </ViewSheetBody>
+    </ContentSection>
+  );
+}
+
 export function CustomerOrderTotalsSection({
   filters,
+  onView,
 }: CustomerOrderTotalsSectionProps) {
   const { companyTypeLabel } = useCustomerLabelHelpers();
   const [items, setItems] = useState<CustomerOrderTotals[]>([]);
@@ -173,7 +345,7 @@ export function CustomerOrderTotalsSection({
     <ContentSection
       eyebrow="Orders"
       title="Order totals"
-      description="Summarize linked orders for each customer, including revenue, discounts, volume, cancellations, average order value, and units per transaction."
+      description="Summarize linked orders for each customer, including revenue (gross primary, net on the subline), discounts, volume, cancellations, average order value, and units per transaction. Click a row or View to open order performance details."
     >
       {error ? (
         <p className="umkm-error" role="alert">
@@ -217,7 +389,7 @@ export function CustomerOrderTotalsSection({
                       onClick={() => toggleSort('totals')}
                       data-dir={sortMark('totals')}
                     >
-                      Totals
+                      Revenue
                     </button>
                   </th>
                   <th className="is-num">
@@ -228,16 +400,6 @@ export function CustomerOrderTotalsSection({
                       data-dir={sortMark('discount')}
                     >
                       Discount
-                    </button>
-                  </th>
-                  <th className="is-num">
-                    <button
-                      type="button"
-                      className="umkm-th-sort"
-                      onClick={() => toggleSort('orderTotal')}
-                      data-dir={sortMark('orderTotal')}
-                    >
-                      Order total
                     </button>
                   </th>
                   <th className="is-num">
@@ -290,6 +452,9 @@ export function CustomerOrderTotalsSection({
                       UPT
                     </button>
                   </th>
+                  <th className="is-actions">
+                    <span className="umkm-th-label">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -298,7 +463,18 @@ export function CustomerOrderTotalsSection({
                     [row.email, row.phone].filter(Boolean).join(' · ') ||
                     'No contact yet';
                   return (
-                    <tr key={row.id} className="umkm-catalog-row">
+                    <tr
+                      key={row.id}
+                      className="umkm-catalog-row"
+                      tabIndex={0}
+                      onClick={() => onView(row)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onView(row);
+                        }
+                      }}
+                    >
                       <td>
                         <div className="umkm-product-cell">
                           <span className="umkm-product-name">{row.name}</span>
@@ -328,7 +504,16 @@ export function CustomerOrderTotalsSection({
                         </div>
                       </td>
                       <td className="is-num">
-                        <span className="umkm-num">{formatMoney(row.totals)}</span>
+                        <div className="umkm-num-stack">
+                          <span className="umkm-num">
+                            {formatMoney(row.grossRevenue ?? row.totals)}
+                          </span>
+                          <em className="umkm-num-sub">
+                            Gross
+                            {' · '}
+                            Net {formatMoney(row.orderTotal)}
+                          </em>
+                        </div>
                       </td>
                       <td className="is-num">
                         <div className="umkm-num-stack">
@@ -341,11 +526,6 @@ export function CustomerOrderTotalsSection({
                             </em>
                           ) : null}
                         </div>
-                      </td>
-                      <td className="is-num">
-                        <span className="umkm-num">
-                          {formatMoney(row.orderTotal)}
-                        </span>
                       </td>
                       <td className="is-num">
                         <span className="umkm-num">
@@ -383,6 +563,23 @@ export function CustomerOrderTotalsSection({
                             : '—'}
                         </span>
                       </td>
+                      <td className="is-actions">
+                        <div
+                          className="umkm-row-actions umkm-icon-actions"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            className="umkm-icon-btn"
+                            type="button"
+                            title="View"
+                            aria-label={`View order performance for ${row.name}`}
+                            onClick={() => onView(row)}
+                          >
+                            <IconView />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -397,7 +594,11 @@ export function CustomerOrderTotalsSection({
                 'No contact yet';
               return (
                 <li key={row.id} className="umkm-catalog-card">
-                  <div className="umkm-catalog-card-main">
+                  <button
+                    type="button"
+                    className="umkm-catalog-card-main"
+                    onClick={() => onView(row)}
+                  >
                     <div className="umkm-catalog-card-identity">
                       <span className="umkm-product-name">{row.name}</span>
                       <div className="umkm-product-meta">
@@ -418,8 +619,15 @@ export function CustomerOrderTotalsSection({
                     </div>
                     <div className="umkm-catalog-card-metrics">
                       <div>
-                        <span>Order total</span>
-                        <strong>{formatMoney(row.orderTotal)}</strong>
+                        <span>Revenue</span>
+                        <strong>
+                          {formatMoney(row.grossRevenue ?? row.totals)}
+                        </strong>
+                        <em className="umkm-num-sub">
+                          Gross
+                          {' · '}
+                          Net {formatMoney(row.orderTotal)}
+                        </em>
                       </div>
                       <div>
                         <span>Orders</span>
@@ -457,6 +665,17 @@ export function CustomerOrderTotalsSection({
                         </strong>
                       </div>
                     </div>
+                  </button>
+                  <div className="umkm-row-actions umkm-icon-actions">
+                    <button
+                      className="umkm-icon-btn"
+                      type="button"
+                      title="View order performance"
+                      aria-label={`View order performance for ${row.name}`}
+                      onClick={() => onView(row)}
+                    >
+                      <IconView />
+                    </button>
                   </div>
                 </li>
               );

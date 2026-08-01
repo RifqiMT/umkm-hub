@@ -26,6 +26,8 @@ export type ProductPerformanceRow = {
   qtySold: number;
   /** Sum of pack counts across lines for this product. */
   packsSold: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   revenue: number;
   /** Net revenue ÷ distinct orders (null when orderCount is 0). */
   avgOrderValue: number | null;
@@ -114,9 +116,9 @@ export function aggregateProductPerformance(
     const { firstRepeatOrderDays, avgRepeatOrderDays } = repeatOrderDuration([
       ...acc.orderDatesById.values(),
     ]);
-    const gross = revenue + discount;
+    const grossRevenue = roundMoney(revenue + discount);
     const discountPercent =
-      gross > 0 ? roundMoney((discount / gross) * 100) : null;
+      grossRevenue > 0 ? roundMoney((discount / grossRevenue) * 100) : null;
     let cost: number | null = null;
     let costPercent: number | null = null;
     let profit: number | null = null;
@@ -126,9 +128,9 @@ export function aggregateProductPerformance(
       cost = roundMoney(Math.max(0, qtySold) * Math.max(0, acc.costPerUnit));
       profit = roundMoney(revenue - cost);
       // All rates use gross so Discount % + COGS % + Margin % ≈ 100%.
-      if (gross > 0) {
-        costPercent = roundMoney((cost / gross) * 100);
-        marginPercent = roundMoney((profit / gross) * 100);
+      if (grossRevenue > 0) {
+        costPercent = roundMoney((cost / grossRevenue) * 100);
+        marginPercent = roundMoney((profit / grossRevenue) * 100);
       }
     }
 
@@ -139,6 +141,7 @@ export function aggregateProductPerformance(
       orderCount,
       qtySold,
       packsSold,
+      grossRevenue,
       revenue,
       avgOrderValue,
       firstRepeatOrderDays,

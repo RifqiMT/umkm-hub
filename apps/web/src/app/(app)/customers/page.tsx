@@ -21,7 +21,10 @@ import {
   FeatureDataTransferToggle,
 } from '@/components/FeatureDataTransfer';
 import { CustomerStatisticsSection } from '@/app/(app)/customers/CustomerStatisticsSection';
-import { CustomerOrderTotalsSection } from '@/app/(app)/customers/CustomerOrderTotalsSection';
+import {
+  CustomerOrderTotalsPerformanceView,
+  CustomerOrderTotalsSection,
+} from '@/app/(app)/customers/CustomerOrderTotalsSection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { FeatureStage } from '@/components/FeatureStage';
@@ -32,7 +35,12 @@ import {
   PARTNERSHIP_STAGES,
   RELATIONSHIP_LEVELS,
 } from '@/lib/enums';
-import type { Customer, CustomerSummary, Paginated } from '@/lib/types';
+import type {
+  Customer,
+  CustomerOrderTotals,
+  CustomerSummary,
+  Paginated,
+} from '@/lib/types';
 import { formatRatePercent } from '@/lib/format-money';
 import { useCustomerLabelHelpers } from '@/hooks/useCustomerLabelHelpers';
 
@@ -154,6 +162,8 @@ export default function CustomersPage() {
   >('idle');
   const lastAutoAddress = useRef({ address: '', city: '', province: '' });
   const [viewing, setViewing] = useState<Customer | null>(null);
+  const [performanceViewing, setPerformanceViewing] =
+    useState<CustomerOrderTotals | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
@@ -384,6 +394,7 @@ export default function CustomersPage() {
 
   function populateEditForm(c: Customer) {
     setViewing(null);
+    setPerformanceViewing(null);
     setFormOpen(true);
     setEditingId(c.id);
     lastAutoAddress.current = { address: '', city: '', province: '' };
@@ -426,6 +437,7 @@ export default function CustomersPage() {
 
   function startCreate() {
     setViewing(null);
+    setPerformanceViewing(null);
     setEditingId(null);
     lastAutoAddress.current = { address: '', city: '', province: '' };
     setPostalLookupStatus('idle');
@@ -436,6 +448,7 @@ export default function CustomersPage() {
   async function startView(c: Customer) {
     setFormOpen(false);
     setEditingId(null);
+    setPerformanceViewing(null);
     try {
       const full = await api<Customer>(`/customers/${c.id}`);
       setViewing(full);
@@ -448,6 +461,7 @@ export default function CustomersPage() {
     setFormOpen(false);
     setEditingId(null);
     setViewing(null);
+    setPerformanceViewing(null);
     lastAutoAddress.current = { address: '', city: '', province: '' };
     setPostalLookupStatus('idle');
     setForm(emptyForm);
@@ -455,6 +469,17 @@ export default function CustomersPage() {
 
   function closeView() {
     setViewing(null);
+  }
+
+  function openPerformanceView(row: CustomerOrderTotals) {
+    setFormOpen(false);
+    setEditingId(null);
+    setViewing(null);
+    setPerformanceViewing(row);
+  }
+
+  function closePerformanceView() {
+    setPerformanceViewing(null);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -485,6 +510,7 @@ export default function CustomersPage() {
     try {
       await api(`/customers/${id}`, { method: 'DELETE' });
       if (viewing?.id === id) setViewing(null);
+      if (performanceViewing?.id === id) setPerformanceViewing(null);
       await Promise.all([
         loadSummary(debouncedSearch),
         loadList(debouncedSearch, page),
@@ -522,9 +548,12 @@ export default function CustomersPage() {
     [companyTypeLabel, partnershipStageLabel, statusLabel, relationshipLabel],
   );
 
+  const focusMode =
+    formOpen || Boolean(viewing) || Boolean(performanceViewing);
+
   return (
     <section>
-      {!formOpen && !viewing ? (
+      {!focusMode ? (
         <>
         <FeatureStage
           title="Customers"
@@ -637,6 +666,13 @@ export default function CustomersPage() {
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
+
+      {performanceViewing ? (
+        <CustomerOrderTotalsPerformanceView
+          row={performanceViewing}
+          onClose={closePerformanceView}
+        />
+      ) : null}
 
       {viewing ? (
         <ContentSection
@@ -1120,7 +1156,7 @@ export default function CustomersPage() {
         </ContentSection>
       ) : null}
 
-      {!formOpen && !viewing ? (
+      {!focusMode ? (
       <>
       <ContentSection
         eyebrow="Directory"
@@ -1523,6 +1559,7 @@ export default function CustomersPage() {
           relationshipLevel: relationshipLevelFilters,
           partnershipStage: partnershipStageFilters,
         }}
+        onView={openPerformanceView}
       />
 
       <ContentSection eyebrow="Statistics" quiet>

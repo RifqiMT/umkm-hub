@@ -37,11 +37,11 @@ extension GlossaryFeatureLabel on GlossaryFeature {
       case GlossaryFeature.dashboard:
         return 'Dashboard is your home snapshot. Order numbers follow the period you pick (for example This month). Product and customer numbers stay workspace-wide so you always see catalog and CRM health beside period sales.';
       case GlossaryFeature.products:
-        return 'Products is your sellable catalog. Stage metrics describe how many SKUs you have, what stock would sell for, and how ready the catalog is. The Stock & sales table adds per-product stocks, revenue, discount, cost, profit, STR, ITR, SSR, orders, AOV, and UPT. Filters on the page also scope these numbers.';
+        return 'Products is your sellable catalog. Stage metrics describe how many SKUs you have, what stock would sell for, and how ready the catalog is. The Stock & sales table adds per-product stocks, gross revenue, discount, net revenue, cost, profit, STR, ITR, SSR, orders, AOV, and UPT. Filters on the page also scope these numbers.';
       case GlossaryFeature.warehouse:
         return 'Warehouse tracks stock on hand, restocks, and sold history. Valuation metrics estimate sell value, cost, and profit if you sold current inventory. Restock and sold ledgers show quantity before and after each movement, with pack equivalents when a pack is set.';
       case GlossaryFeature.customers:
-        return 'Customers is your B2B CRM pipeline. Stage metrics summarize contacts, approval, interest, closing, promises, and reachability. The Order totals table adds per-customer linked revenue, discounts, volume, cancellations, AOV, and UPT for buyers tied to orders.';
+        return 'Customers is your B2B CRM pipeline. Stage metrics summarize contacts, approval, interest, closing, promises, and reachability. The Order totals table adds per-customer gross revenue, discounts, net revenue, volume, cancellations, AOV, and UPT for buyers tied to orders.';
       case GlossaryFeature.orders:
         return 'Orders is where sales are recorded. Volume metrics count money, orders, and packs from non-cancelled orders. Health rates show cancellations, discounts, payment progress, and estimated margin when product costs exist. List filters also scope the stage summary.';
       case GlossaryFeature.targets:
@@ -282,13 +282,22 @@ const glossaryEntries = <GlossaryEntry>[
     aliases: ['Sold', 'sold stocks', 'units sold', 'qty sold'],
   ),
   GlossaryEntry(
-    id: 'products.stockSales.revenue',
-    label: 'Product revenue (Stock & sales)',
+    id: 'products.stockSales.grossRevenue',
+    label: 'Gross revenue (Stock & sales)',
     description:
-        'Net sales money attributed to this product across all non-cancelled orders, after sharing each order’s discount across its lines. Same allocation idea as Analytics product revenue, but Stock & sales covers the full catalog history in view rather than an Analytics timeline.',
+        'Pre-discount sales attributed to this product: allocated net revenue plus allocated discount. On Stock & sales and Analytics tables it is the primary figure in the combined Revenue column.',
+    formula: 'Net revenue + discount (allocated)',
+    features: [GlossaryFeature.products, GlossaryFeature.analytics],
+    aliases: ['Gross', 'Gross revenue', 'pre-discount revenue', 'gross'],
+  ),
+  GlossaryEntry(
+    id: 'products.stockSales.revenue',
+    label: 'Net revenue (Stock & sales)',
+    description:
+        'Post-discount sales attributed to this product across all non-cancelled orders, after sharing each order’s discount across its lines. On Stock & sales and Analytics tables it appears on the Revenue column subline as Net …, under the gross primary figure.',
     formula: 'For each line: line total × (order total ÷ order subtotal); then add those shares',
-    features: [GlossaryFeature.products],
-    aliases: ['Revenue', 'stock sales revenue', 'allocated revenue'],
+    features: [GlossaryFeature.products, GlossaryFeature.analytics],
+    aliases: ['Net revenue', 'Revenue', 'stock sales revenue', 'allocated revenue', 'net'],
   ),
   GlossaryEntry(
     id: 'products.stockSales.discount',
@@ -303,19 +312,19 @@ const glossaryEntries = <GlossaryEntry>[
     id: 'products.stockSales.cost',
     label: 'Product cost (Stock & sales)',
     description:
-        'Estimated cost of goods sold for this product: units sold times the current catalog unit cost. If the product has no unit cost, Cost and Profit show as empty. This uses today’s catalog cost, not a historical cost snapshot.',
-    formula: 'Sold stocks × unit cost (blank when unit cost is unset)',
+        'Estimated cost of goods sold for this product: units sold times the current catalog unit cost. The column also shows cost as a percent of gross (revenue + discount), same basis as Discount % and Profit margin %. If the product has no unit cost, Cost and Profit show as empty. This uses today’s catalog cost, not a historical cost snapshot.',
+    formula: 'Sold stocks × unit cost; Cost % = cost ÷ (revenue + discount) × 100 (blank when unit cost is unset or gross is 0)',
     features: [GlossaryFeature.products],
-    aliases: ['Cost', 'stock sales cost', 'COGS', 'product COGS'],
+    aliases: ['Cost', 'stock sales cost', 'COGS', 'product COGS', 'Cost %'],
   ),
   GlossaryEntry(
     id: 'products.stockSales.profit',
     label: 'Product profit (Stock & sales)',
     description:
-        'Estimated profit for this product on Stock & sales: allocated net revenue minus estimated cost of units sold. Blank when unit cost is unset so profit is not invented.',
-    formula: 'Revenue − cost (blank when cost is unset)',
+        'Estimated profit for this product on Stock & sales: allocated net revenue minus estimated cost of units sold. The column also shows margin as a percent of gross (revenue + discount). Discount % + Cost % + Margin % is about 100% when cost is set. Blank when unit cost is unset so profit is not invented.',
+    formula: 'Revenue − cost; Margin % = profit ÷ (revenue + discount) × 100 (blank when cost is unset or gross is 0)',
     features: [GlossaryFeature.products],
-    aliases: ['Profit', 'stock sales profit'],
+    aliases: ['Profit', 'stock sales profit', 'Margin %', 'profit margin'],
   ),
   GlossaryEntry(
     id: 'products.stockSales.sellThroughRate',
@@ -418,30 +427,30 @@ const glossaryEntries = <GlossaryEntry>[
   ),
   GlossaryEntry(
     id: 'customers.orderTotals.totals',
-    label: 'Customer totals (pre-discount)',
+    label: 'Gross revenue (Order totals)',
     description:
-        'On the Customers Order totals table, the sum of linked order subtotals before order-level discounts. Only non-cancelled orders that name this customer are included. Compare with Order total to see how much discount was given.',
+        'On the Customers Order totals table, Gross revenue is the sum of linked order subtotals before order-level discounts (API fields totals and grossRevenue). Only non-cancelled orders that name this customer are included. Compare with Net revenue to see how much discount was given.',
     formula: 'Add line totals (subtotals) of linked non-cancelled orders',
     features: [GlossaryFeature.customers],
-    aliases: ['Totals', 'customer totals', 'pre-discount totals'],
+    aliases: ['Gross revenue', 'Gross', 'Totals', 'customer totals', 'pre-discount totals'],
   ),
   GlossaryEntry(
     id: 'customers.orderTotals.discount',
     label: 'Customer discount',
     description:
-        'Absolute discount money taken off this customer’s linked non-cancelled orders (subtotal minus final total on each order). The column may also show discount as a percent of Totals.',
-    formula: 'Add (order subtotal − order total) for linked non-cancelled orders; Discount % = discount ÷ totals × 100',
+        'Absolute discount money taken off this customer’s linked non-cancelled orders (subtotal minus final total on each order). The column may also show discount as a percent of Gross revenue.',
+    formula: 'Add (order subtotal − order total) for linked non-cancelled orders; Discount % = discount ÷ gross revenue × 100',
     features: [GlossaryFeature.customers],
     aliases: ['Discount', 'customer discount amount'],
   ),
   GlossaryEntry(
     id: 'customers.orderTotals.orderTotal',
-    label: 'Customer order total',
+    label: 'Net revenue (Order totals)',
     description:
-        'Post-discount commercial value of this customer’s linked non-cancelled orders. This is the money side of Order totals and the numerator for customer AOV.',
+        'Post-discount commercial value of this customer’s linked non-cancelled orders. UI label is Net revenue (same idea as Stock & sales / Analytics). This is the numerator for customer AOV.',
     formula: 'Add final order totals of linked non-cancelled orders',
     features: [GlossaryFeature.customers],
-    aliases: ['Order total', 'customer order total', 'linked revenue'],
+    aliases: ['Net revenue', 'Order total', 'customer order total', 'linked revenue', 'net'],
   ),
   GlossaryEntry(
     id: 'customers.orderTotals.orderCount',

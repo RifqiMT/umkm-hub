@@ -5,7 +5,14 @@ import { api } from '@/lib/api';
 import { dedupeById } from '@/lib/dedupe-by-id';
 import { ContentSection, EmptyState } from '@/components/PageHeader';
 import { ListPager } from '@/components/ListPager';
-import { EntityIdBadge } from '@/components/EntityId';
+import { EntityIdBadge, EntityIdDetail } from '@/components/EntityId';
+import {
+  ViewBlock,
+  ViewChip,
+  ViewFacts,
+  ViewIdentity,
+  ViewSheetBody,
+} from '@/components/ViewSheet';
 import type { ListPageSize } from '@/lib/list-page-size';
 import type { Paginated, ProductStockSales } from '@/lib/types';
 import {
@@ -19,6 +26,7 @@ type SortKey =
   | 'name'
   | 'totalStocks'
   | 'soldStocks'
+  | 'grossRevenue'
   | 'revenue'
   | 'discount'
   | 'cost'
@@ -41,6 +49,12 @@ type ProductStockSalesFilters = {
 
 type ProductStockSalesSectionProps = {
   filters: ProductStockSalesFilters;
+  onView: (row: ProductStockSales) => void;
+};
+
+type ProductStockSalesPerformanceViewProps = {
+  row: ProductStockSales;
+  onClose: () => void;
 };
 
 function compareNullable(a: number | null, b: number | null): number {
@@ -58,8 +72,186 @@ function formatRatio(value: number | null | undefined): string {
   });
 }
 
+function IconView() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+export function ProductStockSalesPerformanceView({
+  row,
+  onClose,
+}: ProductStockSalesPerformanceViewProps) {
+  const labels = useLabels();
+  const unitLabel =
+    labels.productUnit[row.unit as keyof typeof labels.productUnit] ?? row.unit;
+
+  return (
+    <ContentSection
+      className="umkm-form-panel umkm-product-sheet umkm-view-sheet"
+      eyebrow="Product performance"
+      title={row.name}
+      description="Stock & sales performance for this product in the current catalog filters."
+      actions={
+        <button
+          type="button"
+          className="umkm-btn secondary"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      }
+    >
+      <ViewSheetBody onClose={onClose}>
+        <ViewIdentity
+          contextLabel="Unit"
+          chips={<ViewChip>{unitLabel}</ViewChip>}
+          metricLabel="Gross revenue"
+          metricValue={formatMoney(row.grossRevenue)}
+          metricHint={`Net ${formatMoney(row.revenue)}`}
+        />
+
+        <EntityIdDetail
+          id={row.productId || row.id}
+          label="Product ID"
+        />
+
+        <ViewBlock
+          title="Stocks"
+          description="Lifetime-available quantity with current on-hand and sold breakdown."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'total',
+                label: 'Total',
+                value: formatCompactQty(row.totalStocks),
+              },
+              {
+                key: 'current',
+                label: 'Current',
+                value: formatCompactQty(row.currentStocks),
+              },
+              {
+                key: 'sold',
+                label: 'Sold',
+                value: formatCompactQty(row.soldStocks),
+              },
+            ]}
+          />
+        </ViewBlock>
+
+        <ViewBlock
+          title="Money"
+          description="Gross is before discount; net is after. Cost and profit use catalog unit cost when set. Percents are shares of gross."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'gross',
+                label: 'Gross revenue',
+                value: formatMoney(row.grossRevenue),
+              },
+              {
+                key: 'net',
+                label: 'Net revenue',
+                value: formatMoney(row.revenue),
+              },
+              {
+                key: 'discount',
+                label: 'Discount',
+                value: formatMoney(row.discount),
+                sub:
+                  row.discountPercent != null
+                    ? formatRatePercent(row.discountPercent)
+                    : undefined,
+              },
+              {
+                key: 'cost',
+                label: 'Cost',
+                value: row.cost != null ? formatMoney(row.cost) : '—',
+                sub:
+                  row.costPercent != null
+                    ? formatRatePercent(row.costPercent)
+                    : undefined,
+              },
+              {
+                key: 'profit',
+                label: 'Profit',
+                value: row.profit != null ? formatMoney(row.profit) : '—',
+                sub:
+                  row.marginPercent != null
+                    ? formatRatePercent(row.marginPercent)
+                    : undefined,
+              },
+            ]}
+          />
+        </ViewBlock>
+
+        <ViewBlock
+          title="Rates & volume"
+          description="Sell-through, turnover, stock-to-sales, and order quality for this SKU."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'str',
+                label: 'STR',
+                value: formatRatePercent(row.sellThroughRate),
+              },
+              {
+                key: 'itr',
+                label: 'ITR',
+                value: formatRatio(row.inventoryTurnover),
+              },
+              {
+                key: 'ssr',
+                label: 'SSR',
+                value: formatRatio(row.stockToSalesRatio),
+              },
+              {
+                key: 'orders',
+                label: 'Orders',
+                value: row.orderCount.toLocaleString('en-US'),
+              },
+              {
+                key: 'aov',
+                label: 'AOV',
+                value:
+                  row.avgOrderValue != null
+                    ? formatMoney(row.avgOrderValue)
+                    : '—',
+              },
+              {
+                key: 'upt',
+                label: 'UPT',
+                value:
+                  row.unitsPerTransaction != null
+                    ? formatCompactQty(row.unitsPerTransaction)
+                    : '—',
+              },
+            ]}
+          />
+        </ViewBlock>
+      </ViewSheetBody>
+    </ContentSection>
+  );
+}
+
 export function ProductStockSalesSection({
   filters,
+  onView,
 }: ProductStockSalesSectionProps) {
   const labels = useLabels();
   const [items, setItems] = useState<ProductStockSales[]>([]);
@@ -140,6 +332,9 @@ export function ProductStockSalesSection({
         case 'soldStocks':
           cmp = a.soldStocks - b.soldStocks;
           break;
+        case 'grossRevenue':
+          cmp = a.grossRevenue - b.grossRevenue;
+          break;
         case 'revenue':
           cmp = a.revenue - b.revenue;
           break;
@@ -193,7 +388,7 @@ export function ProductStockSalesSection({
     <ContentSection
       eyebrow="Sales"
       title="Stock & sales"
-      description="Review stocks, revenue, discount, cost, and profit for each product, with sell-through, turnover, stock-to-sales, orders, average order value, and units per transaction."
+      description="Review stocks and revenue (gross primary, net on the subline), discount, cost, and profit for each product, with sell-through, turnover, stock-to-sales, orders, average order value, and units per transaction. Click a row or View to open product performance details."
     >
       {error ? (
         <p className="umkm-error" role="alert">
@@ -234,8 +429,8 @@ export function ProductStockSalesSection({
                     <button
                       type="button"
                       className="umkm-th-sort"
-                      onClick={() => toggleSort('revenue')}
-                      data-dir={sortMark('revenue')}
+                      onClick={() => toggleSort('grossRevenue')}
+                      data-dir={sortMark('grossRevenue')}
                     >
                       Revenue
                     </button>
@@ -330,11 +525,25 @@ export function ProductStockSalesSection({
                       UPT
                     </button>
                   </th>
+                  <th className="is-actions">
+                    <span className="umkm-th-label">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((row) => (
-                  <tr key={row.id} className="umkm-catalog-row">
+                  <tr
+                    key={row.id}
+                    className="umkm-catalog-row"
+                    tabIndex={0}
+                    onClick={() => onView(row)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onView(row);
+                      }
+                    }}
+                  >
                     <td>
                       <div className="umkm-product-cell">
                         <span className="umkm-product-name">{row.name}</span>
@@ -363,9 +572,16 @@ export function ProductStockSalesSection({
                       </div>
                     </td>
                     <td className="is-num">
-                      <span className="umkm-num">
-                        {formatMoney(row.revenue)}
-                      </span>
+                      <div className="umkm-num-stack">
+                        <span className="umkm-num">
+                          {formatMoney(row.grossRevenue)}
+                        </span>
+                        <em className="umkm-num-sub">
+                          Gross
+                          {' · '}
+                          Net {formatMoney(row.revenue)}
+                        </em>
+                      </div>
                     </td>
                     <td className="is-num">
                       <div className="umkm-num-stack">
@@ -380,18 +596,32 @@ export function ProductStockSalesSection({
                       </div>
                     </td>
                     <td className="is-num">
-                      <span className="umkm-num">
-                        {row.cost != null ? formatMoney(row.cost) : '—'}
-                      </span>
+                      <div className="umkm-num-stack">
+                        <span className="umkm-num">
+                          {row.cost != null ? formatMoney(row.cost) : '—'}
+                        </span>
+                        {row.costPercent != null ? (
+                          <em className="umkm-num-sub">
+                            {formatRatePercent(row.costPercent)}
+                          </em>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="is-num">
-                      <span
-                        className={`umkm-num${
-                          row.profit != null && row.profit < 0 ? ' is-neg' : ''
-                        }`}
-                      >
-                        {row.profit != null ? formatMoney(row.profit) : '—'}
-                      </span>
+                      <div className="umkm-num-stack">
+                        <span
+                          className={`umkm-num${
+                            row.profit != null && row.profit < 0 ? ' is-neg' : ''
+                          }`}
+                        >
+                          {row.profit != null ? formatMoney(row.profit) : '—'}
+                        </span>
+                        {row.marginPercent != null ? (
+                          <em className="umkm-num-sub">
+                            {formatRatePercent(row.marginPercent)}
+                          </em>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="is-num">
                       <span className="umkm-num">
@@ -427,6 +657,23 @@ export function ProductStockSalesSection({
                           : '—'}
                       </span>
                     </td>
+                    <td className="is-actions">
+                      <div
+                        className="umkm-row-actions umkm-icon-actions"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="umkm-icon-btn"
+                          type="button"
+                          title="View"
+                          aria-label={`View performance for ${row.name}`}
+                          onClick={() => onView(row)}
+                        >
+                          <IconView />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -436,7 +683,11 @@ export function ProductStockSalesSection({
           <ul className="umkm-catalog-cards">
             {sorted.map((row) => (
               <li key={row.id} className="umkm-catalog-card">
-                <div className="umkm-catalog-card-main">
+                <button
+                  type="button"
+                  className="umkm-catalog-card-main"
+                  onClick={() => onView(row)}
+                >
                   <div className="umkm-catalog-card-identity">
                     <span className="umkm-product-name">{row.name}</span>
                     <div className="umkm-product-meta">
@@ -462,7 +713,12 @@ export function ProductStockSalesSection({
                     </div>
                     <div>
                       <span>Revenue</span>
-                      <strong>{formatMoney(row.revenue)}</strong>
+                      <strong>{formatMoney(row.grossRevenue)}</strong>
+                      <em className="umkm-num-sub">
+                        Gross
+                        {' · '}
+                        Net {formatMoney(row.revenue)}
+                      </em>
                     </div>
                     <div>
                       <span>Discount</span>
@@ -478,6 +734,11 @@ export function ProductStockSalesSection({
                       <strong>
                         {row.cost != null ? formatMoney(row.cost) : '—'}
                       </strong>
+                      {row.costPercent != null ? (
+                        <em className="umkm-num-sub">
+                          {formatRatePercent(row.costPercent)}
+                        </em>
+                      ) : null}
                     </div>
                     <div>
                       <span>Profit</span>
@@ -490,6 +751,11 @@ export function ProductStockSalesSection({
                       >
                         {row.profit != null ? formatMoney(row.profit) : '—'}
                       </strong>
+                      {row.marginPercent != null ? (
+                        <em className="umkm-num-sub">
+                          {formatRatePercent(row.marginPercent)}
+                        </em>
+                      ) : null}
                     </div>
                     <div>
                       <span>STR</span>
@@ -528,6 +794,17 @@ export function ProductStockSalesSection({
                       </strong>
                     </div>
                   </div>
+                </button>
+                <div className="umkm-row-actions umkm-icon-actions">
+                  <button
+                    className="umkm-icon-btn"
+                    type="button"
+                    title="View performance"
+                    aria-label={`View performance for ${row.name}`}
+                    onClick={() => onView(row)}
+                  >
+                    <IconView />
+                  </button>
                 </div>
               </li>
             ))}

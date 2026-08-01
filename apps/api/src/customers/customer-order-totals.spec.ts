@@ -38,6 +38,7 @@ describe('customer order totals', () => {
     expect(row.id).toBe('cust-uuid');
     expect(row.customerId).toBe('BuSaR_x');
     expect(row.totals).toBe(200);
+    expect(row.grossRevenue).toBe(200);
     expect(row.discount).toBe(20);
     expect(row.orderTotal).toBe(180);
     expect(row.discountPercent).toBe(10);

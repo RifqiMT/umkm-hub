@@ -1,5 +1,33 @@
 # Changelog — UMKM Hub
 
+## 2026-08-01 — v1.5.259 Exclusive View focus mode for insight tables
+**Author:** Auto (Cursor agent)  
+**Impact:** Opening View from Products Stock & sales, Customers Order totals, or Warehouse Sold history enters page **focus mode**: FeatureStage, filters, sibling tables, and statistics hide so only the View sheet shows (same pattern as catalog/directory/inventory View). Performance sheets render at page level.
+
+## 2026-08-01 — v1.5.258 Performance View sheets for Stock & sales / Order totals
+**Author:** Auto (Cursor agent)  
+**Impact:** Stock & sales View opens a **product performance** sheet (stocks, money, STR/ITR/SSR, AOV/UPT), not the catalog product sheet. Order totals View opens an **order performance** sheet for that customer. Catalog/directory View is unchanged.
+
+## 2026-08-01 — v1.5.257 View from Stock & sales / Order totals
+**Author:** Auto (Cursor agent)  
+**Impact:** Products Stock & sales and Customers Order totals rows open the same product/customer View sheet as the catalog/directory (row click, card tap, or View action).
+
+## 2026-08-01 — v1.5.256 Combined Revenue column (gross + net)
+**Author:** Auto (Cursor agent)  
+**Impact:** Stock & sales, Order totals, and Analytics product/customer tables use one **Revenue** column: gross primary, `Gross · Net …` subline (same stack pattern as Stocks). CSV still exports Gross revenue and Net revenue as separate fields.
+
+## 2026-08-01 — v1.5.255 Gross revenue vs Net revenue labels
+**Author:** Auto (Cursor agent)  
+**Impact:** Money tables label columns **Gross revenue** and **Net revenue** (not bare Gross/Revenue/Order total) on Stock & sales, Order totals, and Analytics product/customer (web + mobile + CSV). Section copy and glossary spell out before vs after discount.
+
+## 2026-08-01 — v1.5.254 Gross revenue on money tables
+**Author:** Auto (Cursor agent)  
+**Impact:** Explicit **Gross** (pre-discount) on Products Stock & sales, Analytics product/customer tables (web + mobile + CSV), and Customers Order totals (Totals label → Gross). API adds `grossRevenue` (`revenue + discount`; Order totals also keeps `totals`). Column order: Gross → Discount → Revenue → Cost → Profit.
+
+## 2026-08-01 — v1.5.253 Stock & sales Cost / Profit % of gross
+**Author:** Auto (Cursor agent)  
+**Impact:** Products Stock & sales Cost and Profit columns show percent-of-gross sub-lines (same basis as Discount % and Analytics: Discount % + Cost % + Margin % ≈ 100%). API adds `costPercent` and `marginPercent`.
+
 ## 2026-08-01 — v1.5.252 Import merge across apps (warehouse sales + child natural keys)
 **Author:** Auto (Cursor agent)  
 **Impact:** Export/import now includes `warehouseSales` (merge by unique `orderLineId`). Order lines, installments, and restocks merge by natural keys when UUIDs differ across apps. Feature Orders export/import carries related products, customers, and sales; Warehouse includes sales. UI copy clarifies merge by id and natural keys. Orders also restore `paymentDueDate` on merge.

@@ -6,7 +6,7 @@
 | **Version** | 1.5.250 |
 | **Date** | 2026-08-01 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.252 |
+| **Code tip aligned** | v1.5.259 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -321,11 +321,14 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `products.stockSales.currentStocks` | Current stocks | On-hand stock units | `GREATEST(stockQty, 0)` | `GET /products/stock-sales` | `1500` |
 | `products.stockSales.soldStocks` | Sold stocks | Units sold on non-cancelled orders | `Σ OrderLine.productQty` | `GET /products/stock-sales` | `4200` |
 | `products.stockSales.totalStocks` | Stocks (total) | Current + sold; UI primary Stocks figure | `currentStocks + soldStocks` | `GET /products/stock-sales`; Stock & sales table | `5700` |
+| `products.stockSales.grossRevenue` | Product gross | Pre-discount allocated sales | `revenue + discount` | `GET /products/stock-sales` | `2340000` |
 | `products.stockSales.revenue` | Product revenue | Discount-allocated net line revenue | `Σ lineTotal × order.totalOrderValue / order.lineTotal` | `GET /products/stock-sales` | `2220000` |
 | `products.stockSales.discount` | Product discount | Allocated order discount on product lines | `Σ lineTotal × (order.lineTotal − order.totalOrderValue) / order.lineTotal` | `GET /products/stock-sales` | `120000` |
-| `products.stockSales.discountPercent` | Discount % | Discount share of gross | `discount ÷ (revenue + discount) × 100` | `GET /products/stock-sales` | `5.1` |
+| `products.stockSales.discountPercent` | Discount % | Discount share of gross | `discount ÷ grossRevenue × 100` | `GET /products/stock-sales` | `5.1` |
 | `products.stockSales.cost` | Product COGS | Estimated cost of units sold | `soldStocks × costPerUnit` (null if cost unset) | `GET /products/stock-sales` | `900000` |
+| `products.stockSales.costPercent` | Cost % | COGS share of gross | `cost ÷ (revenue + discount) × 100` (null if cost unset or gross 0) | `GET /products/stock-sales` | `38.5` |
 | `products.stockSales.profit` | Product profit | Net after COGS | `revenue − cost` (null if cost unset) | `GET /products/stock-sales` | `1320000` |
+| `products.stockSales.marginPercent` | Margin % | Profit share of gross | `profit ÷ (revenue + discount) × 100` (null if cost unset or gross 0) | `GET /products/stock-sales` | `56.4` |
 | `products.stockSales.sellThroughRate` | STR | Sell-through rate | `sold ÷ (sold + current) × 100` | `GET /products/stock-sales` | `73.68` |
 | `products.stockSales.inventoryTurnover` | ITR | Inventory turnover (qty) | `sold ÷ ((beginning + ending) ÷ 2)` where beginning ≈ current + sold, ending = current | `GET /products/stock-sales` | `1.2` |
 | `products.stockSales.stockToSalesRatio` | SSR | Stock-to-sales ratio (qty) | `current ÷ sold` | `GET /products/stock-sales` | `0.36` |
@@ -355,7 +358,8 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `relationshipLevel` | Relationship level | Sales stage | `NEGOTIATION` \| `REQUEST_SAMPLE` \| `CLOSING_FIRST_ORDER` \| `WILL_CONTACT` \| `INITIAL_APPROACH` | Customer | `REQUEST_SAMPLE` |
 | `approvalPercentage` | Approval % | Deal confidence | integer 0–100 | Customer | `70` |
 | `remarks` | Remarks | Free notes | Optional | Customer | `Call Monday` |
-| `customers.orderTotals.totals` | Customer totals | Pre-discount sum of linked orders | `Σ Order.lineTotal` (status ≠ CANCELLED, linked) | `GET /customers/order-totals`; Customers Order totals | `2000000` |
+| `customers.orderTotals.totals` | Customer gross | Pre-discount sum of linked orders (UI: Gross) | `Σ Order.lineTotal` (status ≠ CANCELLED, linked) | `GET /customers/order-totals`; Customers Order totals | `2000000` |
+| `customers.orderTotals.grossRevenue` | Customer gross (alias) | Same value as totals | `= totals` | `GET /customers/order-totals` | `2000000` |
 | `customers.orderTotals.discount` | Customer discount | Absolute discount off linked orders | `Σ (lineTotal − totalOrderValue)` | `GET /customers/order-totals` | `120000` |
 | `customers.orderTotals.orderTotal` | Customer order total | Post-discount commercial sum | `Σ Order.totalOrderValue` | `GET /customers/order-totals` | `1880000` |
 | `customers.orderTotals.discountPercent` | Customer discount % | Discount share of totals | `discount ÷ totals × 100` or null | Serialized on order-totals | `6` |
@@ -514,6 +518,7 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `analytics.products[].avgRepeatOrderDays` | Product avg repeat | Mean UTC days between consecutive orders with the product | Average consecutive gaps; null if fewer than 2 orders | `GET /analytics` | `14.5` |
 | `analytics.customers[].firstRepeatOrderDays` | Customer 1st repeat | UTC days from first → second customer order | Same first-gap rule as products | `GET /analytics` | `15` |
 | `analytics.customers[].avgRepeatOrderDays` | Customer avg repeat | Mean UTC days between consecutive customer orders | Same gap rule as products | `GET /analytics` | `21` |
+| `analytics.products[].grossRevenue` | Product year gross | Pre-discount allocated sales | `revenue + discount` | `GET /analytics` | `2340000` |
 | `analytics.products[].revenue` | Product year revenue | Discount-allocated line revenue | Non-cancelled, selected scope | `GET /analytics` | `2250000` |
 | `analytics.products[].discount` | Product year discount | Order discount allocated to lines | `gross line − allocated revenue` | `GET /analytics` | `112500` |
 | `analytics.products[].discountPercent` | Product discount % | Share of gross given as discount | `(discount / (revenue + discount)) × 100` | `GET /analytics` | `4.0` |

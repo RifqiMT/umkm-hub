@@ -54,12 +54,137 @@ function IconView() {
 
 type WarehouseSoldHistorySectionProps = {
   search: string;
+  onView: (row: WarehouseSale) => void;
 };
+
+type WarehouseSoldHistoryViewProps = {
+  row: WarehouseSale;
+  onClose: () => void;
+};
+
+export function WarehouseSoldHistoryView({
+  row,
+  onClose,
+}: WarehouseSoldHistoryViewProps) {
+  const router = useRouter();
+  const u = unitShort(row.unit ?? row.unitSnapshot);
+  const pack = row.product ? getActivePack(row.product) : null;
+  const packsSold = formatPacksOnHand(row.qtySold, pack);
+  const packsBefore = formatPacksOnHand(row.stockBefore, pack);
+  const packsAfter = formatPacksOnHand(row.stockAfter, pack);
+
+  return (
+    <ContentSection
+      className="umkm-form-panel umkm-product-sheet umkm-view-sheet"
+      eyebrow="Sold"
+      title={row.product?.name ?? row.productId}
+      description={
+        row.orderRef
+          ? `Stock drawn by order ${row.orderRef}.`
+          : 'Stock drawn when this order line was fulfilled.'
+      }
+      actions={
+        <>
+          {row.order?.id || row.orderId ? (
+            <button
+              type="button"
+              className="umkm-btn secondary"
+              onClick={() => {
+                const orderUuid = row.order?.id ?? row.orderId;
+                onClose();
+                router.push(`/orders?view=${orderUuid}`);
+              }}
+            >
+              Open order
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="umkm-btn secondary"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </>
+      }
+    >
+      <ViewSheetBody onClose={onClose}>
+        <ViewIdentity
+          contextLabel="Sold"
+          chips={
+            <>
+              <ViewChip>
+                {row.soldDate?.slice(0, 10) ?? 'No date'}
+              </ViewChip>
+              {pack ? (
+                <ViewChip tone="accent">
+                  Pack {pack.sizeLabel}
+                </ViewChip>
+              ) : (
+                <ViewChip>No pack</ViewChip>
+              )}
+              <ViewChip>
+                −{formatCompactQty(row.qtySold)} {u}
+                {packsSold ? ` · ${packsSold}` : ''}
+              </ViewChip>
+              {row.orderRef ? <ViewChip>{row.orderRef}</ViewChip> : null}
+            </>
+          }
+          metricLabel="Stock after"
+          metricValue={
+            <>
+              {formatCompactQty(row.stockAfter)} {u}
+            </>
+          }
+          metricHint={
+            <>
+              From {formatCompactQty(row.stockBefore)}
+              {packsAfter ? ` · ${packsAfter}` : ''}
+            </>
+          }
+        />
+        <ViewBlock
+          title="Stock movement"
+          description="How this sale changed on-hand quantity."
+        >
+          <ViewFacts
+            columns={3}
+            items={[
+              {
+                key: 'before',
+                label: 'Before',
+                value: formatCompactQty(row.stockBefore),
+                sub: packsBefore ?? u,
+              },
+              {
+                key: 'sold',
+                label: 'Sold',
+                value: `−${formatCompactQty(row.qtySold)}`,
+                sub: packsSold ? `−${packsSold}` : u,
+              },
+              {
+                key: 'after',
+                label: 'After',
+                value: formatCompactQty(row.stockAfter),
+                sub: packsAfter ?? u,
+              },
+            ]}
+          />
+        </ViewBlock>
+        {row.notes ? (
+          <ViewBlock title="Notes">
+            <p style={{ margin: 0 }}>{row.notes}</p>
+          </ViewBlock>
+        ) : null}
+      </ViewSheetBody>
+    </ContentSection>
+  );
+}
 
 export function WarehouseSoldHistorySection({
   search,
+  onView,
 }: WarehouseSoldHistorySectionProps) {
-  const router = useRouter();
   const [items, setItems] = useState<WarehouseSale[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<ListPageSize>(20);
@@ -73,7 +198,6 @@ export function WarehouseSoldHistorySection({
   const [error, setError] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [viewing, setViewing] = useState<WarehouseSale | null>(null);
   const loadSeq = useRef(0);
 
   useEffect(() => {
@@ -149,128 +273,6 @@ export function WarehouseSoldHistorySection({
 
   return (
     <>
-      {viewing ? (
-        <ContentSection
-          className="umkm-form-panel umkm-product-sheet umkm-view-sheet"
-          eyebrow="Sold"
-          title={viewing.product?.name ?? viewing.productId}
-          description={
-            viewing.orderRef
-              ? `Stock drawn by order ${viewing.orderRef}.`
-              : 'Stock drawn when this order line was fulfilled.'
-          }
-          actions={
-            <>
-              {viewing.order?.id || viewing.orderId ? (
-                <button
-                  type="button"
-                  className="umkm-btn secondary"
-                  onClick={() => {
-                    const orderUuid = viewing.order?.id ?? viewing.orderId;
-                    setViewing(null);
-                    router.push(`/orders?view=${orderUuid}`);
-                  }}
-                >
-                  Open order
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="umkm-btn secondary"
-                onClick={() => setViewing(null)}
-              >
-                Close
-              </button>
-            </>
-          }
-        >
-          <ViewSheetBody onClose={() => setViewing(null)}>
-            {(() => {
-              const u = unitShort(viewing.unit ?? viewing.unitSnapshot);
-              const pack = viewing.product
-                ? getActivePack(viewing.product)
-                : null;
-              const packsSold = formatPacksOnHand(viewing.qtySold, pack);
-              const packsBefore = formatPacksOnHand(viewing.stockBefore, pack);
-              const packsAfter = formatPacksOnHand(viewing.stockAfter, pack);
-              return (
-                <>
-                  <ViewIdentity
-                    contextLabel="Sold"
-                    chips={
-                      <>
-                        <ViewChip>
-                          {viewing.soldDate?.slice(0, 10) ?? 'No date'}
-                        </ViewChip>
-                        {pack ? (
-                          <ViewChip tone="accent">
-                            Pack {pack.sizeLabel}
-                          </ViewChip>
-                        ) : (
-                          <ViewChip>No pack</ViewChip>
-                        )}
-                        <ViewChip>
-                          −{formatCompactQty(viewing.qtySold)} {u}
-                          {packsSold ? ` · ${packsSold}` : ''}
-                        </ViewChip>
-                        {viewing.orderRef ? (
-                          <ViewChip>{viewing.orderRef}</ViewChip>
-                        ) : null}
-                      </>
-                    }
-                    metricLabel="Stock after"
-                    metricValue={
-                      <>
-                        {formatCompactQty(viewing.stockAfter)} {u}
-                      </>
-                    }
-                    metricHint={
-                      <>
-                        From {formatCompactQty(viewing.stockBefore)}
-                        {packsAfter ? ` · ${packsAfter}` : ''}
-                      </>
-                    }
-                  />
-                  <ViewBlock
-                    title="Stock movement"
-                    description="How this sale changed on-hand quantity."
-                  >
-                    <ViewFacts
-                      columns={3}
-                      items={[
-                        {
-                          key: 'before',
-                          label: 'Before',
-                          value: formatCompactQty(viewing.stockBefore),
-                          sub: packsBefore ?? u,
-                        },
-                        {
-                          key: 'sold',
-                          label: 'Sold',
-                          value: `−${formatCompactQty(viewing.qtySold)}`,
-                          sub: packsSold ? `−${packsSold}` : u,
-                        },
-                        {
-                          key: 'after',
-                          label: 'After',
-                          value: formatCompactQty(viewing.stockAfter),
-                          sub: packsAfter ?? u,
-                        },
-                      ]}
-                    />
-                  </ViewBlock>
-                  {viewing.notes ? (
-                    <ViewBlock title="Notes">
-                      <p style={{ margin: 0 }}>{viewing.notes}</p>
-                    </ViewBlock>
-                  ) : null}
-                </>
-              );
-            })()}
-          </ViewSheetBody>
-        </ContentSection>
-      ) : null}
-
       <ContentSection
         eyebrow="History"
         title="Sold history"
@@ -349,11 +351,11 @@ export function WarehouseSoldHistorySection({
                         key={r.id}
                         className="umkm-catalog-row"
                         tabIndex={0}
-                        onClick={() => setViewing(r)}
+                        onClick={() => onView(r)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            setViewing(r);
+                            onView(r);
                           }
                         }}
                       >
@@ -414,7 +416,7 @@ export function WarehouseSoldHistorySection({
                               aria-label="View sale"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setViewing(r);
+                                onView(r);
                               }}
                             >
                               <IconView />
@@ -440,7 +442,7 @@ export function WarehouseSoldHistorySection({
                     <button
                       type="button"
                       className="umkm-catalog-card-main"
-                      onClick={() => setViewing(r)}
+                      onClick={() => onView(r)}
                     >
                       <div className="umkm-catalog-card-identity">
                         <span className="umkm-product-name">
@@ -489,7 +491,7 @@ export function WarehouseSoldHistorySection({
                         type="button"
                         title="View"
                         aria-label="View sale"
-                        onClick={() => setViewing(r)}
+                        onClick={() => onView(r)}
                       >
                         <IconView />
                       </button>

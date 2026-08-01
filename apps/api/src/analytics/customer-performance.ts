@@ -26,6 +26,8 @@ export type CustomerPerformanceRow = {
   orderCount: number;
   /** Sum of packs across the customer’s orders in scope. */
   packsSold: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   revenue: number;
   avgOrderValue: number | null;
   /**
@@ -109,9 +111,9 @@ export function aggregateCustomerPerformance(
     const { firstRepeatOrderDays, avgRepeatOrderDays } = repeatOrderDuration([
       ...acc.orderDatesById.values(),
     ]);
-    const gross = revenue + discount;
+    const grossRevenue = roundMoney(revenue + discount);
     const discountPercent =
-      gross > 0 ? roundMoney((discount / gross) * 100) : null;
+      grossRevenue > 0 ? roundMoney((discount / grossRevenue) * 100) : null;
 
     let cost: number | null = null;
     let costPercent: number | null = null;
@@ -121,9 +123,9 @@ export function aggregateCustomerPerformance(
     if (acc.hasCost) {
       cost = roundMoney(acc.costSum);
       profit = roundMoney(revenue - cost);
-      if (gross > 0) {
-        costPercent = roundMoney((cost / gross) * 100);
-        marginPercent = roundMoney((profit / gross) * 100);
+      if (grossRevenue > 0) {
+        costPercent = roundMoney((cost / grossRevenue) * 100);
+        marginPercent = roundMoney((profit / grossRevenue) * 100);
       }
     }
 
@@ -134,6 +136,7 @@ export function aggregateCustomerPerformance(
       companyType: acc.companyType,
       orderCount,
       packsSold,
+      grossRevenue,
       revenue,
       avgOrderValue,
       firstRepeatOrderDays,

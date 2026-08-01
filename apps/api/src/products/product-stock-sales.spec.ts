@@ -63,10 +63,13 @@ describe('product stock sales metrics', () => {
     expect(row.soldStocks).toBe(75);
     expect(row.totalStocks).toBe(100);
     expect(row.revenue).toBe(300);
+    expect(row.grossRevenue).toBe(330);
     expect(row.discount).toBe(30);
     expect(row.discountPercent).toBeCloseTo(9.09, 1);
     expect(row.cost).toBe(150);
+    expect(row.costPercent).toBeCloseTo(45.45, 1);
     expect(row.profit).toBe(150);
+    expect(row.marginPercent).toBeCloseTo(45.45, 1);
     expect(row.sellThroughRate).toBe(75);
     // beginning=100, ending=25, average=62.5 → 75/62.5 = 1.2
     expect(row.inventoryTurnover).toBe(1.2);
@@ -96,7 +99,9 @@ describe('product stock sales metrics', () => {
     expect(row.discount).toBe(0);
     expect(row.discountPercent).toBeNull();
     expect(row.cost).toBeNull();
+    expect(row.costPercent).toBeNull();
     expect(row.profit).toBeNull();
+    expect(row.marginPercent).toBeNull();
     expect(row.sellThroughRate).toBeNull();
     expect(row.avgOrderValue).toBeNull();
     expect(row.unitsPerTransaction).toBeNull();
@@ -120,5 +125,9 @@ describe('product stock sales metrics', () => {
     expect(row.discount).toBe(20);
     expect(row.cost).toBe(20);
     expect(row.profit).toBe(160);
+    // gross = 200 → discount 10%, cost 10%, margin 80%
+    expect(row.discountPercent).toBe(10);
+    expect(row.costPercent).toBe(10);
+    expect(row.marginPercent).toBe(80);
   });
 });

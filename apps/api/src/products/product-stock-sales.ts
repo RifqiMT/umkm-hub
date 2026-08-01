@@ -31,6 +31,8 @@ export type ProductStockSalesRow = {
   currentStocks: number;
   /** Σ OrderLine.productQty on non-cancelled orders. */
   soldStocks: number;
+  /** Pre-discount gross (revenue + discount). */
+  grossRevenue: number;
   /** Discount-allocated net revenue (non-cancelled). */
   revenue: number;
   /** Order discount allocated to this product’s lines. */
@@ -39,8 +41,16 @@ export type ProductStockSalesRow = {
   discountPercent: number | null;
   /** Estimated COGS: sold × current catalog costPerUnit. Null if cost unset. */
   cost: number | null;
+  /** Cost as % of gross (revenue + discount). Null when cost unset or gross is 0. */
+  costPercent: number | null;
   /** Net revenue − COGS. Null if cost unset. */
   profit: number | null;
+  /**
+   * Profit margin as % of gross (revenue + discount).
+   * With Discount % + Cost % + Margin % ≈ 100% when cost is set.
+   * Null when cost unset or gross is 0.
+   */
+  marginPercent: number | null;
   /**
    * Sell-Through Rate (%): sold ÷ (sold + current) × 100.
    * Null when both are 0.
@@ -144,11 +154,20 @@ export function serializeProductStockSales(
   const packsSold = roundMoney(Math.max(0, Number(row.packsSold) || 0));
   const revenue = roundMoney(Math.max(0, Number(row.revenue) || 0));
   const discount = Math.max(0, roundMoney(Number(row.discount) || 0));
-  const gross = revenue + discount;
+  const grossRevenue = roundMoney(revenue + discount);
   const discountPercent =
-    gross > 0 ? roundMoney((discount / gross) * 100) : null;
+    grossRevenue > 0 ? roundMoney((discount / grossRevenue) * 100) : null;
   const cost = productSoldCost(soldStocks, row.costPerUnit);
   const profit = cost == null ? null : roundMoney(revenue - cost);
+  // Rates use gross so Discount % + Cost % + Margin % ≈ 100% (same as Analytics).
+  const costPercent =
+    cost != null && grossRevenue > 0
+      ? roundMoney((cost / grossRevenue) * 100)
+      : null;
+  const marginPercent =
+    profit != null && grossRevenue > 0
+      ? roundMoney((profit / grossRevenue) * 100)
+      : null;
   return {
     id: row.productUuid,
     productId: row.productCode,
@@ -157,11 +176,14 @@ export function serializeProductStockSales(
     totalStocks,
     currentStocks,
     soldStocks,
+    grossRevenue,
     revenue,
     discount,
     discountPercent,
     cost,
+    costPercent,
     profit,
+    marginPercent,
     sellThroughRate: sellThroughRate(soldStocks, currentStocks),
     inventoryTurnover: inventoryTurnoverRatio(soldStocks, currentStocks),
     stockToSalesRatio: stockToSalesRatio(soldStocks, currentStocks),

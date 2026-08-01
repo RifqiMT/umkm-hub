@@ -682,7 +682,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     children: [
                       Expanded(
                         child: MetricTile(
-                          label: 'Revenue',
+                          label: 'Net revenue',
                           value: data == null ? '—' : _fmtMoney(data.revenue),
                         ),
                       ),
@@ -863,7 +863,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 _Granularity.annual => 'Annual charts',
               },
               subtitle: hasTarget
-                  ? 'Revenue (teal) vs target (amber). Rates and lead times follow.'
+                  ? 'Net revenue (teal) vs target (amber). Rates and lead times follow.'
                   : 'Revenue, rates, and lead times when shipment dates or installments exist.',
             ),
             if (_loading)
@@ -884,12 +884,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               const SectionLabel(
                 'Performance',
                 subtitle:
-                    'Revenue, order volume, ticket size, and units per transaction.',
+                    'Net revenue (after discount), order volume, ticket size, and units per transaction.',
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: _ChartCard(
-                  title: 'Revenue',
+                  title: 'Net revenue',
                   view: _chartView,
                   child: _RevenueChart(
                     labels: labels,
@@ -899,7 +899,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   table: _MetricTable(
                     columns: [
                       _periodAxisLabel,
-                      'Revenue',
+                      'Net revenue',
                       if (hasTarget) 'Target',
                     ],
                     rows: [
@@ -1550,7 +1550,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               SectionLabel(
                 'Products · $_scopeLabel',
                 subtitle:
-                    'Revenue after discount. Rates are shares of the pre-discount total.',
+                    'Revenue shows gross (primary) and net (subline). Rates are shares of gross revenue.',
               ),
               if (_tablesLoading)
                 const Padding(
@@ -1563,7 +1563,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   child: EmptyHint(
                     title: 'No product sales yet',
                     message:
-                        'Orders in this year will appear here with revenue, discount, cost, and margin.',
+                        'Orders in this year will appear here with gross revenue, net revenue, discount, cost, and margin.',
                   ),
                 )
               else
@@ -1577,15 +1577,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         '${_fmtQty(p.orderCount.toDouble())} orders · ${_fmtQty(p.packsSold)} packs',
                       ],
                       metrics: [
-                        ('Revenue', _fmtMoney(p.revenue)),
-                        if (p.avgOrderValue != null)
-                          ('AOV', _fmtMoney(p.avgOrderValue!)),
                         (
-                          'Repeat',
-                          _formatRepeatDays(
-                            first: p.firstRepeatOrderDays,
-                            avg: p.avgRepeatOrderDays,
-                          ),
+                          'Revenue',
+                          '${_fmtMoney(p.grossRevenue)}\nGross · Net ${_fmtMoney(p.revenue)}',
                         ),
                         (
                           'Discount',
@@ -1594,6 +1588,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   ? '${_fmtMoney(p.discount)} · ${p.discountPercent!.toStringAsFixed(1)}%'
                                   : _fmtMoney(p.discount)
                               : '—',
+                        ),
+                        if (p.avgOrderValue != null)
+                          ('AOV', _fmtMoney(p.avgOrderValue!)),
+                        (
+                          'Repeat',
+                          _formatRepeatDays(
+                            first: p.firstRepeatOrderDays,
+                            avg: p.avgRepeatOrderDays,
+                          ),
                         ),
                         (
                           'Cost',
@@ -1633,7 +1636,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   child: EmptyHint(
                     title: 'No customer sales yet',
                     message:
-                        'Assign a customer on orders to see revenue, discount, cost, and profit here.',
+                        'Assign a customer on orders to see gross revenue, net revenue, discount, cost, and profit here.',
                   ),
                 )
               else
@@ -1650,15 +1653,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         '${_fmtQty(c.orderCount.toDouble())} orders · ${_fmtQty(c.packsSold)} packs',
                       ],
                       metrics: [
-                        ('Revenue', _fmtMoney(c.revenue)),
-                        if (c.avgOrderValue != null)
-                          ('AOV', _fmtMoney(c.avgOrderValue!)),
                         (
-                          'Repeat',
-                          _formatRepeatDays(
-                            first: c.firstRepeatOrderDays,
-                            avg: c.avgRepeatOrderDays,
-                          ),
+                          'Revenue',
+                          '${_fmtMoney(c.grossRevenue)}\nGross · Net ${_fmtMoney(c.revenue)}',
                         ),
                         (
                           'Discount',
@@ -1667,6 +1664,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   ? '${_fmtMoney(c.discount)} · ${c.discountPercent!.toStringAsFixed(1)}%'
                                   : _fmtMoney(c.discount)
                               : '—',
+                        ),
+                        if (c.avgOrderValue != null)
+                          ('AOV', _fmtMoney(c.avgOrderValue!)),
+                        (
+                          'Repeat',
+                          _formatRepeatDays(
+                            first: c.firstRepeatOrderDays,
+                            avg: c.avgRepeatOrderDays,
+                          ),
                         ),
                         (
                           'Cost',

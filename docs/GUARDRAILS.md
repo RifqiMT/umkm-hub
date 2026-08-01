@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.259 |
 | **Date** | 2026-08-01 |
 | **Purpose** | Technical and business limitations that constrain product development |
 
@@ -60,6 +60,7 @@
 | Gram/liter products allow **exactly one** active pack from sizes **1…1000 + custom** | Avoid ambiguous pricing |
 | Sold history is read-only from Warehouse UI — mutations only via Orders; historical gaps need backfill CLI | Clear ownership of inventory mutations |
 | Mobile **Targets**, **PDF/fiscal**, warehouse **edit**, **Stock & sales**, **Order totals**, **statistics UI**, Sold history **Open order** deferred (web-first) | Focus field app on CRM/orders |
+| Web **View** sheets must use page focus mode (hide FeatureStage, filters, sibling sections); do not nest View inside insight tables while leaving chrome visible | One job per screen; matches catalog/directory View |
 
 ---
 

@@ -62,4 +62,16 @@ while (( ATTEMPT <= MAX_ATTEMPTS )); do
 done
 
 echo "==> Starting API..."
-exec npm run start:prod
+ENTRY="dist/src/main.js"
+if [[ ! -f "$ENTRY" ]]; then
+  echo "==> ${ENTRY} missing — running build on start..."
+  npm run build
+fi
+
+if [[ ! -f "$ENTRY" ]]; then
+  echo "==> Build output still missing at ${ENTRY}"
+  ls -la dist 2>&1 || true
+  exit 1
+fi
+
+exec node "$ENTRY"

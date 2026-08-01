@@ -15,8 +15,7 @@ services:
     rootDir: apps/api
     # Inline command so deploy works even if Blueprint sync skips script overrides.
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npm run build
-    preDeployCommand: npx prisma migrate deploy
-    startCommand: npm run start:prod
+    startCommand: bash scripts/render-start.sh
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_VERSION

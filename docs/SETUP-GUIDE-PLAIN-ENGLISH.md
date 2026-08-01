@@ -166,7 +166,13 @@ Wait until the API service shows **Live** (first deploy can take 5–10 minutes)
 
 `NPM_CONFIG_PRODUCTION=false npm ci && npm run build`
 
-Set **Start Command** to `npm run start:prod` and **Root Directory** to `apps/api`. Then **Manual Deploy** → **Deploy latest commit**.
+Set **Start Command** to `bash scripts/render-start.sh` and **Root Directory** to `apps/api`. Then **Manual Deploy** → **Deploy latest commit**.
+
+**If deploy fails with Prisma `P3009` (failed migration):** the database has a broken first deploy. On Render this is safe to reset because you have no real data yet:
+
+1. Open **umkm-hub-db** → **Settings** → **Delete Database** (or **Reset** if shown).
+2. Re-create via **Blueprint** → **Manual Sync**, or create a new free Postgres and link `DATABASE_URL` on the API service.
+3. Deploy again — migrations will run in the correct order.
 
 Your API address will look like:  
 `https://umkm-hub-api.onrender.com`

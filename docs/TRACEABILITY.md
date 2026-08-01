@@ -24,7 +24,7 @@
 | FR-P8 Email/account verify | `POST …/email/send-verification`; `POST /auth/verify-email` | `/verify-email`, Profile badges | ProfileScreen verify | `email-verification.util.spec.ts` |
 | FR-P9 Register anti-enumeration | Unified 409 + `POST /auth/register-availability` | `/register` conflict CTA | LoginScreen register | `registration-conflict.util.spec.ts` |
 | FR-P10 Data export | `GET /export`, `GET /export/eligibility`; own=`pwd1:` hash; all-profiles=`password` via `SANDBOX_EXPORT_PASSWORDS` | `/profile` Export | FeatureDataTransfer / Profile | `export-allowlist.spec.ts`, `export-password.util.spec.ts` |
-| FR-P11 Merge import | `POST /import?format=json|csv-unified` | `/profile` Import | Profile / FeatureDataTransfer | `import.service` / dedupe |
+| FR-P11 Merge import | `POST /import?format=json|csv-unified`; natural keys for parents + lines/installments/restocks/sales (`orderLineId`) | `/profile` Import | Profile / FeatureDataTransfer | `import.service` / `import-dedupe` / `import.spec.ts` |
 | FR-P12 Forgot/reset password | `POST /auth/forgot-password`, `reset-password` | `/forgot-password`, `/reset-password` | Login forgot flow | password-reset specs |
 | FR-P13 Feature-scoped transfer | `entity=` on export/import | FeatureDataTransfer on domain pages | FeatureDataTransfer | `export-entities.ts` |
 | FR-P14 Invoicing identity | Profile fiscal fields on `PATCH /profiles/me` | `/profile` invoicing section | ProfileScreen invoicing | VARIABLES Profile fiscal; US-1.11 |

@@ -1,5 +1,9 @@
 # Changelog — UMKM Hub
 
+## 2026-08-01 — v1.5.252 Import merge across apps (warehouse sales + child natural keys)
+**Author:** Auto (Cursor agent)  
+**Impact:** Export/import now includes `warehouseSales` (merge by unique `orderLineId`). Order lines, installments, and restocks merge by natural keys when UUIDs differ across apps. Feature Orders export/import carries related products, customers, and sales; Warehouse includes sales. UI copy clarifies merge by id and natural keys. Orders also restore `paymentDueDate` on merge.
+
 ## 2026-08-01 — v1.5.251 Order form narrow-screen cleanup
 **Author:** Auto (Cursor agent)  
 **Impact:** Create/Modify order no longer shows a header **Cancel** (it duplicated the sticky footer Cancel on phones/tablets). Summary hides Paid/Remaining until editing or installments exist, and hides Subtotal when it equals Total. Mobile order sheet uses the same compact summary.

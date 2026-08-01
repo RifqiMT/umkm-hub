@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.251 |
+| **Version** | 1.5.252 |
 | **Date** | 2026-08-01 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.251 |
-| **Docs stamp** | 1.5.251 |
+| **Code tip aligned** | v1.5.252 |
+| **Docs stamp** | 1.5.252 |
 
 ---
 

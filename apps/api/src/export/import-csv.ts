@@ -72,6 +72,7 @@ const TABLE_TO_BUNDLE_KEY: Record<
     | 'orderLines'
     | 'orderInstallments'
     | 'warehouseRestocks'
+    | 'warehouseSales'
     | 'revenueTargetPlans'
     | 'revenueTargetMonths'
   >
@@ -83,6 +84,7 @@ const TABLE_TO_BUNDLE_KEY: Record<
   order_lines: 'orderLines',
   order_installments: 'orderInstallments',
   warehouse_restocks: 'warehouseRestocks',
+  warehouse_sales: 'warehouseSales',
   revenue_target_plans: 'revenueTargetPlans',
   revenue_target_months: 'revenueTargetMonths',
 };
@@ -137,6 +139,7 @@ export function unifiedCsvToBundle(csvText: string): DataExportBundle {
     orderLines: [],
     orderInstallments: [],
     warehouseRestocks: [],
+    warehouseSales: [],
     revenueTargetPlans: [],
     revenueTargetMonths: [],
   };

@@ -44,7 +44,7 @@
 ### US-1.8 Data import (merge, own or all profiles)
 **As** any signed-in user, **I want** to merge-import a unified JSON or unified CSV export into my profile, **so that** I can restore or sync data without duplicates.  
 **As** an allowlisted operator, **I want** to import all profiles from a full export, **so that** I can restore the whole sandbox.  
-**AC:** `POST /import?format=json|csv-unified` with multipart `file`; same scope rules as export; upsert by id then natural keys (`Product.productId` / `Customer.customerId` / `Order.orderId`, etc.); in-file duplicates collapsed; location re-sealed; password restored from sealed or plaintext export; throttled.
+**AC:** `POST /import?format=json|csv-unified` with multipart `file`; same scope rules as export; upsert by id then natural keys (`Product.productId` / `Customer.customerId` / `Order.orderId`, order lines by orderId+productId+sortOrder, installments by orderId+date+amount, restock fingerprint, `WarehouseSale.orderLineId`); dumps include `warehouseSales`; in-file duplicates collapsed; location re-sealed; password restored from sealed or plaintext export; throttled.
 
 ### US-1.9 Forgot / reset password
 **As** a user who forgot my password, **I want** to reset it via email link without revealing whether my login exists, **so that** I can regain access safely.  
@@ -52,7 +52,7 @@
 
 ### US-1.10 Feature-scoped data transfer
 **As** Sari, **I want** to export or import only Products (or Customers / Orders / Warehouse / Targets), **so that** I can move one domain without a full dump.  
-**AC:** UI FeatureDataTransfer on those pages; API `entity=` query on export/import; scope still own vs allowlisted all-profiles for full dumps; feature dumps are authenticated-profile scoped.
+**AC:** UI FeatureDataTransfer on those pages; API `entity=` query on export/import; Orders dumps include related products, customers, and warehouse sales; Warehouse dumps include products, restocks, and sales; merge by id and natural keys; feature dumps are authenticated-profile scoped.
 
 ### US-1.11 Invoicing identity
 **As** Sari, **I want** to save my business NPWP, PKP, and default PPN settings on Profile, **so that** invoices and e-Faktur prep use the right seller identity.  

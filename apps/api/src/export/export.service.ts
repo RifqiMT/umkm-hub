@@ -90,6 +90,7 @@ export type DataExportBundle = {
   orderLines: Array<Record<string, unknown>>;
   orderInstallments: Array<Record<string, unknown>>;
   warehouseRestocks: Array<Record<string, unknown>>;
+  warehouseSales: Array<Record<string, unknown>>;
   revenueTargetPlans: Array<Record<string, unknown>>;
   revenueTargetMonths: Array<Record<string, unknown>>;
 };
@@ -245,6 +246,7 @@ export class ExportService {
       orderLines,
       orderInstallments,
       warehouseRestocks,
+      warehouseSales,
       revenueTargetPlans,
       revenueTargetMonths,
     ] = await Promise.all([
@@ -274,6 +276,10 @@ export class ExportService {
         orderBy: [{ orderId: 'asc' }, { installmentDate: 'asc' }],
       }),
       this.prisma.warehouseRestock.findMany({
+        where: tenantWhere,
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.warehouseSale.findMany({
         where: tenantWhere,
         orderBy: { createdAt: 'asc' },
       }),
@@ -444,6 +450,7 @@ export class ExportService {
         createdAt: dateToIso(r.createdAt),
         updatedAt: dateToIso(r.updatedAt),
       })),
+      warehouseSales: this.mapWarehouseSaleRows(warehouseSales),
       revenueTargetPlans: revenueTargetPlans.map((p) => ({
         id: p.id,
         profileId: p.profileId,
@@ -630,6 +637,7 @@ export class ExportService {
       billDate: Date | null;
       invoiceStatus: string;
       invoiceDate: Date | null;
+      paymentDueDate: Date | null;
       createdAt: Date;
       updatedAt: Date;
     }>,
@@ -659,6 +667,7 @@ export class ExportService {
       billDate: dateOnly(o.billDate),
       invoiceStatus: o.invoiceStatus,
       invoiceDate: dateOnly(o.invoiceDate),
+      paymentDueDate: dateOnly(o.paymentDueDate),
       createdAt: dateToIso(o.createdAt),
       updatedAt: dateToIso(o.updatedAt),
     }));
@@ -750,6 +759,44 @@ export class ExportService {
     }));
   }
 
+  private mapWarehouseSaleRows(
+    warehouseSales: Array<{
+      id: string;
+      profileId: string;
+      productId: string;
+      orderId: string;
+      orderLineId: string;
+      qtySold: Decimal;
+      soldDate: Date;
+      notes: string | null;
+      unitSnapshot: string;
+      packSizeSnapshot: Decimal;
+      packCount: Decimal;
+      stockBefore: Decimal;
+      stockAfter: Decimal;
+      createdAt: Date;
+      updatedAt: Date;
+    }>,
+  ) {
+    return warehouseSales.map((s) => ({
+      id: s.id,
+      profileId: s.profileId,
+      productId: s.productId,
+      orderId: s.orderId,
+      orderLineId: s.orderLineId,
+      qtySold: decimalToPlain(s.qtySold),
+      soldDate: dateOnly(s.soldDate),
+      notes: s.notes ?? '',
+      unitSnapshot: s.unitSnapshot,
+      packSizeSnapshot: decimalToPlain(s.packSizeSnapshot),
+      packCount: decimalToPlain(s.packCount),
+      stockBefore: decimalToPlain(s.stockBefore),
+      stockAfter: decimalToPlain(s.stockAfter),
+      createdAt: dateToIso(s.createdAt),
+      updatedAt: dateToIso(s.updatedAt),
+    }));
+  }
+
   private mapRevenueTargetPlanRows(
     plans: Array<{
       id: string;
@@ -827,8 +874,8 @@ export class ExportService {
       scope: 'own-profile',
       featureEntity: entity,
       notes: [
-        `Feature-scoped export: ${entity} only (authenticated profile).`,
-        'Import this file from the same feature page to merge rows without duplicates.',
+        `Feature-scoped export: ${entity} (authenticated profile).`,
+        'Import this file from the same feature page to merge by id and natural keys.',
       ],
       profiles: [],
       products: [],
@@ -837,6 +884,7 @@ export class ExportService {
       orderLines: [],
       orderInstallments: [],
       warehouseRestocks: [],
+      warehouseSales: [],
       revenueTargetPlans: [],
       revenueTargetMonths: [],
     };
@@ -857,29 +905,64 @@ export class ExportService {
         return { ...header, customers: this.mapCustomerRows(customers) };
       }
       case 'orders': {
-        const [orders, orderLines, orderInstallments] = await Promise.all([
-          this.prisma.order.findMany({
-            where: { profileId },
-            orderBy: { createdAt: 'asc' },
-          }),
-          this.prisma.orderLine.findMany({
-            where: { order: { profileId } },
-            orderBy: [{ orderId: 'asc' }, { sortOrder: 'asc' }],
-          }),
-          this.prisma.orderInstallment.findMany({
-            where: { order: { profileId } },
-            orderBy: [{ orderId: 'asc' }, { installmentDate: 'asc' }],
-          }),
+        const [orders, orderLines, orderInstallments, warehouseSales] =
+          await Promise.all([
+            this.prisma.order.findMany({
+              where: { profileId },
+              orderBy: { createdAt: 'asc' },
+            }),
+            this.prisma.orderLine.findMany({
+              where: { order: { profileId } },
+              orderBy: [{ orderId: 'asc' }, { sortOrder: 'asc' }],
+            }),
+            this.prisma.orderInstallment.findMany({
+              where: { order: { profileId } },
+              orderBy: [{ orderId: 'asc' }, { installmentDate: 'asc' }],
+            }),
+            this.prisma.warehouseSale.findMany({
+              where: { profileId },
+              orderBy: { createdAt: 'asc' },
+            }),
+          ]);
+        const productIds = [
+          ...new Set([
+            ...orders.map((o) => o.productId),
+            ...orderLines.map((l) => l.productId),
+          ]),
+        ];
+        const customerIds = [
+          ...new Set(
+            orders
+              .map((o) => o.customerId)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+        const [products, customers] = await Promise.all([
+          productIds.length
+            ? this.prisma.product.findMany({
+                where: { profileId, id: { in: productIds } },
+                orderBy: { createdAt: 'asc' },
+              })
+            : Promise.resolve([]),
+          customerIds.length
+            ? this.prisma.customer.findMany({
+                where: { profileId, id: { in: customerIds } },
+                orderBy: { createdAt: 'asc' },
+              })
+            : Promise.resolve([]),
         ]);
         return {
           ...header,
+          products: this.mapProductRows(products),
+          customers: this.mapCustomerRows(customers),
           orders: this.mapOrderRows(orders),
           orderLines: this.mapOrderLineRows(orderLines),
           orderInstallments: this.mapOrderInstallmentRows(orderInstallments),
+          warehouseSales: this.mapWarehouseSaleRows(warehouseSales),
         };
       }
       case 'warehouse': {
-        const [products, warehouseRestocks] = await Promise.all([
+        const [products, warehouseRestocks, warehouseSales] = await Promise.all([
           this.prisma.product.findMany({
             where: { profileId },
             orderBy: { createdAt: 'asc' },
@@ -888,11 +971,16 @@ export class ExportService {
             where: { profileId },
             orderBy: { createdAt: 'asc' },
           }),
+          this.prisma.warehouseSale.findMany({
+            where: { profileId },
+            orderBy: { createdAt: 'asc' },
+          }),
         ]);
         return {
           ...header,
           products: this.mapProductRows(products),
           warehouseRestocks: this.mapWarehouseRestockRows(warehouseRestocks),
+          warehouseSales: this.mapWarehouseSaleRows(warehouseSales),
         };
       }
       case 'targets': {
@@ -978,6 +1066,11 @@ export class ExportService {
       {
         name: 'warehouse_restocks',
         rows: dump.warehouseRestocks,
+        emptyHeaders: ['id'],
+      },
+      {
+        name: 'warehouse_sales',
+        rows: dump.warehouseSales,
         emptyHeaders: ['id'],
       },
       {

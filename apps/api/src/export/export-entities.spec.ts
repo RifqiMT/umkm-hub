@@ -20,6 +20,7 @@ function emptyBundle(overrides: Partial<DataExportBundle> = {}): DataExportBundl
     orderLines: [{ id: 'line1' }],
     orderInstallments: [{ id: 'inst1' }],
     warehouseRestocks: [{ id: 'rest1' }],
+    warehouseSales: [{ id: 'sale1' }],
     revenueTargetPlans: [{ id: 'plan1' }],
     revenueTargetMonths: [{ id: 'month1' }],
     ...overrides,
@@ -48,11 +49,14 @@ describe('export-entities', () => {
     expect(ordersOnly.orders).toHaveLength(1);
     expect(ordersOnly.orderLines).toHaveLength(1);
     expect(ordersOnly.orderInstallments).toHaveLength(1);
-    expect(ordersOnly.products).toHaveLength(0);
+    expect(ordersOnly.products).toHaveLength(1);
+    expect(ordersOnly.customers).toHaveLength(1);
+    expect(ordersOnly.warehouseSales).toHaveLength(1);
 
     const warehouseOnly = filterBundleToEntity(bundle, 'warehouse');
     expect(warehouseOnly.products).toHaveLength(1);
     expect(warehouseOnly.warehouseRestocks).toHaveLength(1);
+    expect(warehouseOnly.warehouseSales).toHaveLength(1);
     expect(warehouseOnly.customers).toHaveLength(0);
 
     const targetsOnly = filterBundleToEntity(bundle, 'targets');
@@ -64,9 +68,17 @@ describe('export-entities', () => {
   it('entitySheetNames lists CSV sheet names per feature', () => {
     expect(entitySheetNames('products')).toEqual(['products']);
     expect(entitySheetNames('orders')).toEqual([
+      'products',
+      'customers',
       'orders',
       'order_lines',
       'order_installments',
+      'warehouse_sales',
+    ]);
+    expect(entitySheetNames('warehouse')).toEqual([
+      'products',
+      'warehouse_restocks',
+      'warehouse_sales',
     ]);
     expect(entitySheetNames('targets')).toEqual([
       'revenue_target_plans',

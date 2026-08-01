@@ -1,6 +1,6 @@
 # UMKM Hub API
 
-NestJS REST system of record (`/api/v1`). Docs **v1.5.250** · code tip **v1.5.249**.
+NestJS REST system of record (`/api/v1`). Docs **v1.5.252** · code tip **v1.5.252**.
 
 ## Stack
 

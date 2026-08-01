@@ -283,7 +283,8 @@ export function FeatureDataTransfer({
             </div>
             <p className="umkm-feature-sync-note">
               Export or import {label.toLowerCase()} as {formatLabel}. Records
-              merge by ID.
+              merge by id and natural keys so the same business rows do not
+              duplicate across apps.
               <span className="umkm-feature-sync-note-drag">
                 {' '}
                 Drop a file on this panel or tap Import.

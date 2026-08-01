@@ -322,7 +322,7 @@ class _FeatureDataTransferPanelState extends State<FeatureDataTransferPanel> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Export or import ${widget.label.toLowerCase()} as $_formatLabel. Records merge by ID.',
+                      'Export or import ${widget.label.toLowerCase()} as $_formatLabel. Records merge by id and natural keys so the same business rows do not duplicate across apps.',
                       style: TextStyle(
                         color: UmkmColors.muted,
                         fontSize: compact ? 11.5 : 12,

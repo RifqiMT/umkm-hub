@@ -34,6 +34,7 @@ const EMPTY_BUNDLE_ARRAYS = {
   orderLines: [] as DataExportBundle['orderLines'],
   orderInstallments: [] as DataExportBundle['orderInstallments'],
   warehouseRestocks: [] as DataExportBundle['warehouseRestocks'],
+  warehouseSales: [] as DataExportBundle['warehouseSales'],
   revenueTargetPlans: [] as DataExportBundle['revenueTargetPlans'],
   revenueTargetMonths: [] as DataExportBundle['revenueTargetMonths'],
 };
@@ -60,9 +61,13 @@ export function filterBundleToEntity(
       return {
         ...bundle,
         ...EMPTY_BUNDLE_ARRAYS,
+        // Related catalog/CRM rows so order FKs can merge across apps.
+        products: bundle.products,
+        customers: bundle.customers,
         orders: bundle.orders,
         orderLines: bundle.orderLines,
         orderInstallments: bundle.orderInstallments,
+        warehouseSales: bundle.warehouseSales,
       };
     case 'warehouse':
       return {
@@ -70,6 +75,7 @@ export function filterBundleToEntity(
         ...EMPTY_BUNDLE_ARRAYS,
         products: bundle.products,
         warehouseRestocks: bundle.warehouseRestocks,
+        warehouseSales: bundle.warehouseSales,
       };
     case 'targets':
       return {
@@ -88,9 +94,16 @@ export function entitySheetNames(entity: FeatureExportEntity): string[] {
     case 'customers':
       return ['customers'];
     case 'orders':
-      return ['orders', 'order_lines', 'order_installments'];
+      return [
+        'products',
+        'customers',
+        'orders',
+        'order_lines',
+        'order_installments',
+        'warehouse_sales',
+      ];
     case 'warehouse':
-      return ['products', 'warehouse_restocks'];
+      return ['products', 'warehouse_restocks', 'warehouse_sales'];
     case 'targets':
       return ['revenue_target_plans', 'revenue_target_months'];
   }

@@ -36,10 +36,10 @@ describe('ExportService', () => {
       orderLine: { findMany: jest.fn().mockResolvedValue([]) },
       orderInstallment: { findMany: jest.fn().mockResolvedValue([]) },
       warehouseRestock: { findMany: jest.fn().mockResolvedValue([]) },
+      warehouseSale: { findMany: jest.fn().mockResolvedValue([]) },
       revenueTargetPlan: { findMany: jest.fn().mockResolvedValue([]) },
       revenueTargetMonth: { findMany: jest.fn().mockResolvedValue([]) },
       ...overrides,
-      profile: { ...baseProfile, ...profileOverride },
     };
   }
 
@@ -121,6 +121,10 @@ describe('ExportService', () => {
         where: { order: { profileId: 'p-own' } },
       }),
     );
+    expect(prisma.warehouseSale.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { profileId: 'p-own' } }),
+    );
+    expect(dump.warehouseSales).toEqual([]);
   });
 
   it('dumps all tenants for allowlisted user with decrypted location', async () => {

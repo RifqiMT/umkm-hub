@@ -106,8 +106,20 @@ type IdMaps = {
   product: Map<string, string>;
   customer: Map<string, string>;
   order: Map<string, string>;
+  orderLine: Map<string, string>;
   plan: Map<string, string>;
 };
+
+function emptyIdMaps(): IdMaps {
+  return {
+    profile: new Map(),
+    product: new Map(),
+    customer: new Map(),
+    order: new Map(),
+    orderLine: new Map(),
+    plan: new Map(),
+  };
+}
 
 @Injectable()
 export class ImportService {
@@ -192,6 +204,9 @@ export class ImportService {
       warehouseRestocks: arr('warehouseRestocks').length
         ? arr('warehouseRestocks')
         : arr('warehouse_restocks'),
+      warehouseSales: arr('warehouseSales').length
+        ? arr('warehouseSales')
+        : arr('warehouse_sales'),
       revenueTargetPlans: arr('revenueTargetPlans').length
         ? arr('revenueTargetPlans')
         : arr('revenue_target_plans'),
@@ -211,19 +226,13 @@ export class ImportService {
     const filtered = filterBundleForScope(rawBundle, user, scope);
     const bundle = dedupeImportBundle(filtered);
     const secret = this.locationSecret();
-    const maps: IdMaps = {
-      profile: new Map(),
-      product: new Map(),
-      customer: new Map(),
-      order: new Map(),
-      plan: new Map(),
-    };
+    const maps = emptyIdMaps();
     const stats = emptyMergeStats();
     const notes: string[] = [
       scope === 'all-profiles'
         ? 'Merged import across all profiles (allowlisted account).'
         : 'Merged import into the authenticated profile only.',
-      'Existing rows match by id first, then natural keys (profileName/email, profileId+productId, profileId+year, planId+month).',
+      'Existing rows match by id first, then natural keys (profileName/email, profileId+productId/customerId/orderId, orderId+productId+sortOrder, orderId+date+amount, restock fingerprint, orderLineId for sales, profileId+year, planId+month).',
       'Duplicates within the import file were collapsed before merge.',
       'Password hashes are restored from export (sealed pwd1:… for own-profile files, plaintext for privileged dumps).',
       'locationIpHash and email verification token hashes are never imported.',
@@ -244,6 +253,7 @@ export class ImportService {
         await this.mergeOrderLines(tx, bundle.orderLines, maps, stats);
         await this.mergeInstallments(tx, bundle.orderInstallments, maps, stats);
         await this.mergeRestocks(tx, bundle.warehouseRestocks, maps, stats);
+        await this.mergeWarehouseSales(tx, bundle.warehouseSales, maps, stats);
       },
       { maxWait: 30_000, timeout: 120_000 },
     );
@@ -261,17 +271,11 @@ export class ImportService {
     const scoped = filterBundleForScope(rawBundle, user, scope);
     const filtered = filterBundleToEntity(scoped, entity);
     const bundle = dedupeImportBundle(filtered);
-    const maps: IdMaps = {
-      profile: new Map(),
-      product: new Map(),
-      customer: new Map(),
-      order: new Map(),
-      plan: new Map(),
-    };
+    const maps = emptyIdMaps();
     const stats = emptyMergeStats();
     const notes: string[] = [
       `Feature-scoped import: ${entity} (own profile only).`,
-      'Existing rows match by id first, then natural keys (profileId+productId, profileId+year, planId+month).',
+      'Existing rows match by id first, then natural keys (including related products/customers for orders, and warehouse sales by orderLineId).',
       'Duplicates within the import file were collapsed before merge.',
     ];
 
@@ -298,11 +302,19 @@ export class ImportService {
             await this.mergeCustomers(tx, bundle.customers, maps, stats);
             break;
           case 'orders':
+            await this.mergeProducts(tx, bundle.products, maps, stats);
+            await this.mergeCustomers(tx, bundle.customers, maps, stats);
             await this.mergeOrders(tx, bundle.orders, maps, stats);
             await this.mergeOrderLines(tx, bundle.orderLines, maps, stats);
             await this.mergeInstallments(
               tx,
               bundle.orderInstallments,
+              maps,
+              stats,
+            );
+            await this.mergeWarehouseSales(
+              tx,
+              bundle.warehouseSales,
               maps,
               stats,
             );
@@ -312,6 +324,12 @@ export class ImportService {
             await this.mergeRestocks(
               tx,
               bundle.warehouseRestocks,
+              maps,
+              stats,
+            );
+            await this.mergeWarehouseSales(
+              tx,
+              bundle.warehouseSales,
               maps,
               stats,
             );
@@ -862,6 +880,7 @@ export class ImportService {
         invoiceStatus: (str(row.invoiceStatus) ||
           'CREATED') as Prisma.OrderCreateInput['invoiceStatus'],
         invoiceDate: parseDateOnly(row.invoiceDate) ?? null,
+        paymentDueDate: parseDateOnly(row.paymentDueDate) ?? null,
         updatedAt: parseDate(row.updatedAt) ?? new Date(),
       };
 
@@ -913,10 +932,22 @@ export class ImportService {
         continue;
       }
 
+      const sortOrder = int(row.sortOrder);
+      const canonicalId = await this.resolveCanonicalId(
+        tx,
+        importId,
+        () => tx.orderLine.findUnique({ where: { id: importId } }),
+        () =>
+          tx.orderLine.findFirst({
+            where: { orderId, productId, sortOrder },
+          }),
+        maps.orderLine,
+      );
+
       const data = {
         orderId,
         productId,
-        sortOrder: int(row.sortOrder),
+        sortOrder,
         productQty: decOrZero(row.productQty),
         packSizeSnapshot: decOrZero(row.packSizeSnapshot ?? 1),
         packPriceSnapshot: decOrZero(row.packPriceSnapshot),
@@ -930,23 +961,24 @@ export class ImportService {
       };
 
       const existing = await tx.orderLine.findUnique({
-        where: { id: importId },
+        where: { id: canonicalId! },
       });
       if (existing) {
         if (!isImportNewerOrEqual(existing, row)) {
           stats.orderLines.skipped++;
           continue;
         }
-        await tx.orderLine.update({ where: { id: importId }, data });
+        await tx.orderLine.update({ where: { id: canonicalId! }, data });
         stats.orderLines.updated++;
       } else {
         await tx.orderLine.create({
           data: {
-            id: importId,
+            id: canonicalId!,
             ...data,
             createdAt: parseDate(row.createdAt) ?? new Date(),
           },
         });
+        maps.orderLine.set(importId, canonicalId!);
         stats.orderLines.created++;
       }
     }
@@ -973,27 +1005,44 @@ export class ImportService {
         continue;
       }
 
+      const amount = decOrZero(row.amount);
+      const installmentDate =
+        parseDateOnly(row.installmentDate) ?? new Date();
+      const canonicalId = await this.resolveCanonicalId(
+        tx,
+        importId,
+        () => tx.orderInstallment.findUnique({ where: { id: importId } }),
+        () =>
+          tx.orderInstallment.findFirst({
+            where: { orderId, installmentDate, amount },
+          }),
+        new Map(),
+      );
+
       const data = {
         orderId,
-        amount: decOrZero(row.amount),
-        installmentDate: parseDateOnly(row.installmentDate) ?? new Date(),
+        amount,
+        installmentDate,
         updatedAt: parseDate(row.updatedAt) ?? new Date(),
       };
 
       const existing = await tx.orderInstallment.findUnique({
-        where: { id: importId },
+        where: { id: canonicalId! },
       });
       if (existing) {
         if (!isImportNewerOrEqual(existing, row)) {
           stats.orderInstallments.skipped++;
           continue;
         }
-        await tx.orderInstallment.update({ where: { id: importId }, data });
+        await tx.orderInstallment.update({
+          where: { id: canonicalId! },
+          data,
+        });
         stats.orderInstallments.updated++;
       } else {
         await tx.orderInstallment.create({
           data: {
-            id: importId,
+            id: canonicalId!,
             ...data,
             createdAt: parseDate(row.createdAt) ?? new Date(),
           },
@@ -1026,38 +1075,155 @@ export class ImportService {
         continue;
       }
 
+      const qtyAdded = decOrZero(row.qtyAdded);
+      const restockDate = parseDateOnly(row.restockDate) ?? new Date();
+      const stockBefore = decOrZero(row.stockBefore);
+      const stockAfter = decOrZero(row.stockAfter);
+      const canonicalId = await this.resolveCanonicalId(
+        tx,
+        importId,
+        () => tx.warehouseRestock.findUnique({ where: { id: importId } }),
+        () =>
+          tx.warehouseRestock.findFirst({
+            where: {
+              profileId,
+              productId,
+              restockDate,
+              qtyAdded,
+              stockBefore,
+              stockAfter,
+            },
+          }),
+        new Map(),
+      );
+
       const data = {
         profileId,
         productId,
-        qtyAdded: decOrZero(row.qtyAdded),
-        restockDate: parseDateOnly(row.restockDate) ?? new Date(),
+        qtyAdded,
+        restockDate,
         notes: str(row.notes),
         unitSnapshot: (str(row.unitSnapshot) ||
           'PCS') as Prisma.WarehouseRestockCreateInput['unitSnapshot'],
-        stockBefore: decOrZero(row.stockBefore),
-        stockAfter: decOrZero(row.stockAfter),
+        stockBefore,
+        stockAfter,
         updatedAt: parseDate(row.updatedAt) ?? new Date(),
       };
 
       const existing = await tx.warehouseRestock.findUnique({
-        where: { id: importId },
+        where: { id: canonicalId! },
       });
       if (existing) {
         if (!isImportNewerOrEqual(existing, row)) {
           stats.warehouseRestocks.skipped++;
           continue;
         }
-        await tx.warehouseRestock.update({ where: { id: importId }, data });
+        await tx.warehouseRestock.update({
+          where: { id: canonicalId! },
+          data,
+        });
         stats.warehouseRestocks.updated++;
       } else {
         await tx.warehouseRestock.create({
           data: {
-            id: importId,
+            id: canonicalId!,
             ...data,
             createdAt: parseDate(row.createdAt) ?? new Date(),
           },
         });
         stats.warehouseRestocks.created++;
+      }
+    }
+  }
+
+  private async mergeWarehouseSales(
+    tx: Prisma.TransactionClient,
+    rows: Array<Record<string, unknown>>,
+    maps: IdMaps,
+    stats: ImportMergeStats,
+  ) {
+    for (const row of rows) {
+      const importId = str(row.id);
+      const profileId = this.resolveProfileId(maps, row.profileId);
+      const productImportId = str(row.productId);
+      const productId =
+        maps.product.get(productImportId) ?? productImportId;
+      const orderImportId = str(row.orderId);
+      const orderId = maps.order.get(orderImportId) ?? orderImportId;
+      const orderLineImportId = str(row.orderLineId);
+      const orderLineId =
+        maps.orderLine.get(orderLineImportId) ?? orderLineImportId;
+      if (
+        !importId ||
+        !profileId ||
+        !productId ||
+        !orderId ||
+        !orderLineId
+      ) {
+        stats.warehouseSales.skipped++;
+        continue;
+      }
+
+      const [product, order, orderLine] = await Promise.all([
+        tx.product.findUnique({ where: { id: productId } }),
+        tx.order.findUnique({ where: { id: orderId } }),
+        tx.orderLine.findUnique({ where: { id: orderLineId } }),
+      ]);
+      if (!product || !order || !orderLine) {
+        stats.warehouseSales.skipped++;
+        continue;
+      }
+
+      const canonicalId = await this.resolveCanonicalId(
+        tx,
+        importId,
+        () => tx.warehouseSale.findUnique({ where: { id: importId } }),
+        () =>
+          tx.warehouseSale.findUnique({
+            where: { orderLineId },
+          }),
+        new Map(),
+      );
+
+      const data = {
+        profileId,
+        productId,
+        orderId,
+        orderLineId,
+        qtySold: decOrZero(row.qtySold),
+        soldDate: parseDateOnly(row.soldDate) ?? new Date(),
+        notes: str(row.notes),
+        unitSnapshot: (str(row.unitSnapshot) ||
+          'PCS') as Prisma.WarehouseSaleCreateInput['unitSnapshot'],
+        packSizeSnapshot: decOrZero(row.packSizeSnapshot ?? 1),
+        packCount: decOrZero(row.packCount ?? 1),
+        stockBefore: decOrZero(row.stockBefore),
+        stockAfter: decOrZero(row.stockAfter),
+        updatedAt: parseDate(row.updatedAt) ?? new Date(),
+      };
+
+      const existing = await tx.warehouseSale.findUnique({
+        where: { id: canonicalId! },
+      });
+      if (existing) {
+        if (!isImportNewerOrEqual(existing, row)) {
+          stats.warehouseSales.skipped++;
+          continue;
+        }
+        await tx.warehouseSale.update({
+          where: { id: canonicalId! },
+          data,
+        });
+        stats.warehouseSales.updated++;
+      } else {
+        await tx.warehouseSale.create({
+          data: {
+            id: canonicalId!,
+            ...data,
+            createdAt: parseDate(row.createdAt) ?? new Date(),
+          },
+        });
+        stats.warehouseSales.created++;
       }
     }
   }

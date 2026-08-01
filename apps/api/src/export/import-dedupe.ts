@@ -20,6 +20,7 @@ export type ImportMergeStats = {
   orderLines: EntityMergeStats;
   orderInstallments: EntityMergeStats;
   warehouseRestocks: EntityMergeStats;
+  warehouseSales: EntityMergeStats;
   revenueTargetPlans: EntityMergeStats;
   revenueTargetMonths: EntityMergeStats;
 };
@@ -38,6 +39,7 @@ export function emptyMergeStats(): ImportMergeStats {
     orderLines: zero(),
     orderInstallments: zero(),
     warehouseRestocks: zero(),
+    warehouseSales: zero(),
     revenueTargetPlans: zero(),
     revenueTargetMonths: zero(),
   };
@@ -118,10 +120,46 @@ export function dedupeLastWins<T extends Record<string, unknown>>(
   return [...kept.values()];
 }
 
-function tenantBusinessKeys(row: Record<string, unknown>, readBusinessId: (row: Record<string, unknown>) => string): string[] {
+function tenantBusinessKeys(
+  row: Record<string, unknown>,
+  readBusinessId: (row: Record<string, unknown>) => string,
+): string[] {
   const profileId = String(row.profileId ?? '').trim();
   const businessId = readBusinessId(row);
   return profileId && businessId ? [`${profileId}::${businessId}`] : [];
+}
+
+function orderLineNaturalKeys(row: Record<string, unknown>): string[] {
+  const orderId = String(row.orderId ?? '').trim();
+  const productId = String(row.productId ?? '').trim();
+  const sortOrder = String(row.sortOrder ?? '').trim();
+  return orderId && productId && sortOrder !== ''
+    ? [`${orderId}::${productId}::${sortOrder}`]
+    : [];
+}
+
+function installmentNaturalKeys(row: Record<string, unknown>): string[] {
+  const orderId = String(row.orderId ?? '').trim();
+  const date = String(row.installmentDate ?? '').trim().slice(0, 10);
+  const amount = String(row.amount ?? '').trim();
+  return orderId && date && amount ? [`${orderId}::${date}::${amount}`] : [];
+}
+
+function restockNaturalKeys(row: Record<string, unknown>): string[] {
+  const profileId = String(row.profileId ?? '').trim();
+  const productId = String(row.productId ?? '').trim();
+  const date = String(row.restockDate ?? '').trim().slice(0, 10);
+  const qty = String(row.qtyAdded ?? '').trim();
+  const before = String(row.stockBefore ?? '').trim();
+  const after = String(row.stockAfter ?? '').trim();
+  return profileId && productId && date && qty && before && after
+    ? [`${profileId}::${productId}::${date}::${qty}::${before}::${after}`]
+    : [];
+}
+
+function saleNaturalKeys(row: Record<string, unknown>): string[] {
+  const orderLineId = String(row.orderLineId ?? '').trim();
+  return orderLineId ? [`line:${orderLineId}`] : [];
 }
 
 /** Keep the last / newest row per primary and natural key within the import file. */
@@ -148,9 +186,16 @@ export function dedupeImportBundle(bundle: DataExportBundle): DataExportBundle {
     orders: dedupeLastWins(bundle.orders, (row) =>
       tenantBusinessKeys(row, readOrderBusinessId),
     ),
-    orderLines: dedupeLastWins(bundle.orderLines),
-    orderInstallments: dedupeLastWins(bundle.orderInstallments),
-    warehouseRestocks: dedupeLastWins(bundle.warehouseRestocks),
+    orderLines: dedupeLastWins(bundle.orderLines, orderLineNaturalKeys),
+    orderInstallments: dedupeLastWins(
+      bundle.orderInstallments,
+      installmentNaturalKeys,
+    ),
+    warehouseRestocks: dedupeLastWins(
+      bundle.warehouseRestocks,
+      restockNaturalKeys,
+    ),
+    warehouseSales: dedupeLastWins(bundle.warehouseSales ?? [], saleNaturalKeys),
     revenueTargetPlans: dedupeLastWins(bundle.revenueTargetPlans, (row) => {
       const profileId = String(row.profileId ?? '').trim();
       const year = String(row.year ?? '').trim();
@@ -171,7 +216,10 @@ export function filterBundleForScope(
   scope: DataExportScope,
 ): DataExportBundle {
   if (scope === 'all-profiles') {
-    return bundle;
+    return {
+      ...bundle,
+      warehouseSales: bundle.warehouseSales ?? [],
+    };
   }
 
   const sourceProfileIds = new Set<string>();
@@ -239,6 +287,9 @@ export function filterBundleForScope(
     orderLines: bundle.orderLines,
     orderInstallments: bundle.orderInstallments,
     warehouseRestocks: bundle.warehouseRestocks
+      .filter(keepTenantRow)
+      .map(remapRowProfileId),
+    warehouseSales: (bundle.warehouseSales ?? [])
       .filter(keepTenantRow)
       .map(remapRowProfileId),
     revenueTargetPlans: bundle.revenueTargetPlans

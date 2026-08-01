@@ -6,7 +6,7 @@
 | **Version** | 1.5.250 |
 | **Date** | 2026-08-01 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.251 |
+| **Code tip aligned** | v1.5.252 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -264,6 +264,10 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `IMPORT_BOOTSTRAP_PASSWORD` | Import bootstrap password | Password for new profiles created on privileged import | Used when no password in file | `.env`; import | (secret) |
 | `LIST_PAGE_MAX` | List page max | Hard cap on `limit` query | **500000** | `pagination.dto.ts` | `500000` |
 | `entity` (export/import) | Feature transfer entity | Scope dump to one domain | `products` \| `customers` \| `orders` \| `warehouse` \| `targets` | `GET /export`, `POST /import` | `orders` |
+| `warehouseSales` (export) | Warehouse sold rows | Stock-draw history tied 1:1 to an order line | Unique natural key `orderLineId` | `DataExportBundle`; merge-import | `{ id, orderLineId, qtySold, … }` |
+| Order line natural key | Line merge key | Dedupes lines when UUIDs differ across apps | `orderId` + `productId` + `sortOrder` | import dedupe + `mergeOrderLines` | `ord::prod::0` |
+| Installment natural key | Installment merge key | Dedupes payments when UUIDs differ | `orderId` + `installmentDate` + `amount` | import dedupe + `mergeInstallments` | `ord::2026-01-01::100` |
+| Restock natural key | Restock merge key | Fingerprint of a stock-in event | profileId+productId+date+qty+before+after | import dedupe + `mergeRestocks` | `p::prod::date::…` |
 | `firstName` | First name | Optional given name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Sari` |
 | `lastName` | Last name | Optional family name | 1–64 when set | `PATCH /profiles/me`; Profile UI | `Wijaya` |
 | `email` | Email | Required unique identity email (1:1 with username; immutable after register) | RFC email; unique; NOT NULL; stored lowercased | `POST /auth/register`; login; Profile UI (read-only) | `sari@example.com` |

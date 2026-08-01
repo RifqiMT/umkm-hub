@@ -67,6 +67,7 @@ describe('import-dedupe', () => {
     orderLines: [],
     orderInstallments: [],
     warehouseRestocks: [],
+    warehouseSales: [],
     revenueTargetPlans: [],
     revenueTargetMonths: [],
   };
@@ -121,5 +122,54 @@ describe('import-dedupe', () => {
     }, 'own-profile');
     expect(filtered.profiles[0]?.id).toBe('p-live');
     expect(filtered.products[0]?.profileId).toBe('p-live');
+  });
+
+  it('collapses warehouse sales that share the same orderLineId', () => {
+    const deduped = dedupeImportBundle({
+      ...baseBundle,
+      warehouseSales: [
+        {
+          id: 'sale-old',
+          orderLineId: 'line-1',
+          qtySold: '2',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'sale-new',
+          orderLineId: 'line-1',
+          qtySold: '5',
+          updatedAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(deduped.warehouseSales).toHaveLength(1);
+    expect(deduped.warehouseSales[0]?.id).toBe('sale-new');
+    expect(deduped.warehouseSales[0]?.qtySold).toBe('5');
+  });
+
+  it('collapses order lines that share orderId+productId+sortOrder', () => {
+    const deduped = dedupeImportBundle({
+      ...baseBundle,
+      orderLines: [
+        {
+          id: 'line-a',
+          orderId: 'ord1',
+          productId: 'pr1',
+          sortOrder: 0,
+          lineTotal: '10',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'line-b',
+          orderId: 'ord1',
+          productId: 'pr1',
+          sortOrder: 0,
+          lineTotal: '20',
+          updatedAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(deduped.orderLines).toHaveLength(1);
+    expect(deduped.orderLines[0]?.id).toBe('line-b');
   });
 });

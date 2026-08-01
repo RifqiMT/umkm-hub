@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.259 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.259 |
-| **Docs stamp** | 1.5.259 |
+| **Code tip aligned** | v1.5.264 |
+| **Docs stamp** | 1.5.265 |
 
 ---
 
@@ -27,7 +27,7 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 - **Stock & sales** and **Order totals** insight tables (web) plus filter-aware **statistics**
 - Warehouse restock history (create + **edit** on web), **sold history** (order stock draws; Open order on web), and inventory valuation
 - Yearly revenue targets with attainment / on-plan / pace / coverage
-- Analytics (W/M/Q/Y) plus Dictionary (~101 terms), optional UI language, export/import, forgot/reset password
+- Analytics (W/M/Q/Y) plus Dictionary (~**102** terms), optional UI language, export/import, forgot/reset password
 - Production auth via **Firebase**; optional **Redis/Upstash** for throttling + analytics cache
 
 ---
@@ -45,7 +45,7 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | 7 | **Revenue planning** | Manual/systematic targets with FeatureStage rates |
 | 8 | **Decision-ready analytics** | Multi-granularity charts + domain statistics breakdowns |
 | 9 | **Portable data** | JSON/CSV export/import + feature-scoped transfer |
-| 10 | **Shared language** | Dictionary (~101 terms) + optional UI translate |
+| 10 | **Shared language** | Dictionary (~**102** terms) + optional UI translate |
 | 11 | **Trustworthy identity** | Firebase or legacy JWT; immutable username/email; verify; sealed location |
 
 ---
@@ -66,8 +66,8 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 ### 3.3 Customers
 - CRUD + postal geo; human `customerId`; optional **buyer NPWP**
-- **Order totals** table (web, `GET /customers/order-totals`): Totals / Discount / Order total / Orders / Packs / Cancelled (+ rate) / AOV / UPT above Statistics
-- **Order performance View** (web): exclusive focus mode (same as other feature Views)
+- **Order totals** table (web, `GET /customers/order-totals`): **Revenue** (gross primary + `Gross · Net …` subline; API `totals`/`grossRevenue` + `orderTotal`), Discount, Orders, Packs, Cancelled (+ rate), AOV, UPT above Statistics
+- **Order performance View** (web): exclusive focus mode (same as other feature Views); CRM directory View unchanged
 - Summary + **statistics**; feature transfer
 
 ### 3.4 Orders
@@ -118,8 +118,8 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Client | Role | Notes |
 |--------|------|-------|
-| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal; warehouse edit; Stock & sales; Order totals; Sold history Open order; statistics; invoicing |
-| **Mobile** | Field CRM/orders | Profile invoicing; Sold history list/view; Analytics/Dictionary; **web-first:** Targets, PDF/fiscal, restock edit, Stock & sales, Order totals, statistics UI, Open order |
+| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal; warehouse edit; Stock & sales / Order totals / Sold history with performance Views + focus mode; tablet cards ≤1100; statistics; invoicing |
+| **Mobile** | Field CRM/orders | Profile invoicing; Sold history; Analytics/Dictionary; tablet NavigationRail; **web-first:** Targets, PDF/fiscal, restock edit, Stock & sales, Order totals, statistics UI, Open order |
 | **API** | System of record | `/api/v1` incl. Firebase session/register, invoice PDF/fiscal, stock-sales, order-totals, warehouse sales, Redis-backed throttle/cache when configured |
 
 ---

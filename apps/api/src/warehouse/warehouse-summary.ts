@@ -4,7 +4,7 @@ import {
   toDateOnlyIso,
 } from '../common/summary-rates';
 
-export type WarehouseInventoryAgg = {
+type WarehouseInventoryAgg = {
   productCount: number;
   sellValue: number;
   costedSellValue: number;

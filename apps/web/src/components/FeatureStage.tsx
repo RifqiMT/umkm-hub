@@ -1,20 +1,25 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { formatRatePercent } from '@/lib/format-money';
 import { AppTooltip, type AppTooltipContent } from '@/components/AppTooltip';
 import { useTr } from '@/components/Tr';
 
-export type FeatureStageTip = AppTooltipContent;
+type FeatureStageTip = AppTooltipContent;
 
-export type FeatureStageStat = {
+type FeatureStageStat = {
   label: string;
   value: ReactNode;
   hero?: boolean;
   tip?: FeatureStageTip;
 };
 
-export type FeatureStageRate = {
+type FeatureStageRate = {
   tone: 'tone-cancel' | 'tone-margin' | 'tone-discount' | 'tone-paid';
   label: string;
   tip?: FeatureStageTip;
@@ -47,6 +52,18 @@ function rateMeterStyle(
   return { ['--rate' as string]: `${clamped}%` };
 }
 
+function usePhoneStage() {
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const sync = () => setIsPhone(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return isPhone;
+}
+
 export function FeatureStage({
   title,
   subtitle,
@@ -57,6 +74,53 @@ export function FeatureStage({
   ratesLabel,
 }: FeatureStageProps) {
   const tr = useTr();
+  const isPhone = usePhoneStage();
+  const ratesLabelText = tr(ratesLabel);
+
+  const ratesList = (
+    <dl className="umkm-stage-rates" aria-label={ratesLabelText}>
+      {rates.map((rate) => {
+        const shown = loading ? '···' : formatRatePercent(rate.value);
+        return (
+          <AppTooltip
+            key={rate.label}
+            className="umkm-tip-block"
+            disabled={loading}
+            tone={
+              rate.tone === 'tone-paid'
+                ? 'paid'
+                : rate.tone === 'tone-margin'
+                  ? 'margin'
+                  : rate.tone === 'tone-discount'
+                    ? 'discount'
+                    : 'cancel'
+            }
+            label={rate.tip?.label ?? rate.label}
+            value={
+              rate.tip?.value ??
+              (loading ? undefined : formatRatePercent(rate.value))
+            }
+            description={rate.tip?.description}
+            detail={rate.tip?.detail}
+          >
+            <div
+              className={`umkm-stage-rate ${rate.tone}`}
+              style={rateMeterStyle(rate.value, loading)}
+            >
+              <div className="umkm-stage-rate-row">
+                <dt>{tr(rate.label)}</dt>
+                <dd>{shown}</dd>
+              </div>
+              <span className="umkm-stage-meter" aria-hidden>
+                <i />
+              </span>
+            </div>
+          </AppTooltip>
+        );
+      })}
+    </dl>
+  );
+
   return (
     <header
       className={`umkm-stage${loading ? ' is-loading' : ''}`}
@@ -97,47 +161,18 @@ export function FeatureStage({
           ))}
         </dl>
 
-        <dl className="umkm-stage-rates" aria-label={tr(ratesLabel)}>
-          {rates.map((rate) => {
-            const shown = loading ? '···' : formatRatePercent(rate.value);
-            return (
-              <AppTooltip
-                key={rate.label}
-                className="umkm-tip-block"
-                disabled={loading}
-                tone={
-                  rate.tone === 'tone-paid'
-                    ? 'paid'
-                    : rate.tone === 'tone-margin'
-                      ? 'margin'
-                      : rate.tone === 'tone-discount'
-                        ? 'discount'
-                        : 'cancel'
-                }
-                label={rate.tip?.label ?? rate.label}
-                value={
-                  rate.tip?.value ??
-                  (loading ? undefined : formatRatePercent(rate.value))
-                }
-                description={rate.tip?.description}
-                detail={rate.tip?.detail}
-              >
-                <div
-                  className={`umkm-stage-rate ${rate.tone}`}
-                  style={rateMeterStyle(rate.value, loading)}
-                >
-                  <div className="umkm-stage-rate-row">
-                    <dt>{tr(rate.label)}</dt>
-                    <dd>{shown}</dd>
-                  </div>
-                  <span className="umkm-stage-meter" aria-hidden>
-                    <i />
-                  </span>
-                </div>
-              </AppTooltip>
-            );
-          })}
-        </dl>
+        {rates.length > 0 ? (
+          <details
+            key={isPhone ? 'phone-rates' : 'desktop-rates'}
+            className="umkm-stage-rates-disclosure"
+            {...(!isPhone ? { open: true } : {})}
+          >
+            <summary className="umkm-stage-rates-summary">
+              <span>{ratesLabelText}</span>
+            </summary>
+            {ratesList}
+          </details>
+        ) : null}
       </div>
     </header>
   );

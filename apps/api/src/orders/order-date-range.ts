@@ -19,7 +19,7 @@ export function parseDateOnlyUtc(value: string): Date {
   return parsed;
 }
 
-export type DateOnlyBounds = {
+type DateOnlyBounds = {
   gte?: Date;
   lte?: Date;
 };

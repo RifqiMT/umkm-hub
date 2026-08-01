@@ -5,7 +5,7 @@ export type PurchaseFrequencyOrderRow = {
   customerId: string;
 };
 
-export type PurchaseFrequencyPeriodStats = {
+type PurchaseFrequencyPeriodStats = {
   /**
    * Average purchase frequency:
    * linked orders ÷ distinct customers in the period.

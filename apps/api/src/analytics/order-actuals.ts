@@ -2,14 +2,14 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { decimalToNumber } from '../common/utils/serialize';
 import { roundMoney } from '../revenue-targets/revenue-target-math';
 
-export type OrderActuals = {
+type OrderActuals = {
   byMonth: Record<number, number>;
   orderCountByMonth: Record<number, number>;
   yearTotal: number;
   yearOrderCount: number;
 };
 
-export type OrderRowForBucket = {
+type OrderRowForBucket = {
   orderDate: Date;
   totalOrderValue: Prisma.Decimal | number | string;
 };

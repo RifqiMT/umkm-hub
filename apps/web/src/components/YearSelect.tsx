@@ -3,7 +3,7 @@
 import { appYearOptions } from '@/lib/app-timeline';
 import { useTr } from '@/components/Tr';
 
-export type YearSelectValue = number | 'all';
+type YearSelectValue = number | 'all';
 
 type YearSelectProps = {
   value: YearSelectValue;

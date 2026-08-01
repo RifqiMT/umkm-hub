@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.259 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
@@ -184,7 +184,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-UX3 | Catalog identity polish: Products show name + unit chip + soft SKU; Orders show date + soft order ID; details/shipment live in View sheets |
 | FR-UX4 | Money uses compact `formatMoney` (million/billion/…); tooltips use `formatMoneyExact`; chart axes use `formatCompactAxis`; quantities use `formatQty` (full digits) or compact words for large KPIs |
 | FR-UX5 | Dictionary / Glossary: searchable plain-English definitions and formulas for user-facing metrics across Dashboard, Products, Warehouse, Customers, Orders, Targets, Analytics; feature browse + expandable term detail (web nav + mobile Profile entry) |
-| FR-UX6 | Responsive chrome: tablet icon rail (901–1100); phone bottom tabs (Home / Orders / Products / Stock / More) + drawer; filter panels open as bottom sheets ≤900px; filter rows collapsible (collapsed by default ≤1100 + mobile); sticky form actions clear bottom nav + safe areas; touch targets ≥44px |
+| FR-UX6 | Responsive chrome: tablet icon rail (901–1100) / Flutter `NavigationRail` (≥840); phone bottom tabs (Home / Orders / Products / Stock / More) + drawer; catalog/insight **cards** instead of tables ≤1100; phone FeatureStage rates collapse behind disclosure; filter panels as bottom sheets ≤900px; filter rows collapsible (collapsed by default ≤1100 + mobile); on narrow/mobile, feature View heads, form footers, filter-sheet heads, and table headers **scroll with content** (not sticky)—shell brand bar + bottom nav stay fixed; desktop may keep denser sticky table headers; touch targets ≥44px |
 | FR-UX7 | UI language: users can pick a target language; clients call `POST /translate/batch` (JWT) or `batch-public` on auth screens; batch ≤40 texts × ≤500 chars; cache translations; keep product names/human entity IDs in source language where catalog identity requires |
 | FR-UX8 | Filter-aware **statistics** breakdown sections on Products, Customers, Orders, and Warehouse (enum/geo/stock mix alongside summary rates) |
 

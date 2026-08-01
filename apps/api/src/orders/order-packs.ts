@@ -11,7 +11,7 @@ function toNumber(value: Decimal | number | string): number {
   return Number(value.toString());
 }
 
-export type ProductPackOption = {
+type ProductPackOption = {
   key: 'PCS' | GramLiterPackKey;
   size: number;
   price: number;
@@ -72,7 +72,7 @@ export function listProductPacks(product: PackSource): ProductPackOption[] {
   return packs;
 }
 
-export type ResolvedOrderPack = {
+type ResolvedOrderPack = {
   packKey: ProductPackOption['key'];
   packSize: number;
   packPrice: number;

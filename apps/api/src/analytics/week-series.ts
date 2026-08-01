@@ -29,7 +29,7 @@ import {
   type MonthTargetMap,
 } from './weekly-target';
 
-export type WeeklySeriesPoint = {
+type WeeklySeriesPoint = {
   isoYear: number;
   week: number;
   label: string;

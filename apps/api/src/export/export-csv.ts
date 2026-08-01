@@ -27,7 +27,7 @@ export function rowsToCsv(
   return `\uFEFF${lines.join('\r\n')}\r\n`;
 }
 
-export type UnifiedCsvSheet = {
+type UnifiedCsvSheet = {
   name: string;
   rows: Array<Record<string, unknown>>;
   /** Fallback headers when the sheet has zero rows. */

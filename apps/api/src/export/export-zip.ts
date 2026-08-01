@@ -36,7 +36,7 @@ function dosDateTime(date = new Date()): { time: number; date: number } {
   return { time, date: dosDate };
 }
 
-export type ZipEntry = { name: string; data: Buffer | string };
+type ZipEntry = { name: string; data: Buffer | string };
 
 export function buildZipStore(entries: ZipEntry[], now = new Date()): Buffer {
   const { time, date } = dosDateTime(now);

@@ -12,9 +12,9 @@ export const DASHBOARD_PERIODS = [
   'this_year',
 ] as const;
 
-export type DashboardPeriod = (typeof DASHBOARD_PERIODS)[number];
+type DashboardPeriod = (typeof DASHBOARD_PERIODS)[number];
 
-export type DashboardPeriodRange = {
+type DashboardPeriodRange = {
   orderDateFrom?: string;
   orderDateTo?: string;
 };

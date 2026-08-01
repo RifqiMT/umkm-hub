@@ -1,6 +1,6 @@
 import { api } from './api';
 
-export type RegistrationAvailability = {
+type RegistrationAvailability = {
   available: boolean;
   message?: string;
 };

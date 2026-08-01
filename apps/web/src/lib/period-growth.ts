@@ -38,7 +38,7 @@ function formatPeriodGrowth(
   })}%`;
 }
 
-export type GrowthSpec = { key: string; mode: GrowthMode };
+type GrowthSpec = { key: string; mode: GrowthMode };
 
 /** Attach formatted vs-prior labels onto each timeline row (first period has none). */
 export function attachPeriodGrowthLabels<T extends Record<string, unknown>>(

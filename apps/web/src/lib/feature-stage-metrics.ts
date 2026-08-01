@@ -23,7 +23,7 @@ function elapsedMonthsForYear(
   return Math.min(12, Math.max(1, now.getUTCMonth() + 1));
 }
 
-export type TargetsStageMetrics = {
+type TargetsStageMetrics = {
   annualTarget: number;
   annualActual: number;
   nextYearProjected: number | null;
@@ -71,7 +71,7 @@ export function buildTargetsStageMetrics(
   };
 }
 
-export type AnalyticsStageMetrics = {
+type AnalyticsStageMetrics = {
   revenue: number;
   target: number | null;
   profit: number | null;

@@ -13,6 +13,24 @@ class UmkmColors {
   static const danger = Color(0xFFA33B3B);
 }
 
+/// Shared spacing / radius scale for list, sheet, and shell chrome.
+class UmkmSpace {
+  static const xxs = 4.0;
+  static const xs = 8.0;
+  static const sm = 12.0;
+  static const md = 16.0;
+  static const lg = 20.0;
+  static const xl = 24.0;
+  static const xxl = 32.0;
+
+  static const radiusSm = 12.0;
+  static const radiusMd = 16.0;
+  static const radiusLg = 22.0;
+
+  static const touchMin = 44.0;
+  static const tablet = 840.0;
+}
+
 /// Shared type styles — Manrope only (matches web `--font-ui`).
 class UmkmType {
   static TextStyle display({
@@ -123,7 +141,7 @@ ThemeData buildUmkmTheme() {
       backgroundColor: Colors.transparent,
       indicatorColor: UmkmColors.brandSoft,
       elevation: 0,
-      height: 70,
+      height: 64,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -157,10 +175,13 @@ ThemeData buildUmkmTheme() {
       color: UmkmColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(UmkmSpace.radiusMd),
         side: BorderSide(color: UmkmColors.line.withOpacity(0.72)),
       ),
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.symmetric(
+        horizontal: UmkmSpace.sm,
+        vertical: UmkmSpace.xxs + 1,
+      ),
       clipBehavior: Clip.antiAlias,
     ),
     inputDecorationTheme: InputDecorationTheme(

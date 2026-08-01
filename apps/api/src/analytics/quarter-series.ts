@@ -27,7 +27,7 @@ import {
 } from './weekly-target';
 import type { CalendarQuarterRef } from './iso-week';
 
-export type QuarterlySeriesPoint = {
+type QuarterlySeriesPoint = {
   year: number;
   quarter: number;
   label: string;

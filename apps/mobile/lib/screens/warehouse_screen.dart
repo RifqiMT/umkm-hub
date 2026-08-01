@@ -5,6 +5,7 @@ import '../format_money.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/product_packs.dart';
+import '../theme/umkm_theme.dart';
 import '../timeline.dart';
 import '../widgets/ui.dart';
 import '../widgets/feature_data_transfer.dart';
@@ -386,92 +387,80 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   Future<void> _openViewProduct(Product product) async {
     final pack = getActivePack(product);
     final packsLabel = formatPacksOnHand(product.stockQty, pack);
-    await showDialog<void>(
+    await showAppViewSheet<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(product.name),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailRow(label: 'Unit', value: product.unit),
-                DetailRow(
-                  label: 'Pack',
-                  value: pack != null ? pack.sizeLabel : 'No pack',
-                ),
-                DetailRow(
-                  label: 'Stock',
-                  value: '${formatCompactQty(product.stockQty)} ${product.unit.toLowerCase()}',
-                ),
-                DetailRow(
-                  label: 'Packs in stock',
-                  value: packsLabel ?? '—',
-                ),
-                if (pack != null) ...[
-                  DetailRow(
-                    label: 'Pack sell',
-                    value: formatMoney(pack.price),
-                  ),
-                  DetailRow(
-                    label: 'Pack cost',
-                    value: pack.cost != null ? formatMoney(pack.cost!) : '—',
-                  ),
-                  DetailRow(
-                    label: 'Pack profit',
-                    value: pack.cost != null
-                        ? formatMoney(pack.price - pack.cost!)
-                        : '—',
-                  ),
-                ],
-                DetailRow(
-                  label: 'Unit sell',
-                  value: formatMoney(product.pricePerUnit),
-                ),
-                DetailRow(
-                  label: 'Unit cost',
-                  value: product.costPerUnit != null
-                      ? formatMoney(product.costPerUnit!)
-                      : '—',
-                ),
-                DetailRow(
-                  label: 'Unit profit',
-                  value: product.unitProfit != null
-                      ? formatMoney(product.unitProfit!)
-                      : '—',
-                ),
-                DetailRow(
-                  label: 'Margin',
-                  value: product.profitMarginPercent != null
-                      ? '${product.profitMarginPercent}%'
-                      : '—',
-                ),
-                DetailRow(
-                  label: 'Sell value',
-                  value: formatMoney(product.potentialRevenue),
-                ),
-                DetailRow(
-                  label: 'Cost value',
-                  value: product.potentialCost != null
-                      ? formatMoney(product.potentialCost!)
-                      : '—',
-                ),
-                DetailRow(
-                  label: 'Profit value',
-                  value: product.potentialProfit != null
-                      ? formatMoney(product.potentialProfit!)
-                      : '—',
-                ),
-              ],
-            ),
+      title: product.name,
+      subtitle: 'Stock on hand and inventory value for this product.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DetailRow(label: 'Unit', value: product.unit),
+          DetailRow(
+            label: 'Pack',
+            value: pack != null ? pack.sizeLabel : 'No pack',
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+          DetailRow(
+            label: 'Stock',
+            value:
+                '${formatCompactQty(product.stockQty)} ${product.unit.toLowerCase()}',
+          ),
+          DetailRow(
+            label: 'Packs in stock',
+            value: packsLabel ?? '—',
+          ),
+          if (pack != null) ...[
+            DetailRow(
+              label: 'Pack sell',
+              value: formatMoney(pack.price),
+            ),
+            DetailRow(
+              label: 'Pack cost',
+              value: pack.cost != null ? formatMoney(pack.cost!) : '—',
+            ),
+            DetailRow(
+              label: 'Pack profit',
+              value: pack.cost != null
+                  ? formatMoney(pack.price - pack.cost!)
+                  : '—',
+            ),
+          ],
+          DetailRow(
+            label: 'Unit sell',
+            value: formatMoney(product.pricePerUnit),
+          ),
+          DetailRow(
+            label: 'Unit cost',
+            value: product.costPerUnit != null
+                ? formatMoney(product.costPerUnit!)
+                : '—',
+          ),
+          DetailRow(
+            label: 'Unit profit',
+            value: product.unitProfit != null
+                ? formatMoney(product.unitProfit!)
+                : '—',
+          ),
+          DetailRow(
+            label: 'Margin',
+            value: product.profitMarginPercent != null
+                ? '${product.profitMarginPercent}%'
+                : '—',
+          ),
+          DetailRow(
+            label: 'Sell value',
+            value: formatMoney(product.potentialRevenue),
+          ),
+          DetailRow(
+            label: 'Cost value',
+            value: product.potentialCost != null
+                ? formatMoney(product.potentialCost!)
+                : '—',
+          ),
+          DetailRow(
+            label: 'Profit value',
+            value: product.potentialProfit != null
+                ? formatMoney(product.potentialProfit!)
+                : '—',
           ),
         ],
       ),
@@ -485,45 +474,32 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     final packsAdded = formatPacksOnHand(restock.qtyAdded, pack);
     final packsBefore = formatPacksOnHand(restock.stockBefore, pack);
     final packsAfter = formatPacksOnHand(restock.stockAfter, pack);
-    await showDialog<void>(
+    await showAppViewSheet<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(restock.productName ?? restock.productId),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailRow(label: 'Restock date', value: restock.restockDate),
-                DetailRow(
-                  label: 'Pack',
-                  value: pack != null ? pack.sizeLabel : '—',
-                ),
-                DetailRow(
-                  label: 'Qty added',
-                  value: '+${formatCompactQty(restock.qtyAdded)} $u'
-                      '${packsAdded != null ? ' · $packsAdded' : ''}',
-                ),
-                DetailRow(
-                  label: 'Before → after',
-                  value:
-                      '${formatCompactQty(restock.stockBefore)} → ${formatCompactQty(restock.stockAfter)}'
-                      '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
-                ),
-                DetailRow(
-                  label: 'Notes',
-                  value: restock.notes.isEmpty ? '—' : restock.notes,
-                ),
-              ],
-            ),
+      title: restock.productName ?? restock.productId,
+      subtitle: 'Restock movement and stock snapshots.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DetailRow(label: 'Restock date', value: restock.restockDate),
+          DetailRow(
+            label: 'Pack',
+            value: pack != null ? pack.sizeLabel : '—',
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+          DetailRow(
+            label: 'Qty added',
+            value: '+${formatCompactQty(restock.qtyAdded)} $u'
+                '${packsAdded != null ? ' · $packsAdded' : ''}',
+          ),
+          DetailRow(
+            label: 'Before → after',
+            value:
+                '${formatCompactQty(restock.stockBefore)} → ${formatCompactQty(restock.stockAfter)}'
+                '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
+          ),
+          DetailRow(
+            label: 'Notes',
+            value: restock.notes.isEmpty ? '—' : restock.notes,
           ),
         ],
       ),
@@ -537,51 +513,40 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     final packsSold = formatPacksOnHand(sale.qtySold, pack);
     final packsBefore = formatPacksOnHand(sale.stockBefore, pack);
     final packsAfter = formatPacksOnHand(sale.stockAfter, pack);
-    await showDialog<void>(
+    await showAppViewSheet<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(sale.productName ?? sale.productId),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailRow(label: 'Sold date', value: sale.soldDate),
-                DetailRow(
-                  label: 'Order',
-                  value: sale.orderRef?.isNotEmpty == true
-                      ? sale.orderRef!
-                      : sale.orderId,
-                ),
-                DetailRow(
-                  label: 'Pack',
-                  value: pack != null ? pack.sizeLabel : '—',
-                ),
-                DetailRow(
-                  label: 'Qty sold',
-                  value: '−${formatCompactQty(sale.qtySold)} $u'
-                      '${packsSold != null ? ' · $packsSold' : ''}',
-                ),
-                DetailRow(
-                  label: 'Before → after',
-                  value:
-                      '${formatCompactQty(sale.stockBefore)} → ${formatCompactQty(sale.stockAfter)}'
-                      '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
-                ),
-                DetailRow(
-                  label: 'Notes',
-                  value: sale.notes.isEmpty ? '—' : sale.notes,
-                ),
-              ],
-            ),
+      title: sale.productName ?? sale.productId,
+      subtitle: sale.orderRef?.isNotEmpty == true
+          ? 'Stock drawn by order ${sale.orderRef}.'
+          : 'Stock drawn when this order line was fulfilled.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DetailRow(label: 'Sold date', value: sale.soldDate),
+          DetailRow(
+            label: 'Order',
+            value: sale.orderRef?.isNotEmpty == true
+                ? sale.orderRef!
+                : sale.orderId,
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+          DetailRow(
+            label: 'Pack',
+            value: pack != null ? pack.sizeLabel : '—',
+          ),
+          DetailRow(
+            label: 'Qty sold',
+            value: '−${formatCompactQty(sale.qtySold)} $u'
+                '${packsSold != null ? ' · $packsSold' : ''}',
+          ),
+          DetailRow(
+            label: 'Before → after',
+            value:
+                '${formatCompactQty(sale.stockBefore)} → ${formatCompactQty(sale.stockAfter)}'
+                '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
+          ),
+          DetailRow(
+            label: 'Notes',
+            value: sale.notes.isEmpty ? '—' : sale.notes,
           ),
         ],
       ),
@@ -627,7 +592,12 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               subtitle: 'Stock, active pack, and inventory value from catalog rates.',
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.fromLTRB(
+                UmkmSpace.md,
+                0,
+                UmkmSpace.md,
+                UmkmSpace.sm,
+              ),
               child: Column(
                 children: [
                   Row(
@@ -638,7 +608,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                           value: formatMoney(totalPotentialRevenue),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: UmkmSpace.sm),
                       Expanded(
                         child: MetricTile(
                           label: 'Cost value',
@@ -649,7 +619,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: UmkmSpace.sm),
                   Row(
                     children: [
                       Expanded(
@@ -660,7 +630,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                               : '—',
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: UmkmSpace.sm),
                       Expanded(
                         child: MetricTile(
                           label: 'Margin',
@@ -674,7 +644,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: UmkmSpace.xxs),
             if (products.isEmpty)
               const EmptyHint(
                 title: 'No inventory yet',

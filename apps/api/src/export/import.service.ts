@@ -34,7 +34,7 @@ import {
 
 const BCRYPT_ROUNDS = 12;
 
-export type ImportResult = {
+type ImportResult = {
   scope: DataExportScope;
   merged: ImportMergeStats;
   notes: string[];

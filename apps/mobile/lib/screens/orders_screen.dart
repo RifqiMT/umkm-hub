@@ -579,65 +579,71 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           : null;
                       final stockAvailable =
                           stock?.available ?? product.stockQty;
-                      Widget qtyAmount() => Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'QTY',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 10,
-                                  letterSpacing: 0.6,
-                                  color: UmkmColors.muted,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              SizedBox(
-                                width: 72,
-                                child: TextField(
-                                  controller: row.packCountCtrl,
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 8,
+                      final sheetNarrow =
+                          MediaQuery.sizeOf(context).width < 400;
+                      Widget qtyAmount({bool fullWidth = false}) {
+                        final field = TextField(
+                          controller: row.packCountCtrl,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            enabledBorder: stockShort
+                                ? OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: UmkmColors.danger,
                                     ),
-                                    enabledBorder: stockShort
-                                        ? OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            borderSide: const BorderSide(
-                                              color: UmkmColors.danger,
-                                            ),
-                                          )
-                                        : null,
-                                    focusedBorder: stockShort
-                                        ? OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            borderSide: const BorderSide(
-                                              color: UmkmColors.danger,
-                                              width: 1.4,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                  onChanged: (_) => setLocal(() {}),
-                                ),
+                                  )
+                                : null,
+                            focusedBorder: stockShort
+                                ? OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: UmkmColors.danger,
+                                      width: 1.4,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          onChanged: (_) => setLocal(() {}),
+                        );
+                        final amount = Text(
+                          formatMoney(packPrice * row.packCount),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: UmkmColors.brandDeep,
+                          ),
+                        );
+                        return Row(
+                          children: [
+                            const Text(
+                              'QTY',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
+                                letterSpacing: 0.6,
+                                color: UmkmColors.muted,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                formatMoney(packPrice * row.packCount),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  color: UmkmColors.brandDeep,
-                                ),
-                              ),
-                            ],
-                          );
+                            ),
+                            const SizedBox(width: 8),
+                            if (fullWidth)
+                              Expanded(child: field)
+                            else
+                              SizedBox(width: 88, child: field),
+                            const SizedBox(width: 10),
+                            if (fullWidth)
+                              amount
+                            else
+                              Flexible(child: amount),
+                          ],
+                        );
+                      }
                       Widget productMeta({bool warn = false}) {
                         if (packs.isEmpty || warn) {
                           return const Text(
@@ -855,7 +861,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     isExpanded: true,
                                   ),
                                 ),
-                                if (packs.isNotEmpty && !showSizePicker) ...[
+                                if (packs.isNotEmpty &&
+                                    !showSizePicker &&
+                                    !sheetNarrow) ...[
                                   const SizedBox(width: 8),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
@@ -878,13 +886,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                   ),
                               ],
                             ),
+                            if (packs.isNotEmpty &&
+                                !showSizePicker &&
+                                sheetNarrow) ...[
+                              const SizedBox(height: 8),
+                              qtyAmount(fullWidth: true),
+                            ],
                             if (showSizePicker && packs.isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Wrap(
+                              if (sheetNarrow)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Wrap(
                                       spacing: 6,
                                       runSpacing: 6,
                                       children: [
@@ -902,10 +917,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                           ),
                                       ],
                                     ),
-                                  ),
-                                  qtyAmount(),
-                                ],
-                              ),
+                                    const SizedBox(height: 8),
+                                    qtyAmount(fullWidth: true),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          for (final p in packs)
+                                            ChoiceChip(
+                                              label: Text(
+                                                '${p.size % 1 == 0 ? p.size.toStringAsFixed(0) : p.size.toStringAsFixed(2)}$unitSuffix',
+                                              ),
+                                              selected: row.packKey == p.key,
+                                              onSelected: (_) => setLocal(
+                                                () => row.packKey = p.key,
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    qtyAmount(),
+                                  ],
+                                ),
                             ],
                             const SizedBox(height: 8),
                             Padding(
@@ -1649,17 +1691,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final paidPct = due > 0
         ? (order.paidAmount / due).clamp(0.0, 1.0)
         : 0.0;
-    final action = await showDialog<String>(
+    final action = await showAppViewSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(order.productName ?? order.productId),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      title: order.productName ?? order.productId,
+      subtitle: 'Fulfillment, invoice, and payment progress for this order.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -1992,21 +2030,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                     ),
                 ],
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'edit'),
-            child: const Text('Edit'),
-          ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Tr('Close'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, 'edit'),
+          child: const Tr('Edit'),
+        ),
+      ],
     );
     if (!mounted) return;
     if (action == 'edit') await _openForm(existing: order);
@@ -2026,19 +2061,30 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final mutedValue = UmkmColors.muted.withValues(alpha: 0.55);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(
+        UmkmSpace.md,
+        0,
+        UmkmSpace.md,
+        UmkmSpace.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SectionLabel(
             'Order pulse',
             subtitle: 'Volume, health rates, and active date span.',
+            padded: false,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: UmkmSpace.xs),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: const EdgeInsets.fromLTRB(
+              UmkmSpace.md,
+              UmkmSpace.sm + 2,
+              UmkmSpace.md,
+              UmkmSpace.sm + 2,
+            ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(UmkmSpace.radiusMd),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -2071,7 +2117,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     color: UmkmColors.muted,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: UmkmSpace.xxs + 2),
                 _PulseMagnitude(
                   figure: revenue?.figure ?? '···',
                   unit: revenue?.unit,
@@ -2079,7 +2125,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   loading: isPulseLoading,
                   mutedValue: mutedValue,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: UmkmSpace.xxs),
                 const Text(
                   'After discounts · non-cancelled',
                   style: TextStyle(
@@ -2088,35 +2134,43 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     color: UmkmColors.muted,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: UmkmSpace.md),
+                Container(
+                  height: 1,
+                  color: UmkmColors.line.withValues(alpha: 0.75),
+                ),
+                const SizedBox(height: UmkmSpace.sm + 2),
                 Row(
                   children: [
                     Expanded(
-                      child: _PulseMetric(
-                        label: 'Orders',
-                        child: Text(
-                          ordersLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: isPulseLoading
-                                ? mutedValue
-                                : UmkmColors.brandDeep,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: UmkmSpace.sm),
+                        child: _PulseMetric(
+                          label: 'Orders',
+                          child: Text(
+                            ordersLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                              color: isPulseLoading
+                                  ? mutedValue
+                                  : UmkmColors.brandDeep,
+                            ),
                           ),
                         ),
                       ),
                     ),
                     Container(
                       width: 1,
-                      height: 42,
+                      height: 44,
                       color: UmkmColors.line.withValues(alpha: 0.85),
                     ),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 14),
+                        padding: const EdgeInsets.only(left: UmkmSpace.sm + 2),
                         child: _PulseMetric(
                           label: 'Packs sold',
                           child: _PulseMagnitude(
@@ -2132,12 +2186,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: UmkmSpace.md),
                 Container(
                   height: 1,
                   color: UmkmColors.line.withValues(alpha: 0.75),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: UmkmSpace.sm + 2),
                 _PulseRateGrid(
                   loading: isPulseLoading,
                   mutedValue: mutedValue,
@@ -2146,12 +2200,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   discount: s?.discountRate,
                   fullPayment: s?.fullPaymentRate,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: UmkmSpace.md),
                 Container(
                   height: 1,
                   color: UmkmColors.line.withValues(alpha: 0.75),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: UmkmSpace.sm + 2),
                 Row(
                   children: [
                     Text(
@@ -2552,7 +2606,7 @@ class _PulseRateGrid extends StatelessWidget {
                 color: const Color(0xFF9A5B3C),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: UmkmSpace.sm),
             Expanded(
               child: _PulseRateMeter(
                 label: 'Profit margin',
@@ -2564,7 +2618,7 @@ class _PulseRateGrid extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: UmkmSpace.sm),
         Row(
           children: [
             Expanded(
@@ -2576,7 +2630,7 @@ class _PulseRateGrid extends StatelessWidget {
                 color: const Color(0xFF2F6F8F),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: UmkmSpace.sm),
             Expanded(
               child: _PulseRateMeter(
                 label: 'Full payment',
@@ -2642,11 +2696,11 @@ class _PulseRateMeter extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: UmkmSpace.xxs + 2),
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
           child: SizedBox(
-            height: 4,
+            height: 5,
             child: Stack(
               fit: StackFit.expand,
               children: [

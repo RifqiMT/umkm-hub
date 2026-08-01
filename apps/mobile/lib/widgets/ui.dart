@@ -3,25 +3,100 @@ import '../data/countries.dart';
 import '../theme/umkm_theme.dart';
 import 'auto_translate_text.dart';
 
+export 'auto_translate_text.dart' show Tr;
+
 /// Subtitle-only intro under the shell AppBar (avoids duplicate titles).
 class PageIntro extends StatelessWidget {
   const PageIntro({
     super.key,
     required this.subtitle,
+    this.metrics = const [],
   });
 
   final String subtitle;
+  /// Optional compact pulse metrics under the subtitle (FeatureStage-lite).
+  final List<(String label, String value)> metrics;
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final cols = metrics.isEmpty
+        ? 0
+        : metrics.length == 1
+            ? 1
+            : width >= 520
+                ? metrics.length.clamp(1, 4)
+                : 2;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-      child: Tr(
-        subtitle,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: UmkmColors.muted,
-              height: 1.4,
+      padding: const EdgeInsets.fromLTRB(
+        UmkmSpace.md,
+        UmkmSpace.xxs,
+        UmkmSpace.md,
+        UmkmSpace.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Tr(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: UmkmColors.muted,
+                  height: 1.4,
+                ),
+          ),
+          if (metrics.isNotEmpty) ...[
+            const SizedBox(height: UmkmSpace.sm),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: UmkmColors.surface.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(UmkmSpace.radiusMd),
+                border: Border.all(color: UmkmColors.line.withOpacity(0.65)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Wrap(
+                  spacing: 0,
+                  runSpacing: 8,
+                  children: [
+                    for (var i = 0; i < metrics.length; i++)
+                      SizedBox(
+                        width: cols <= 1
+                            ? double.infinity
+                            : (width - UmkmSpace.md * 2 - 26) / cols,
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: cols > 1 && i % cols != 0 ? 10 : 0,
+                            right: cols > 1 && i % cols != cols - 1 ? 10 : 0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Tr(
+                                metrics[i].$1.toUpperCase(),
+                                style: UmkmType.label(size: 10),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                metrics[i].$2,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: UmkmType.body(
+                                  size: 15,
+                                  weight: FontWeight.w700,
+                                  color: UmkmColors.brandDeep,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
+          ],
+        ],
       ),
     );
   }
@@ -170,10 +245,13 @@ class MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: UmkmSpace.sm + 2,
+        vertical: UmkmSpace.sm,
+      ),
       decoration: BoxDecoration(
         color: UmkmColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(UmkmSpace.radiusSm + 2),
         border: Border.all(color: UmkmColors.line.withOpacity(0.9)),
         boxShadow: const [
           BoxShadow(
@@ -195,7 +273,7 @@ class MetricTile extends StatelessWidget {
               color: UmkmColors.muted,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: UmkmSpace.xxs + 2),
           Text(
             value,
             style: UmkmType.display(
@@ -299,15 +377,23 @@ class SectionLabel extends StatelessWidget {
     this.text, {
     super.key,
     this.subtitle,
+    /// When false, only vertical padding is applied (parent supplies horizontal inset).
+    this.padded = true,
   });
 
   final String text;
   final String? subtitle;
+  final bool padded;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      padding: EdgeInsets.fromLTRB(
+        padded ? UmkmSpace.md : 0,
+        UmkmSpace.sm + 2,
+        padded ? UmkmSpace.md : 0,
+        UmkmSpace.xs,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -316,7 +402,7 @@ class SectionLabel extends StatelessWidget {
             style: UmkmType.title(size: 18),
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: UmkmSpace.xs),
             Tr(
               subtitle!,
               style: const TextStyle(
@@ -393,11 +479,14 @@ class EntityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final narrow = width < 380;
     final columns = metrics.length <= 1
         ? 1
-        : metrics.length == 3 && width >= 420
-            ? 3
-            : 2;
+        : narrow
+            ? 1
+            : metrics.length == 3 && width >= 420
+                ? 3
+                : 2;
 
     final metricRows = <Widget>[];
     for (var i = 0; i < metrics.length; i += columns) {
@@ -581,6 +670,7 @@ EdgeInsets listChromePadding(BuildContext context) {
 }
 
 /// Full-height bottom sheet for create/edit forms (keyboard-safe).
+/// Title, body, and actions scroll together — no pinned header/footer.
 Future<T?> showAppFormSheet<T>({
   required BuildContext context,
   required String title,
@@ -595,24 +685,30 @@ Future<T?> showAppFormSheet<T>({
     showDragHandle: true,
     backgroundColor: UmkmColors.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      borderRadius:
+          BorderRadius.vertical(top: Radius.circular(UmkmSpace.radiusLg)),
     ),
     builder: (ctx) {
       return StatefulBuilder(
         builder: (context, setLocal) {
           final viewInsets = MediaQuery.viewInsetsOf(context);
           final maxH = MediaQuery.sizeOf(context).height * 0.92;
+          final actionWidgets = actions(context, setLocal);
           return Padding(
             padding: EdgeInsets.only(bottom: viewInsets.bottom),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxH),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    child: Tr(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  UmkmSpace.md,
+                  0,
+                  UmkmSpace.md,
+                  UmkmSpace.md + MediaQuery.paddingOf(context).bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Tr(
                       title,
                       style: UmkmType.display(
                         size: 22,
@@ -620,45 +716,116 @@ Future<T?> showAppFormSheet<T>({
                         letterSpacing: -0.35,
                       ),
                     ),
-                  ),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: body(context, setLocal),
+                    const SizedBox(height: UmkmSpace.sm),
+                    body(context, setLocal),
+                    const SizedBox(height: UmkmSpace.lg),
+                    Row(
+                      children: [
+                        for (var i = 0; i < actionWidgets.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          Expanded(child: actionWidgets[i]),
+                        ],
+                      ],
                     ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                      decoration: BoxDecoration(
-                        color: UmkmColors.surface,
-                        border: Border(
-                          top: BorderSide(
-                            color: UmkmColors.line.withOpacity(0.85),
-                          ),
-                        ),
-                      ),
-                      child: Builder(
-                        builder: (context) {
-                          final actionWidgets = actions(context, setLocal);
-                          return Row(
-                            children: [
-                              for (var i = 0; i < actionWidgets.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 10),
-                                Expanded(child: actionWidgets[i]),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
         },
+      );
+    },
+  );
+}
+
+/// Scrollable view sheet for entity details.
+/// Title, body, and actions scroll together — no pinned header/footer.
+Future<T?> showAppViewSheet<T>({
+  required BuildContext context,
+  required String title,
+  String? subtitle,
+  required Widget body,
+  List<Widget>? actions,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: UmkmColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius:
+          BorderRadius.vertical(top: Radius.circular(UmkmSpace.radiusLg)),
+    ),
+    builder: (ctx) {
+      final maxH = MediaQuery.sizeOf(ctx).height * 0.92;
+      final actionWidgets = actions ??
+          [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Tr('Close'),
+            ),
+          ];
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            UmkmSpace.md,
+            0,
+            UmkmSpace.md,
+            UmkmSpace.md + MediaQuery.paddingOf(ctx).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Tr(
+                title,
+                style: UmkmType.display(
+                  size: 22,
+                  weight: FontWeight.w700,
+                  letterSpacing: -0.35,
+                ),
+              ),
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Tr(
+                  subtitle,
+                  style: UmkmType.body(
+                    size: 13.5,
+                    color: UmkmColors.muted,
+                  ),
+                ),
+              ],
+              const SizedBox(height: UmkmSpace.sm),
+              body,
+              const SizedBox(height: UmkmSpace.lg),
+              if (actionWidgets.length == 1)
+                SizedBox(
+                  width: double.infinity,
+                  child: actionWidgets.first,
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: actionWidgets
+                      .map(
+                        (w) => ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: MediaQuery.sizeOf(ctx).width < 380
+                                ? (MediaQuery.sizeOf(ctx).width - 48) / 2
+                                : 108,
+                            minHeight: UmkmSpace.touchMin,
+                          ),
+                          child: w,
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+            ],
+          ),
+        ),
       );
     },
   );

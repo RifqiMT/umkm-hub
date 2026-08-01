@@ -239,7 +239,7 @@ function StatBreakdownSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export type StatisticsBreakdownSectionProps<TStats> = {
+type StatisticsBreakdownSectionProps<TStats> = {
   ariaLabel: string;
   groups: string[];
   catalog: StatisticsCatalogItem[];

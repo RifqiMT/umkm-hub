@@ -1,7 +1,7 @@
 import { roundMoney, type FiscalBreakdown } from './fiscal-invoice';
 import { sumInstallmentAmounts } from './order-installments';
 
-export type InvoicePaymentTotals = {
+type InvoicePaymentTotals = {
   /** Amount due on the invoice (includes PPN when PKP tax-exclusive). */
   invoiceTotal: number;
   paidAmount: number;

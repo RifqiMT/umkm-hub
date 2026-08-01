@@ -9,7 +9,7 @@ export type MixOrderRow = {
 type StatusShares = Record<OrderStatus, number>;
 type PaymentShares = Record<PaymentStatus, number>;
 
-export type PeriodMixShares = {
+type PeriodMixShares = {
   /** % of orders in each status (includes CANCELLED). Sum ≈ 100 when count > 0. */
   statusShares: StatusShares;
   statusOrderCount: number;

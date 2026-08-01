@@ -26,7 +26,7 @@ export const DASHBOARD_PERIOD_LABELS: Record<DashboardPeriod, string> = {
   this_year: 'This year',
 };
 
-export type DashboardPeriodRange = {
+type DashboardPeriodRange = {
   orderDateFrom?: string;
   orderDateTo?: string;
 };

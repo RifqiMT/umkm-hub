@@ -43,7 +43,7 @@ const DISCOUNT_TYPE_KEYS = [
   DiscountType.AMOUNT,
 ] as const;
 
-export type OrderStatisticsInput = {
+type OrderStatisticsInput = {
   orderCount: number;
   status: CountBucketInput[];
   paymentStatus: CountBucketInput[];
@@ -53,7 +53,7 @@ export type OrderStatisticsInput = {
   customerLinked: WithWithoutInput;
 };
 
-export type OrderStatistics = {
+type OrderStatistics = {
   status: StatBucket[];
   paymentStatus: StatBucket[];
   invoiceStatus: StatBucket[];

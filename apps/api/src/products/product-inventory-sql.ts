@@ -9,7 +9,7 @@ export type ProductInventoryFilter = {
   packReady?: Array<'ready' | 'not_ready'>;
 };
 
-export type InventoryValueAgg = {
+type InventoryValueAgg = {
   sellValue: number;
   costedSellValue: number;
   costValue: number;

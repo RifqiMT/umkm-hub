@@ -64,6 +64,17 @@
   --table-pad-y: 0.78rem;
   --table-header-pad-y: 0.62rem;
   --table-min-width: 44rem;
+  /* Feature stage + content section rhythm (narrow breakpoints override) */
+  --stage-pad-x: 1.35rem;
+  --stage-pad-y: 1.25rem;
+  --stage-gap: 1.15rem;
+  --stage-body-gap: 1rem;
+  --stage-rate-gap: 0.75rem 1rem;
+  --section-gap: 1.15rem;
+  --section-head-pad-x: 1.25rem;
+  --section-head-pad-y: 0.85rem;
+  --section-body-pad-x: 1.25rem;
+  --section-body-pad-y: 1.05rem;
 }
 
 @theme inline {
@@ -581,7 +592,7 @@ textarea {
 
 .umkm-panel + .umkm-panel,
 .umkm-content-section + .umkm-content-section {
-  margin-top: 1.15rem;
+  margin-top: var(--section-gap);
 }
 
 .umkm-content-section.umkm-panel {
@@ -608,7 +619,8 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.65rem 1.25rem;
-  padding: 0.85rem 1.25rem 0.75rem;
+  padding: var(--section-head-pad-y) var(--section-head-pad-x)
+    calc(var(--section-head-pad-y) - 0.1rem);
   border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   background:
     linear-gradient(
@@ -705,7 +717,8 @@ textarea {
 }
 
 .umkm-panel-body {
-  padding: 1.05rem 1.25rem 1.2rem;
+  padding: var(--section-body-pad-y) var(--section-body-pad-x)
+    calc(var(--section-body-pad-y) + 0.15rem);
 }
 
 .umkm-panel.quiet .umkm-panel-body {
@@ -1521,12 +1534,8 @@ textarea {
   }
 
   .umkm-order-installment-head {
-    position: sticky;
-    top: 0;
-    z-index: 2;
+    position: static;
     padding: 0.35rem 0;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    backdrop-filter: blur(8px);
   }
 }
 
@@ -2921,13 +2930,14 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.15rem 0.35rem 0.65rem;
-  margin-bottom: 0.25rem;
+  padding: 0.2rem 0.35rem 0.7rem;
+  margin: 0 -0.1rem 0.3rem;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, #fff);
 }
 
 .umkm-filter-sheet-title {
-  font-size: 0.95rem;
+  font-size: 0.98rem;
   font-weight: 750;
   color: var(--brand-deep);
   letter-spacing: var(--tracking-tight);
@@ -2939,11 +2949,11 @@ textarea {
   background: var(--brand-soft);
   color: var(--brand-deep);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 700;
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-sm);
-  min-height: 2.4rem;
+  padding: 0.5rem 1.05rem;
+  border-radius: 999px;
+  min-height: var(--touch-min);
   cursor: pointer;
 }
 
@@ -2951,11 +2961,11 @@ textarea {
 .umkm-date-range-filter-panel.is-sheet,
 .umkm-dash-period-panel.is-sheet,
 .umkm-timeline-filter-panel.is-sheet {
-  border-radius: 1.15rem 1.15rem 0 0;
+  border-radius: 1.25rem 1.25rem 0 0;
   border-bottom: 0;
-  padding: 0.75rem 0.85rem calc(0.9rem + var(--safe-bottom));
-  box-shadow: 0 -12px 40px rgba(12, 26, 21, 0.16);
-  animation: umkm-sheet-rise 240ms var(--ease) both;
+  padding: 0.85rem 1rem calc(1rem + var(--safe-bottom));
+  box-shadow: 0 -14px 44px rgba(12, 26, 21, 0.18);
+  animation: umkm-sheet-rise 260ms var(--ease) both;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -3426,10 +3436,15 @@ textarea {
 
 @media (max-width: 640px) {
   .umkm-list-pager {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.55rem 0.65rem;
     justify-content: stretch;
   }
 
   .umkm-list-pager-size {
+    grid-column: 1 / -1;
     width: 100%;
     margin-right: 0;
     justify-content: space-between;
@@ -3437,7 +3452,19 @@ textarea {
 
   .umkm-list-pager-size-select {
     flex: 1 1 auto;
-    max-width: 8.5rem;
+    max-width: none;
+    min-height: var(--touch-min);
+  }
+
+  .umkm-list-pager-status {
+    grid-column: 1;
+    justify-self: start;
+    font-size: 0.8rem;
+  }
+
+  .umkm-list-pager > .umkm-btn {
+    min-height: var(--touch-min);
+    min-width: 2.75rem;
   }
 }
 
@@ -5431,9 +5458,9 @@ textarea {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  margin: 0 0 1.25rem;
-  padding: 1.25rem 1.35rem 1.15rem;
+  gap: var(--stage-gap);
+  margin: 0 0 var(--section-gap);
+  padding: var(--stage-pad-y) var(--stage-pad-x);
   border-radius: calc(var(--radius) + 0.12rem);
   background:
     radial-gradient(
@@ -6042,13 +6069,13 @@ textarea {
 .umkm-stage-body {
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
+  gap: var(--stage-body-gap);
 }
 
 .umkm-stage-volume {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.85fr));
-  gap: 0.75rem 1.1rem;
+  gap: 0.85rem 1.1rem;
   margin: 0;
   align-items: end;
 }
@@ -6127,12 +6154,29 @@ textarea {
   white-space: nowrap;
 }
 
+.umkm-stage-rates-disclosure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.umkm-stage-rates-summary {
+  display: none;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.umkm-stage-rates-summary::-webkit-details-marker {
+  display: none;
+}
+
 .umkm-stage-rates {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem 0.85rem;
+  gap: var(--stage-rate-gap);
   margin: 0;
-  padding-top: 0.85rem;
+  padding-top: var(--stage-body-gap);
   border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   animation: rise 560ms var(--ease) both;
   animation-delay: 90ms;
@@ -6143,7 +6187,7 @@ textarea {
   --meter: var(--brand);
   display: flex;
   flex-direction: column;
-  gap: 0.38rem;
+  gap: 0.45rem;
   min-width: 0;
 }
 
@@ -7455,37 +7499,189 @@ textarea {
 }
 
 @media (max-width: 1100px) {
+  :root {
+    --stage-pad-x: 1.15rem;
+    --stage-pad-y: 1.1rem;
+    --stage-gap: 1rem;
+    --stage-body-gap: 1rem;
+    --stage-rate-gap: 0.85rem 1rem;
+    --section-gap: 1rem;
+    --section-head-pad-x: 1.1rem;
+    --section-head-pad-y: 0.85rem;
+    --section-body-pad-x: 1.1rem;
+    --section-body-pad-y: 1rem;
+  }
+
   .umkm-metrics,
   .umkm-metrics.umkm-metrics-5 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* Hero full width + secondary stats side-by-side — less tall dead stack */
+  /* Hero full width + equal secondary columns; one full divider under hero */
   .umkm-stage-volume {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 1rem;
+    column-gap: 1rem;
+    row-gap: 0;
+    align-items: start;
   }
 
   .umkm-stage-stat {
-    padding: 0.55rem 0 0;
-    border-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    padding: 0.85rem 0 0;
+    border: 0;
   }
 
   .umkm-stage-stat:first-child,
   .umkm-stage-stat.is-hero {
     grid-column: 1 / -1;
-    padding-top: 0;
-    border-top: 0;
+    padding: 0 0 0.85rem;
+    margin: 0 0 0.15rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+
+  .umkm-stage-stat:nth-child(2) {
+    padding: 0.95rem 0.75rem 0.2rem 0;
+  }
+
+  .umkm-stage-stat:nth-child(3) {
+    padding: 0.95rem 0 0.2rem 0.75rem;
+    border-left: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   }
 
   .umkm-stage-rates {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.8rem 1rem;
+    gap: var(--stage-rate-gap);
+  }
+
+  .umkm-stage-rate {
+    gap: 0.55rem;
+    padding: 0.2rem 0;
+  }
+
+  .umkm-stage-meter {
+    height: 0.32rem;
+  }
+
+  /* Tablet + phone: cards instead of horizontal-scrolling tables */
+  .umkm-catalog-table-wrap {
+    display: none;
+  }
+
+  .umkm-catalog-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .umkm-catalog-card {
+    padding: 1.05rem 1.05rem 1rem;
+    gap: 0.85rem;
+    border-radius: calc(var(--table-radius) + 0.1rem);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, #fff 70%, transparent) inset,
+      0 8px 22px rgba(12, 26, 21, 0.04);
   }
 
   .umkm-catalog-card-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .umkm-catalog-card .umkm-row-actions,
+  .umkm-catalog-card .umkm-icon-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0.65rem 0 0;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    justify-content: stretch;
+  }
+
+  .umkm-catalog-card .umkm-icon-btn {
+    flex: unset;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: 0.4rem 0.35rem;
+    gap: 0.2rem;
+    flex-direction: column;
+    border-radius: 0.7rem;
+    border-color: color-mix(in srgb, var(--line) 75%, transparent);
+    background: color-mix(in srgb, var(--surface-2) 88%, var(--surface));
+    color: var(--brand-deep);
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  .umkm-catalog-card .umkm-icon-btn svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+  }
+
+  .umkm-catalog-card .umkm-icon-btn::after {
+    content: attr(title);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: var(--muted);
+  }
+
+  .umkm-catalog-card .umkm-icon-btn:hover,
+  .umkm-catalog-card .umkm-icon-btn:focus-visible {
+    background: color-mix(in srgb, var(--brand-soft) 70%, var(--surface));
+    border-color: color-mix(in srgb, var(--brand) 35%, var(--line));
+    color: var(--brand-deep);
+  }
+
+  .umkm-catalog-card .umkm-icon-btn:hover::after,
+  .umkm-catalog-card .umkm-icon-btn:focus-visible::after {
+    color: var(--brand-deep);
+  }
+
+  .umkm-catalog-card .umkm-icon-btn.danger {
+    color: var(--danger);
+  }
+
+  .umkm-catalog-card .umkm-icon-btn.danger::after {
+    color: color-mix(in srgb, var(--danger) 75%, var(--muted));
+  }
+
+  .umkm-catalog-card .umkm-icon-btn.danger:hover,
+  .umkm-catalog-card .umkm-icon-btn.danger:focus-visible {
+    background: var(--danger-soft);
+    border-color: #efc4c4;
+    color: var(--danger);
+  }
+
+  /* Tablets: feature chrome scrolls with the page */
+  .umkm-catalog-table thead th,
+  .umkm-analytics-series-table th {
+    position: static;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .umkm-profile-shell-dock,
+  .umkm-profile-nav,
+  .umkm-profile-side {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    backdrop-filter: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .umkm-form-panel .umkm-panel-head,
+  .umkm-view-sheet .umkm-panel-head,
+  .umkm-product-sheet .umkm-panel-head {
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
   }
 }
 
@@ -7497,6 +7693,16 @@ textarea {
     );
     /* Sticky brand bar height so panel heads clear it while scrolling */
     --sticky-chrome: calc(3.35rem + var(--safe-top));
+    --stage-pad-x: 1.05rem;
+    --stage-pad-y: 1.05rem;
+    --stage-gap: 1rem;
+    --stage-body-gap: 1rem;
+    --stage-rate-gap: 0.9rem 1rem;
+    --section-gap: 1rem;
+    --section-head-pad-x: 1rem;
+    --section-head-pad-y: 0.85rem;
+    --section-body-pad-x: 1rem;
+    --section-body-pad-y: 1rem;
   }
 
   .umkm-shell {
@@ -7714,7 +7920,7 @@ textarea {
   .umkm-page-header {
     align-items: flex-start;
     gap: 0.65rem;
-    margin-bottom: 1rem;
+    margin-bottom: var(--section-gap);
   }
 
   .umkm-page-header-text {
@@ -7763,28 +7969,22 @@ textarea {
   }
 
   .umkm-panel-body {
-    padding: 0.95rem 1rem 1.1rem;
+    padding: var(--section-body-pad-y) var(--section-body-pad-x)
+      calc(var(--section-body-pad-y) + 0.1rem);
   }
 
   .umkm-form-section {
     padding: 0.9rem 0.9rem 0.95rem;
   }
 
+  /* Feature heads / action footers scroll with content — no sticky chrome */
   .umkm-actions {
     gap: 0.5rem;
-    position: sticky;
-    bottom: var(--bottom-nav-offset);
-    z-index: 4;
-    margin: 0.85rem -0.15rem -0.15rem;
-    padding: 0.75rem 0.15rem 0.65rem;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--surface) 0%, transparent) 0%,
-        color-mix(in srgb, var(--surface) 92%, transparent) 28%,
-        var(--surface) 55%
-      );
+    position: static;
+    margin: 0.85rem 0 0;
+    padding: 0.85rem 0 0.15rem;
     border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+    background: transparent;
   }
 
   .umkm-actions .umkm-btn {
@@ -7796,14 +7996,31 @@ textarea {
   .umkm-form-panel .umkm-panel-head,
   .umkm-view-sheet .umkm-panel-head,
   .umkm-product-sheet .umkm-panel-head {
-    position: sticky;
-    top: var(--sticky-chrome, 0px);
-    z-index: 5;
+    position: static;
     overflow: visible;
     min-height: fit-content;
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    background: transparent;
+    backdrop-filter: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  }
+
+  .umkm-catalog-table thead th,
+  .umkm-analytics-series-table th {
+    position: static;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .umkm-profile-shell-dock,
+  .umkm-profile-nav,
+  .umkm-profile-side {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    backdrop-filter: none;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .umkm-catalog-card {
@@ -7907,16 +8124,6 @@ textarea {
     padding-bottom: 0;
   }
 
-  .umkm-catalog-table-wrap {
-    display: none;
-  }
-
-  .umkm-catalog-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-
   .umkm-catalog-card {
     padding: 1.05rem 1rem 0.95rem;
     gap: 0.8rem;
@@ -7989,75 +8196,8 @@ textarea {
     font-size: 1rem;
   }
 
-  .umkm-catalog-card .umkm-row-actions,
-  .umkm-catalog-card .umkm-icon-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-    width: 100%;
-    gap: 0.4rem;
-    margin: 0;
-    padding: 0.65rem 0 0;
-    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-    justify-content: stretch;
-  }
-
   .umkm-catalog-card .umkm-icon-btn {
-    flex: unset;
-    width: auto;
-    height: auto;
-    min-width: 0;
     min-height: 2.85rem;
-    padding: 0.4rem 0.35rem;
-    gap: 0.2rem;
-    flex-direction: column;
-    border-radius: 0.65rem;
-    border-color: color-mix(in srgb, var(--line) 75%, transparent);
-    background: color-mix(in srgb, var(--surface-2) 88%, var(--surface));
-    color: var(--brand-deep);
-    font-family: var(--font-sans), system-ui, sans-serif;
-  }
-
-  .umkm-catalog-card .umkm-icon-btn svg {
-    width: 1.15rem;
-    height: 1.15rem;
-    flex-shrink: 0;
-  }
-
-  .umkm-catalog-card .umkm-icon-btn::after {
-    content: attr(title);
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    line-height: 1.1;
-    color: var(--muted);
-  }
-
-  .umkm-catalog-card .umkm-icon-btn:hover,
-  .umkm-catalog-card .umkm-icon-btn:focus-visible {
-    background: color-mix(in srgb, var(--brand-soft) 70%, var(--surface));
-    border-color: color-mix(in srgb, var(--brand) 35%, var(--line));
-    color: var(--brand-deep);
-  }
-
-  .umkm-catalog-card .umkm-icon-btn:hover::after,
-  .umkm-catalog-card .umkm-icon-btn:focus-visible::after {
-    color: var(--brand-deep);
-  }
-
-  .umkm-catalog-card .umkm-icon-btn.danger {
-    color: var(--danger);
-  }
-
-  .umkm-catalog-card .umkm-icon-btn.danger::after {
-    color: color-mix(in srgb, var(--danger) 75%, var(--muted));
-  }
-
-  .umkm-catalog-card .umkm-icon-btn.danger:hover,
-  .umkm-catalog-card .umkm-icon-btn.danger:focus-visible {
-    background: var(--danger-soft);
-    border-color: #efc4c4;
-    color: var(--danger);
   }
 
   .umkm-product-sheet-identity,
@@ -8140,11 +8280,24 @@ textarea {
 }
 
 @media (max-width: 600px) {
+  :root {
+    --stage-pad-x: 1rem;
+    --stage-pad-y: 1rem;
+    --stage-gap: 1rem;
+    --stage-body-gap: 1rem;
+    --stage-rate-gap: 0.85rem 0.9rem;
+    --section-gap: 0.95rem;
+    --section-head-pad-x: 1rem;
+    --section-head-pad-y: 0.85rem;
+    --section-body-pad-x: 1rem;
+    --section-body-pad-y: 0.95rem;
+  }
+
   .umkm-stage {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    padding: 1.05rem 0.95rem 1rem;
-    gap: 0.85rem;
+    padding: var(--stage-pad-y) var(--stage-pad-x);
+    gap: var(--stage-gap);
   }
 
   /* Flatten top so copy → metrics → actions (no inflated flex-basis gap) */
@@ -8157,35 +8310,137 @@ textarea {
     flex: none;
     min-width: 0;
     width: 100%;
-    gap: 0.3rem;
+    gap: 0.35rem;
+  }
+
+  .umkm-stage-copy h1 {
+    font-size: clamp(1.5rem, 6.5vw, 1.8rem);
+  }
+
+  .umkm-stage-copy p {
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 
   .umkm-stage-body {
     order: 2;
-    gap: 0.8rem;
+    gap: var(--stage-body-gap);
   }
 
   .umkm-stage-actions {
     order: 3;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
     width: 100%;
+    gap: 0.55rem;
     justify-content: stretch;
   }
 
   .umkm-stage-actions .umkm-btn,
   .umkm-stage-top .umkm-btn {
     width: 100%;
+    min-height: var(--touch-min);
+    justify-content: center;
+  }
+
+  .umkm-stage-actions .umkm-btn.ghost {
+    /* Keep ghost + primary equal width in the shared grid */
+    flex: unset;
   }
 
   .umkm-stage-stat.is-hero dd {
-    font-size: clamp(1.85rem, 9vw, 2.35rem);
+    font-size: clamp(1.75rem, 8vw, 2.2rem);
+  }
+
+  .umkm-stage-stat:first-child,
+  .umkm-stage-stat.is-hero {
+    padding-bottom: 1rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .umkm-stage-stat:nth-child(2),
+  .umkm-stage-stat:nth-child(3) {
+    padding-top: 0.95rem;
+  }
+
+  /* Rates collapse by default on phone — expand on demand */
+  .umkm-stage-rates-disclosure {
+    border-radius: 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    background: color-mix(in srgb, var(--surface) 88%, var(--brand-soft));
+    overflow: hidden;
+  }
+
+  .umkm-stage-rates-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: var(--touch-min);
+    padding: 0.75rem 0.95rem;
+    font-size: 0.78rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--brand-deep);
+  }
+
+  .umkm-stage-rates-summary::after {
+    content: '';
+    width: 0.55rem;
+    height: 0.55rem;
+    border-right: 2px solid var(--brand);
+    border-bottom: 2px solid var(--brand);
+    transform: rotate(45deg);
+    transition: transform 180ms var(--ease);
+    flex-shrink: 0;
+  }
+
+  .umkm-stage-rates-disclosure[open] .umkm-stage-rates-summary::after {
+    transform: rotate(-135deg);
+    margin-top: 0.25rem;
+  }
+
+  .umkm-stage-rates-disclosure .umkm-stage-rates {
+    padding: 0.85rem 0.95rem 1rem;
+    gap: var(--stage-rate-gap);
+    border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+    /* Disclosure already provides chrome — avoid double top rhythm */
+    margin: 0;
+  }
+
+  .umkm-stage-meter {
+    height: 0.34rem;
+  }
+
+  .umkm-catalog-card {
+    padding: 1.05rem 1rem;
+    gap: 0.85rem;
+  }
+
+  .umkm-view-sheet {
+    padding-bottom: calc(0.5rem + var(--bottom-nav-offset));
+  }
+
+  .umkm-view-sheet-body {
+    gap: 0.85rem;
+  }
+
+  /* Primary action first; secondary actions icon-forward on crowded cards */
+  .umkm-catalog-card .umkm-icon-actions:has(> :nth-child(3)) .umkm-icon-btn:not(:first-child)::after {
+    display: none;
+  }
+
+  .umkm-catalog-card .umkm-icon-actions:has(> :nth-child(3)) .umkm-icon-btn:not(:first-child) {
+    min-height: 2.65rem;
+    flex-direction: row;
+    justify-content: center;
   }
 
   .umkm-main {
-    padding: 0.85rem 0.8rem calc(1.15rem + var(--safe-bottom));
-    padding-left: max(0.8rem, var(--safe-left));
-    padding-right: max(0.8rem, var(--safe-right));
+    padding: 0.9rem 0.85rem calc(1.2rem + var(--safe-bottom));
+    padding-left: max(0.85rem, var(--safe-left));
+    padding-right: max(0.85rem, var(--safe-right));
   }
 
   .umkm-panel-title {
@@ -8230,7 +8485,18 @@ textarea {
   }
 
   .umkm-catalog-card-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .umkm-catalog-card-metrics > div,
+  .umkm-catalog-card-metrics > div:nth-child(2n) {
+    border-right: none;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
+  }
+
+  .umkm-catalog-card-metrics > div:last-child {
+    border-bottom: none;
   }
 
   .umkm-view-facts.is-cols-2,
@@ -8247,12 +8513,13 @@ textarea {
   }
 
   .umkm-bottom-nav {
-    padding-inline: 0.2rem;
+    padding-inline: 0.15rem;
   }
 
   .umkm-bottom-nav-item {
-    font-size: 0.62rem;
-    gap: 0.12rem;
+    font-size: 0.58rem;
+    gap: 0.1rem;
+    letter-spacing: 0.01em;
   }
 
   .umkm-bottom-nav-icon {
@@ -10726,6 +10993,19 @@ td .umkm-tip-trigger {
 }
 
 @media (max-width: 480px) {
+  :root {
+    --stage-pad-x: 0.95rem;
+    --stage-pad-y: 0.95rem;
+    --stage-gap: 0.95rem;
+    --stage-body-gap: 0.95rem;
+    --stage-rate-gap: 0.8rem 0.85rem;
+    --section-gap: 0.9rem;
+    --section-head-pad-x: 0.95rem;
+    --section-head-pad-y: 0.8rem;
+    --section-body-pad-x: 0.95rem;
+    --section-body-pad-y: 0.9rem;
+  }
+
   .umkm-tip-bubble {
     max-width: calc(100vw - 1rem);
   }
@@ -10739,22 +11019,35 @@ td .umkm-tip-trigger {
   }
 
   .umkm-stage {
-    padding: 0.9rem 0.8rem 0.85rem;
-    gap: 0.75rem;
+    padding: var(--stage-pad-y) var(--stage-pad-x);
+    gap: var(--stage-gap);
     border-radius: calc(var(--radius-sm) + 0.2rem);
   }
 
   .umkm-stage-copy h1 {
-    font-size: clamp(1.35rem, 7vw, 1.65rem);
-    line-height: 1.3;
+    font-size: clamp(1.4rem, 7vw, 1.7rem);
+    line-height: 1.28;
   }
 
   .umkm-stage-body {
-    gap: 0.7rem;
+    gap: var(--stage-body-gap);
+  }
+
+  .umkm-stage-actions {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 
   .umkm-stage-rates {
-    gap: 0.65rem 0.75rem;
+    gap: var(--stage-rate-gap);
+  }
+
+  .umkm-stage-stat:nth-child(2) {
+    padding-right: 0.55rem;
+  }
+
+  .umkm-stage-stat:nth-child(3) {
+    padding-left: 0.55rem;
   }
 
   .umkm-catalog-card-metrics {
@@ -15459,8 +15752,9 @@ td .umkm-tip-trigger {
 
   .umkm-stage-actions {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 1fr;
     width: 100%;
+    gap: 0.5rem;
   }
 
   .umkm-stage-actions .umkm-btn {
@@ -15567,4 +15861,146 @@ html.umkm-translated.umkm-translating {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.65rem;
+}
+
+/* ——— Responsive UX v1.5.261 — motion, sheets, analytics phone ——— */
+
+@keyframes umkm-card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.55rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes umkm-stage-soft {
+  from {
+    opacity: 0.72;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1100px) {
+  .umkm-catalog-card {
+    animation: umkm-card-rise 320ms var(--ease) both;
+  }
+
+  .umkm-catalog-card:nth-child(1) { animation-delay: 20ms; }
+  .umkm-catalog-card:nth-child(2) { animation-delay: 45ms; }
+  .umkm-catalog-card:nth-child(3) { animation-delay: 70ms; }
+  .umkm-catalog-card:nth-child(4) { animation-delay: 95ms; }
+  .umkm-catalog-card:nth-child(5) { animation-delay: 120ms; }
+  .umkm-catalog-card:nth-child(6) { animation-delay: 145ms; }
+  .umkm-catalog-card:nth-child(n + 7) { animation-delay: 160ms; }
+
+  .umkm-stage {
+    animation: umkm-stage-soft 280ms var(--ease) both;
+  }
+
+  .umkm-view-sheet {
+    animation: umkm-card-rise 280ms var(--ease) both;
+  }
+
+  .umkm-content-section {
+    gap: 0.85rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .umkm-view-sheet .umkm-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    width: 100%;
+  }
+
+  .umkm-view-sheet .umkm-panel-actions .umkm-btn {
+    flex: 1 1 auto;
+    min-height: var(--touch-min);
+  }
+
+  .umkm-view-block {
+    border-radius: 0.9rem;
+    padding: 0.85rem 0.9rem;
+  }
+
+  .umkm-analytics-chart-panel {
+    border-radius: 1rem;
+  }
+
+  .umkm-analytics-export-btn,
+  .umkm-analytics-fs-btn {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+  }
+
+  .umkm-analytics-export-btn {
+    padding-inline: 0.85rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .umkm-content-section .umkm-panel-head {
+    gap: 0.55rem;
+  }
+
+  .umkm-analytics-lens {
+    border-radius: 1rem;
+    padding: 0.85rem 0.8rem;
+  }
+
+  .umkm-analytics-lens-group {
+    gap: 0.55rem;
+  }
+
+  .umkm-analytics-chart-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .umkm-analytics-chart-head-tools {
+    justify-content: flex-start;
+  }
+
+  .umkm-form-panel .umkm-actions,
+  .umkm-form-panel .umkm-page-actions {
+    position: static;
+    margin-inline: 0;
+    padding: 0.85rem 0 0.15rem;
+    background: transparent;
+  }
+}
+
+@media (max-width: 480px) {
+  .umkm-bottom-nav-item {
+    padding-inline: 0.1rem;
+  }
+
+  .umkm-stage-copy p {
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
+  .umkm-view-identity {
+    border-radius: 0.95rem;
+  }
+
+  .umkm-list-pager > .umkm-btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .umkm-catalog-card,
+  .umkm-stage,
+  .umkm-view-sheet {
+    animation: none !important;
+  }
 }

@@ -20,7 +20,7 @@ export type ProductStockSalesSeed = {
   costPerUnit: number | null;
 };
 
-export type ProductStockSalesRow = {
+type ProductStockSalesRow = {
   id: string;
   productId: string;
   name: string;

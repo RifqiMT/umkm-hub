@@ -10,7 +10,7 @@ export type BasketOrderRow = {
   packCount: number;
 };
 
-export type BasketPeriodStats = {
+type BasketPeriodStats = {
   /** Mean packs per non-cancelled order (Units Per Transaction). */
   avgBasketSize: number | null;
   orderCount: number;

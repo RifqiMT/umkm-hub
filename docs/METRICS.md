@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Audience** | Product team, engineering, leadership |
 | **Horizon** | 90-day targets unless noted |
@@ -110,7 +110,7 @@ User-facing plain English: **Dictionary** (`/glossary`; mobile Profile → Dicti
 | Avg LTV | Linked revenue ÷ active customers | Budi / Sari |
 | Top/Bottom 5 | Products by revenue; customers by LTV | Sari / Budi |
 | Packs sold / repeat days | Performance tables | Sari |
-| Dictionary terms | ~101 curated glossary entries | All |
+| Dictionary terms | ~**102** curated glossary entries | All |
 | STR / ITR / SSR | Stock & sales inventory ratios | Sari |
 | Customer Order totals | Linked commercial + volume columns | Sari / Dewi |
 

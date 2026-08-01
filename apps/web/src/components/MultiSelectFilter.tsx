@@ -18,8 +18,6 @@ import {
 import { useAnchoredPanel } from '@/lib/use-anchored-panel';
 import { useTr } from '@/components/Tr';
 
-export type { MultiSelectOption };
-
 type MultiSelectFilterProps = {
   label: string;
   options: MultiSelectOption[];

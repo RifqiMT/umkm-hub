@@ -9,7 +9,7 @@ import {
 
 const SHEET_MQ = '(max-width: 900px)';
 
-export type AnchoredPanelState = {
+type AnchoredPanelState = {
   style: CSSProperties | undefined;
   /** True when the panel should render as a bottom sheet (≤900px). */
   isSheet: boolean;
@@ -49,7 +49,7 @@ export function useAnchoredPanel(
             width: '100%',
             minWidth: '100%',
             maxWidth: '100%',
-            maxHeight: 'min(72dvh, 32rem)',
+            maxHeight: 'min(82dvh, 36rem)',
             zIndex: 1200,
           },
         });

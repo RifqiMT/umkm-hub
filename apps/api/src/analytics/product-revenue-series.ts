@@ -6,7 +6,7 @@ export type ProductRevenueRow = {
   revenue: number;
 };
 
-export type ProductRevenuePeriodStats = {
+type ProductRevenuePeriodStats = {
   /** Average net revenue per product with ≥1 sale in the period. */
   avgProductRevenue: number | null;
   productCount: number;

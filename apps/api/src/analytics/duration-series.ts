@@ -10,7 +10,7 @@ export type DurationOrderRow = {
   lastPaymentDate: Date | null;
 };
 
-export type PeriodDuration = {
+type PeriodDuration = {
   /** Average days order → shipment (orders with a shipment date). */
   avgShipmentDays: number | null;
   shipmentSampleSize: number;

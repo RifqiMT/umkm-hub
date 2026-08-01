@@ -31,7 +31,7 @@ import {
 
 const INSTANT_CACHE_COVERAGE = 0.85;
 
-export type TranslationPhase =
+type TranslationPhase =
   | 'off'
   | 'loading'
   | 'applying'

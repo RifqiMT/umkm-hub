@@ -2,7 +2,7 @@
 
 Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). One profile owns products, customers, warehouse stock, orders, revenue targets, and analytics — available on **web** and **mobile** against a shared NestJS API.
 
-**Current product version:** 1.5.259 · **Docs:** [`docs/`](./docs/) · Code tip aligned: **v1.5.259**
+**Current product version:** 1.5.265 · **Docs:** [`docs/`](./docs/) · Code tip aligned: **v1.5.264**
 
 ---
 
@@ -31,7 +31,7 @@ Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). 
 | **Order** | Multi-line packs, discounts, terms, installments vs **amountDue**; bill + invoice collection; PDF + e-Faktur prep; optional CRM link; pagination up to 500k; summary + **statistics**; feature transfer |
 | **Targets** | Per-year plans; FeatureStage rates (**web-first**); feature transfer |
 | **Analytics** | W/M/Q/Y; progressive load; mix %; UPT/APF; Top/Bottom rankings; Graph\|Table; CSV/PNG export |
-| **Dictionary** | ~101 plain-English metric definitions (web nav; mobile via Profile) |
+| **Dictionary** | ~**102** plain-English metric definitions (web nav; mobile via Profile) |
 | **Dashboard** | Period-scoped order stage + workspace panels (web) |
 
 ---

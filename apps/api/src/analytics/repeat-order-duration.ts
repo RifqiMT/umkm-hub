@@ -10,7 +10,7 @@ function utcDayDiff(from: Date, to: Date): number {
   return Math.round((b - a) / 86_400_000);
 }
 
-export type RepeatOrderDuration = {
+type RepeatOrderDuration = {
   /** UTC days from first → second order. Null when fewer than two orders. */
   firstRepeatOrderDays: number | null;
   /** Mean UTC days between consecutive orders. Null when fewer than two orders. */

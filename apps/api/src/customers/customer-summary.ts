@@ -1,7 +1,7 @@
 import { ratePercent } from '../common/summary-rates';
 import { roundMoney } from '../revenue-targets/revenue-target-math';
 
-export type CustomerPipelineAgg = {
+type CustomerPipelineAgg = {
   customerCount: number;
   approvalSum: number;
   interestedCount: number;

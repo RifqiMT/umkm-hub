@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Purpose** | Map PRD requirements → API → clients → tests/docs |
 
@@ -87,7 +87,7 @@
 | FR-UX4 Metric tooltips | — | `AppTooltip` + FeatureStage / Analytics chart cards | — | DESIGN_GUIDELINES |
 | FR-UX5 Dictionary / Glossary | — | `/glossary` + `lib/glossary/*` | Profile → Dictionary (`glossary_screen.dart`) | USER_STORIES US-8.2a; METRICS §3 |
 | FR-UX2 Touch targets | — | ≤900px cards/actions | ≥44px actions | USER_STORIES E8 |
-| FR-UX6 Responsive chrome | — | AppShell rail/bottom nav; filter sheets; `CollapsibleFilters`; `--bp-*` tokens | home_shell + `ExpandableFilters` | DESIGN_GUIDELINES §2.3a |
+| FR-UX6 Responsive chrome | — | AppShell rail/bottom nav; tablet cards ≤1100; non-sticky feature chrome on narrow; filter sheets; `CollapsibleFilters`; `--bp-*` | home_shell + NavigationRail + `ExpandableFilters` | DESIGN_GUIDELINES §2.3a; PRD FR-UX6 |
 | FR-UX7 UI language | `POST /translate/batch`, `batch-public` | LanguageSelect + translate client | TranslateService / ui languages | translate module |
 | FR-UX8 Domain statistics | `statistics` object on `GET …/summary` (filter-aware) | Products/Customers/Orders/Warehouse stats sections | — | `*-statistics.ts`; US-5.2 |
 | FR-UX3 Catalog identity | — | Soft ID pills | Matching cards | DESIGN_GUIDELINES |

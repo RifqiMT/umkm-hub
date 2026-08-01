@@ -14,7 +14,7 @@ import {
 } from 'class-validator';
 import { RevenueTargetMode } from '@prisma/client';
 
-export class MonthAmountDto {
+class MonthAmountDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -1,4 +1,4 @@
-export type InvoiceCollectionStatus =
+type InvoiceCollectionStatus =
   | 'CREATED'
   | 'SENT'
   | 'PARTIALLY_PAID'

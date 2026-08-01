@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.259 |
+| **Code tip aligned** | v1.5.264 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -321,8 +321,8 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `products.stockSales.currentStocks` | Current stocks | On-hand stock units | `GREATEST(stockQty, 0)` | `GET /products/stock-sales` | `1500` |
 | `products.stockSales.soldStocks` | Sold stocks | Units sold on non-cancelled orders | `Σ OrderLine.productQty` | `GET /products/stock-sales` | `4200` |
 | `products.stockSales.totalStocks` | Stocks (total) | Current + sold; UI primary Stocks figure | `currentStocks + soldStocks` | `GET /products/stock-sales`; Stock & sales table | `5700` |
-| `products.stockSales.grossRevenue` | Product gross | Pre-discount allocated sales | `revenue + discount` | `GET /products/stock-sales` | `2340000` |
-| `products.stockSales.revenue` | Product revenue | Discount-allocated net line revenue | `Σ lineTotal × order.totalOrderValue / order.lineTotal` | `GET /products/stock-sales` | `2220000` |
+| `products.stockSales.grossRevenue` | Product gross revenue | Pre-discount allocated sales (UI Revenue primary / Gross) | `revenue + discount` | `GET /products/stock-sales` | `2340000` |
+| `products.stockSales.revenue` | Product net revenue | Discount-allocated net line revenue (UI Revenue subline **Net**) | `Σ lineTotal × order.totalOrderValue / order.lineTotal` | `GET /products/stock-sales` | `2220000` |
 | `products.stockSales.discount` | Product discount | Allocated order discount on product lines | `Σ lineTotal × (order.lineTotal − order.totalOrderValue) / order.lineTotal` | `GET /products/stock-sales` | `120000` |
 | `products.stockSales.discountPercent` | Discount % | Discount share of gross | `discount ÷ grossRevenue × 100` | `GET /products/stock-sales` | `5.1` |
 | `products.stockSales.cost` | Product COGS | Estimated cost of units sold | `soldStocks × costPerUnit` (null if cost unset) | `GET /products/stock-sales` | `900000` |
@@ -358,10 +358,10 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `relationshipLevel` | Relationship level | Sales stage | `NEGOTIATION` \| `REQUEST_SAMPLE` \| `CLOSING_FIRST_ORDER` \| `WILL_CONTACT` \| `INITIAL_APPROACH` | Customer | `REQUEST_SAMPLE` |
 | `approvalPercentage` | Approval % | Deal confidence | integer 0–100 | Customer | `70` |
 | `remarks` | Remarks | Free notes | Optional | Customer | `Call Monday` |
-| `customers.orderTotals.totals` | Customer gross | Pre-discount sum of linked orders (UI: Gross) | `Σ Order.lineTotal` (status ≠ CANCELLED, linked) | `GET /customers/order-totals`; Customers Order totals | `2000000` |
+| `customers.orderTotals.totals` | Customer gross revenue | Pre-discount sum of linked orders (UI primary **Revenue** / Gross) | `Σ Order.lineTotal` (status ≠ CANCELLED, linked) | `GET /customers/order-totals`; Customers Order totals | `2000000` |
 | `customers.orderTotals.grossRevenue` | Customer gross (alias) | Same value as totals | `= totals` | `GET /customers/order-totals` | `2000000` |
 | `customers.orderTotals.discount` | Customer discount | Absolute discount off linked orders | `Σ (lineTotal − totalOrderValue)` | `GET /customers/order-totals` | `120000` |
-| `customers.orderTotals.orderTotal` | Customer order total | Post-discount commercial sum | `Σ Order.totalOrderValue` | `GET /customers/order-totals` | `1880000` |
+| `customers.orderTotals.orderTotal` | Customer net revenue | Post-discount commercial sum (UI Revenue subline **Net**) | `Σ Order.totalOrderValue` | `GET /customers/order-totals` | `1880000` |
 | `customers.orderTotals.discountPercent` | Customer discount % | Discount share of totals | `discount ÷ totals × 100` or null | Serialized on order-totals | `6` |
 | `customers.orderTotals.orderCount` | Customer order count | Linked non-cancelled orders | `COUNT(Order)` where status ≠ CANCELLED | `GET /customers/order-totals` | `8` |
 | `customers.orderTotals.packsSold` | Customer packs | Packs on non-cancelled linked orders | `Σ OrderLine.packCount` | `GET /customers/order-totals` | `24` |

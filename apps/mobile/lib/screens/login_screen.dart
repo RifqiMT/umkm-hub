@@ -182,13 +182,17 @@ class _LoginScreenState extends State<LoginScreen> {
       return UmkmColors.muted;
     };
 
+    final narrow = MediaQuery.sizeOf(context).width < 380;
     return SoftSurface(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.symmetric(
+                horizontal: narrow ? UmkmSpace.md : UmkmSpace.xl,
+                vertical: UmkmSpace.xl,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
@@ -197,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'UMKM Hub',
                       style: UmkmType.display(
-                        size: 36,
+                        size: narrow ? 30 : 36,
                         weight: FontWeight.w700,
                         color: UmkmColors.brandDeep,
                         letterSpacing: -0.8,
@@ -209,20 +213,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       registerMode
                           ? 'Create a profile with a username, email, and password.'
                           : 'Sign in to your UMKM workspace.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: UmkmColors.muted,
-                        fontSize: 16,
+                        fontSize: narrow ? 14.5 : 16,
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: narrow ? 22 : 28),
                     if (session.error != null) ...[
                       ErrorBanner(message: session.error!),
                       const SizedBox(height: 12),
                     ],
                     Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: EdgeInsets.all(narrow ? 16 : 20),
                         child: Column(
                           children: [
                             TextField(

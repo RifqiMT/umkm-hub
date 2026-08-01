@@ -13,7 +13,7 @@ const TRANSLATION_SOURCE_LANG = 'en';
 
 const CHUNK_SIZE = 40;
 
-export type TranslateProgress = {
+type TranslateProgress = {
   done: number;
   total: number;
   progress: number;

@@ -14,7 +14,7 @@ export type ProfileNavIcon =
   | 'data'
   | 'danger';
 
-export type ProfileNavItem = {
+type ProfileNavItem = {
   id: ProfileSectionId;
   label: string;
   hint: string;

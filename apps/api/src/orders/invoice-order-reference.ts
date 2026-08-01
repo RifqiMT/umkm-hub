@@ -1,5 +1,5 @@
 /** Parsed display parts for order IDs like `2030_12_30_{uuid}`. */
-export type OrderReferenceDisplay = {
+type OrderReferenceDisplay = {
   full: string;
   /** Calendar prefix e.g. `2030_12_30` */
   prefix: string;

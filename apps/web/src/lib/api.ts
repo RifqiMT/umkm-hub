@@ -245,7 +245,7 @@ export function saveDownloadedBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export type DataImportResult = {
+type DataImportResult = {
   scope: 'all-profiles' | 'own-profile';
   merged: Record<string, {
     created: number;

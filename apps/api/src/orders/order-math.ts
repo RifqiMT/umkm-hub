@@ -1,18 +1,18 @@
-export type DiscountType = 'PERCENTAGE' | 'AMOUNT';
+type DiscountType = 'PERCENTAGE' | 'AMOUNT';
 
-export type OrderTotalsInput = {
+type OrderTotalsInput = {
   unitPrice: number;
   productQty: number;
   discountType: DiscountType;
   discountValue: number;
 };
 
-export type OrderLineAmountInput = {
+type OrderLineAmountInput = {
   unitPrice: number;
   productQty: number;
 };
 
-export type OrderTotals = {
+type OrderTotals = {
   lineTotal: number;
   totalOrderValue: number;
 };

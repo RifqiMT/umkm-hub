@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Note** | v1 uses a **single profile per tenant**. Field staff (e.g. Budi) act under the owner’s credentials—there is no separate RBAC account. |
 
@@ -99,8 +99,9 @@
 
 ## Design implications
 
-- **Desktop-first density** for Sari/Dewi (tables, sticky headers, View sheets, Targets, Analytics fullscreen, PDF/fiscal downloads).
-- **Thumb-first mobile** for Budi (cards, chips, full-width actions ≥44px, Dictionary via Profile).
+- **Desktop-first density** for Sari/Dewi (tables, sticky headers on wide, View sheets, Targets, Analytics fullscreen, PDF/fiscal, Stock & sales / Order totals performance Views).
+- **Thumb-first mobile** for Budi (cards ≤1100, chips, full-width actions ≥44px, Dictionary via Profile, NavigationRail on tablet).
+- **Exclusive focus mode** when opening insight/catalog Views — hide stage/filters/siblings so one sheet owns the page.
 - **One visual system** (forest teal + Manrope) so switching devices does not feel like another product.
 - **No RBAC UI in v1**—do not imply team roles in copy; prefer “your profile” / “your catalog”.
 - **Immutable identity**—copy should not suggest renaming username or changing email after register.

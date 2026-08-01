@@ -1,10 +1,12 @@
 # UMKM Hub — Flutter Mobile
 
-Field client: products, customers, orders, warehouse (restock + Sold history list/view), profile (incl. invoicing fields), analytics, dictionary (~101 terms), language, feature transfer.
+Field client: products, customers, orders, warehouse (restock + Sold history list/view), profile (incl. invoicing fields), analytics, dictionary (~102 terms), language, feature transfer.
+
+Responsive: tablet **NavigationRail**, `showAppViewSheet`, spacing tokens, Analytics metric cards under 600px.
 
 **Web-first (API ready):** Targets UI, PDF / e-Faktur download, warehouse restock edit, Stock & sales, Order totals, domain statistics UI, Open order from Sold history.
 
-Docs **v1.5.250**.
+Docs **v1.5.265**.
 
 ```bash
 npm run setup && npm run api:dev

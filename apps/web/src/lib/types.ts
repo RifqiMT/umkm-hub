@@ -440,7 +440,7 @@ export type RevenueTargetYear = {
   };
 };
 
-export type AnalyticsStatusShares = {
+type AnalyticsStatusShares = {
   PENDING: number;
   CONFIRMED: number;
   SHIPPED: number;
@@ -448,13 +448,13 @@ export type AnalyticsStatusShares = {
   CANCELLED: number;
 };
 
-export type AnalyticsPaymentShares = {
+type AnalyticsPaymentShares = {
   CASH: number;
   CONSIGNMENT: number;
   DELAYED_PAYMENT: number;
 };
 
-export type AnalyticsMixShares = {
+type AnalyticsMixShares = {
   /** % of orders by status (includes CANCELLED). */
   statusShares: AnalyticsStatusShares;
   statusOrderCount: number;

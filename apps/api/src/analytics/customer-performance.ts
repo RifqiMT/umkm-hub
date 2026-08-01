@@ -1,7 +1,7 @@
 import { roundMoney } from '../revenue-targets/revenue-target-math';
 import { repeatOrderDuration } from './repeat-order-duration';
 
-export type CustomerOrderRow = {
+type CustomerOrderRow = {
   orderId: string;
   customerId: string;
   customerName: string;
@@ -18,7 +18,7 @@ export type CustomerOrderRow = {
   packsSold: number;
 };
 
-export type CustomerPerformanceRow = {
+type CustomerPerformanceRow = {
   customerId: string;
   name: string;
   companyName: string;

@@ -1,7 +1,7 @@
 import { OrderStatus, PaymentStatus, BillStatus, InvoiceStatus, Prisma } from '@prisma/client';
 import { dateOnlyBounds } from './order-date-range';
 
-export type OrderFilterQuery = {
+type OrderFilterQuery = {
   search?: string;
   status?: OrderStatus[];
   paymentStatus?: PaymentStatus[];

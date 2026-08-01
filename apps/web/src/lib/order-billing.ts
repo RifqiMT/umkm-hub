@@ -38,7 +38,7 @@ export function previewInvoiceNumber(prefix: string): string {
   return `${p}-${date}-····`;
 }
 
-export type InvoicingReadiness = {
+type InvoicingReadiness = {
   businessName: boolean;
   address: boolean;
   npwp: boolean;

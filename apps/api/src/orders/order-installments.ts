@@ -57,7 +57,7 @@ export function assertInstallmentsChronological(
 
 const PAYMENT_EPSILON = 0.00005;
 
-export type InvoiceCollectionStatus =
+type InvoiceCollectionStatus =
   | 'CREATED'
   | 'SENT'
   | 'PARTIALLY_PAID'

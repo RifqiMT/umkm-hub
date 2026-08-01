@@ -5,7 +5,7 @@ import {
   type DataExportScope,
 } from './export-allowlist';
 
-export type ExporterContext = {
+type ExporterContext = {
   profileId: string;
   profileName: string;
   scope: DataExportScope;

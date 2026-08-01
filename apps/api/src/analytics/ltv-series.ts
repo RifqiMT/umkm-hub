@@ -6,7 +6,7 @@ export type LtvOrderRow = {
   revenue: number;
 };
 
-export type LtvPeriodStats = {
+type LtvPeriodStats = {
   /** Average revenue per customer with ≥1 linked order in the period. */
   avgLtv: number | null;
   customerCount: number;

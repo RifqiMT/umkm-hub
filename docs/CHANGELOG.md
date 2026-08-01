@@ -1,5 +1,29 @@
 # Changelog — UMKM Hub
 
+## 2026-08-01 — v1.5.265 Documentation suite refresh (post-1.5.264)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit vs code tip **v1.5.264**. Fixed Order totals **Revenue** (gross/net) wording in PRODUCT/USER_STORIES; performance View + exclusive focus mode ACs; Dictionary count **102**; FR-UX6 responsive (tablet cards, non-sticky feature chrome, NavigationRail); ARCHITECTURE Redis optional-v1 (not phase 2). Aligned VARIABLES Gross/Net friendly names. Stamps → **1.5.265**.
+
+## 2026-08-01 — v1.5.264 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Demoted unused web/API module-local types (feature-stage, analytics/order/product/warehouse helpers, billing/invoice share types, DTOs like `MonthAmountDto`) and removed the unused `MultiSelectOption` re-export. Kept ops seed/backfill/repair scripts, seed-math exports, and lint/test tooling deps.
+
+## 2026-08-01 — v1.5.263 Feature section spacing rhythm (narrow + mobile)
+**Author:** Auto (Cursor agent)  
+**Impact:** Shared CSS tokens unify FeatureStage and content-section padding/gaps on tablet/phone/narrow. Stage volume uses a full-width hero divider and equal secondary columns; stage actions share equal grid tracks (stack under 480). Flutter Order pulse, SectionLabel, MetricTile, and warehouse KPI grids use `UmkmSpace` with consistent inset (no double horizontal padding).
+
+## 2026-08-01 — v1.5.262 Non-sticky feature chrome on narrow + mobile
+**Author:** Auto (Cursor agent)  
+**Impact:** On tablets/phones/narrow web, feature View/Edit panel heads, form action footers, filter-sheet heads, profile dock/nav, and table headers no longer stick — they scroll with content. App shell brand bar + bottom nav stay fixed. Flutter form/view sheets also scroll title + body + actions as one column (no pinned footer).
+
+## 2026-08-01 — v1.5.261 Responsive UX continuation (all phases)
+**Author:** Auto (Cursor agent)  
+**Impact:** Web adds staggered card/stage/view motion (reduced-motion safe), stickier form actions on phones, and denser Analytics touch chrome. Flutter finishes Sold history view sheets, adds PageIntro pulse metrics (Products/Customers), stacks order line qty/pack controls on narrow sheets, and tightens Login on small phones.
+
+## 2026-08-01 — v1.5.260 Responsive UX pass (web + mobile)
+**Author:** Auto (Cursor agent)  
+**Impact:** Web tablets (≤1100) use catalog/insight **cards** instead of horizontal tables; phone FeatureStage rates collapse behind a disclosure; filter sheets and list pager are touch-friendlier; view sheets stick under phone chrome. Flutter adds spacing tokens, `showAppViewSheet` (Products/Customers/Warehouse/Orders), compact card actions on narrow phones, tablet **NavigationRail**, and Analytics metric **cards** under 600px.
+
 ## 2026-08-01 — v1.5.259 Exclusive View focus mode for insight tables
 **Author:** Auto (Cursor agent)  
 **Impact:** Opening View from Products Stock & sales, Customers Order totals, or Warehouse Sold history enters page **focus mode**: FeatureStage, filters, sibling tables, and statistics hide so only the View sheet shows (same pattern as catalog/directory/inventory View). Performance sheets render at page level.

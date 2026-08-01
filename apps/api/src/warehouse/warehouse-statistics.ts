@@ -31,7 +31,7 @@ type WarehouseStatisticsInput = {
   restockNotes: WithWithoutInput;
 };
 
-export type WarehouseStatistics = {
+type WarehouseStatistics = {
   unit: StatBucket[];
   stockStatus: StatBucket[];
   costSet: StatBucket[];

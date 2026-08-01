@@ -2375,16 +2375,80 @@ class _MetricTable extends StatelessWidget {
         ),
       );
     }
+
+    final width = MediaQuery.sizeOf(context).width;
+    final useCards = width < 600 && columns.length >= 3;
+
+    if (useCards) {
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: rows.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final row = rows[index];
+          final title = row.isNotEmpty ? row.first : '—';
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: UmkmColors.surface,
+              borderRadius: BorderRadius.circular(UmkmSpace.radiusSm),
+              border: Border.all(color: UmkmColors.line.withOpacity(0.75)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    title,
+                    style: UmkmType.body(
+                      size: 14.5,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (var c = 1; c < columns.length; c++) ...[
+                    if (c > 1) const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            columns[c],
+                            style: UmkmType.label(size: 10),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            c < row.length ? row[c] : '—',
+                            textAlign: TextAlign.right,
+                            style: UmkmType.body(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: UmkmColors.brandDeep,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     return Scrollbar(
       child: SingleChildScrollView(
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
-            headingRowHeight: 34,
-            dataRowMinHeight: 34,
-            dataRowMaxHeight: 38,
-            columnSpacing: 16,
-            horizontalMargin: 8,
+            headingRowHeight: 36,
+            dataRowMinHeight: 36,
+            dataRowMaxHeight: 42,
+            columnSpacing: 18,
+            horizontalMargin: 10,
             columns: [
               for (final column in columns)
                 DataColumn(
@@ -2404,7 +2468,7 @@ class _MetricTable extends StatelessWidget {
                   cells: [
                     for (final cell in row)
                       DataCell(
-                        Text(cell, style: const TextStyle(fontSize: 12)),
+                        Text(cell, style: const TextStyle(fontSize: 12.5)),
                       ),
                   ],
                 ),

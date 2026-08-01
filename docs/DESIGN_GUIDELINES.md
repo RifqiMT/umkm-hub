@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.259 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Sources of truth** | `apps/web/src/app/globals.css`; `apps/mobile/lib/theme/umkm_theme.dart` |
 
@@ -68,17 +68,21 @@ Calm operational workspace for Indonesian UMKM — **forest teal** brand on a so
 | `--measure-prose` | `min(72ch, 100%)` | Long body copy (empty states, glossary definitions) |
 | `--measure-prose-wide` | `min(100%, 72rem)` | Soft cap for wide support copy; section/page intros usually `max-width: none` |
 | `--touch-min` | `2.75rem` (~44px) touch target floor |
-| `--bottom-nav-height` / `--bottom-nav-offset` | Phone bottom bar; sticky form actions clear it |
+| `--bottom-nav-height` / `--bottom-nav-offset` | Phone bottom bar; page padding clears it |
 | `--safe-*` | `env(safe-area-inset-*)` aliases |
+| `--stage-pad-x/y` | FeatureStage inset (narrow breakpoints tighten) |
+| `--stage-gap` / `--stage-body-gap` / `--stage-rate-gap` | Stage vertical rhythm + rate grid gap |
+| `--section-gap` | Space between FeatureStage and content sections |
+| `--section-head-pad-*` / `--section-body-pad-*` | Content section head/body padding |
 
 ### 2.3a Breakpoint contract (web)
 
 | Token | Width | Role |
 |-------|-------|------|
-| `--bp-tablet` | **1100px** | Stage/metrics compress; tablet icon rail (901–1100) |
-| `--bp-nav` | **900px** | Drawer + bottom tabs; tables → cards; form sticky actions |
-| `--bp-phone` | **600px** | Full-width CTAs; denser chrome |
-| `--bp-narrow` | **480px** | Minimal chrome; stacked filter/analytics FS |
+| `--bp-tablet` | **1100px** | Stage/metrics compress; tablet icon rail (901–1100); **tables → cards**; full-width hero divider |
+| `--bp-nav` | **900px** | Drawer + bottom tabs; denser card chrome; feature heads/footers scroll (not sticky) |
+| `--bp-phone` | **600px** | Equal-width stage actions; denser chrome; rates disclosure |
+| `--bp-narrow` | **480px** | Stacked stage actions; minimal chrome |
 
 Media queries use these pixel values (CSS custom props are not valid in `@media` ranges; keep literals in sync with the token table).
 
@@ -156,7 +160,7 @@ Rules:
 | `.umkm-dashboard*` / `.umkm-dash-domain*` / `.umkm-dash-period*` | Dashboard: stage period panel, workspace board, featured + lean domains, text rail |
 | `DashboardPeriodFilter` | Grouped period panel (near / months / longer); scopes order metrics |
 | `AppTooltip` / `.umkm-tip*` | Portal metric tooltips: label, exact value, plain-English description, optional formula detail; hover / focus / touch; edge-aware placement |
-| Dictionary / `.umkm-glossary-*` | Searchable metric glossary (**101** terms, all with formulas): always-visible feature chips + search, grouped or filtered card grid, expand in-place for meaning + formula; mobile catalog synced via `npm run glossary:sync` |
+| Dictionary / `.umkm-glossary-*` | Searchable metric glossary (**102** terms, all with formulas): always-visible feature chips + search, grouped or filtered card grid, expand in-place for meaning + formula; mobile catalog synced via `npm run glossary:sync` |
 | Profile / `.umkm-profile*` | Account workspace: identity strip, **Personal details** live preview (monogram + email status + location summary), grouped Name / Email / Location blocks, verify callout, network detect; summary snapshot, credentials with password strength, shortcuts, tips, danger zone; responsive two-column → stacked |
 | `/verify-email` | Public auth-style page that consumes email verification tokens |
 | `/register` | Split auth layout: teal brand panel + create-profile form; live unified availability (both fields); conflict alert + Sign in CTA; password strength |
@@ -172,23 +176,26 @@ Rules:
 | Widget | Role |
 |--------|------|
 | `SoftSurface` | Mint gradient shell |
-| `EntityCard` | List card with divider metrics |
+| `EntityCard` + `CardActionButton` | List card with divider metrics; narrow phones compact secondary actions |
+| `showAppViewSheet` / `showAppFormSheet` | Scrollable view / form sheets; title + body + actions scroll together (no pinned footer) |
+| `HomeShell` | Phone bottom nav; tablet (≥840) `NavigationRail` + max-width content |
 | `MetricTile` | Summary values |
 | `StatusChip` | Status/unit labels |
 | `SectionLabel` | Manrope section headings |
 | `FormSection` | Form topic blocks |
 | `EmptyHint` / `ErrorBanner` | Empty & error states |
 | `ChoiceChipGroup` | Enum chips |
-| `PageIntro` | Subtitle under AppBar |
+| `PageIntro` | Subtitle under AppBar; optional compact pulse metrics (SKUs / contacts) |
 | Dictionary (`GlossaryScreen`) | Horizontal feature chips with counts, expandable term tiles (preview → meaning/formula) |
 | Profile (`ProfileScreen`) | Identity header, personal-details preview card + grouped Name/Email/Location, workspace snapshot tiles, credentials + confirm password, Analytics/Dictionary shortcuts, tips, danger zone |
 
 ### 5.3 Tables & catalogs
 
-- Desktop: `.umkm-table-wrap.umkm-catalog-table-wrap` + sticky blurred header, light zebra, hover, `.is-num`, `.is-actions`
+- Desktop (>1100): `.umkm-table-wrap.umkm-catalog-table-wrap` + sticky blurred header, light zebra, hover, `.is-num`, `.is-actions`
 - Sort: `.umkm-th-sort` with `data-dir="asc|desc"` (CSS caret)
-- ≤900px: hide table; show `.umkm-catalog-cards` (identity + divider metrics)
-- **Feature stage** (list home for Dashboard / Orders / Products / Warehouse / Customers / Targets / Analytics): single section with title, CTA, volume stats, and health rate meters (`.umkm-stage`); ≤1100px volume is hero + 2-col secondaries; ≤600px order is title → metrics → actions (no empty flex gap)
+- ≤1100px: hide table; show `.umkm-catalog-cards` (identity + divider metrics + labeled icon actions)
+- ≤480px: card metrics stack to 1 column; crowded actions prefer primary label + icon-only secondaries
+- **Feature stage** (list home for Dashboard / Orders / Products / Warehouse / Customers / Targets / Analytics): single section with title, CTA, volume stats, and health rate meters (`.umkm-stage`); ≤1100px volume is hero + 2-col secondaries; ≤600px order is title → metrics → actions, with **rates behind a disclosure** (collapsed by default)
 - **Dashboard:** Period panel on the stage; stage stats are period-scoped (Revenue / Orders / Packs + order health). Workspace board: featured Fulfillment + Catalog / Pipeline (hero, two side stats, one spotlight). Slim rail for Warehouse / Targets / Analytics. Stacks ≤1100px / ≤700px
 - Orders date filters: compact from/to dropdowns (`.umkm-date-range-filter`) for order / shipment / invoice dates; multi-select for status and payment (Cash / Consignment / Delayed)
 - List filters: multi-select dropdown (`.umkm-multi-filter`) for status/unit — empty selection = all; checkbox panel; not chip strips
@@ -199,8 +206,9 @@ Rules:
 - **Products:** name + unit chip + soft SKU; details in View only
 - **Orders list:** date + soft order ID; shipment in View Timeline only; pack = `size × count` + quiet qty/@ price; **Paid** column = installments ÷ **amountDue** (meter + %); PDF / fiscal prep actions on order detail
 - **Stock & sales** (Products, web): dense insight table above Statistics — Stocks primary with current/sold subline; money + STR/ITR/SSR; same catalog filter context; **View** opens product performance in exclusive focus mode (stage/filters/siblings hidden)
-- **Order totals** (Customers, web): commercial + volume columns above Statistics; same Directory filters; **View** opens order performance in exclusive focus mode
+- **Order totals** (Customers, web): **Revenue** column (gross primary + Gross·Net subline) + volume columns above Statistics; same Directory filters; **View** opens order performance in exclusive focus mode
 - **Sold history** (Warehouse): ledger table above Statistics; **View** exclusive focus mode; **Open order** navigates to Orders view sheet (`?view=`)
+- **Narrow/mobile chrome:** feature View heads, form footers, and table headers scroll with content; shell brand bar + bottom nav stay fixed; ≤1100 catalog/insight **cards**
 - **Exclusive View:** any feature View (catalog, directory, inventory, restock, performance, sold) must hide FeatureStage + list chrome; render the sheet at page level, not inside a sibling section
 - **Domain statistics:** filter-aware mix sections below feature stage (Products / Customers / Orders / Warehouse) — complementary to summary rate meters, not a second dashboard
 - **Profile invoicing:** dedicated fiscal identity block (NPWP, PKP, PPN %, taxInclusive, invoice prefix) — calm form density, same tokens as personal details

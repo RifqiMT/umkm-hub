@@ -19,7 +19,7 @@ import {
 import { calculateRemainingAmount } from '../../orders/order-installments';
 import { resolveOrderAmountDue } from '../../orders/fiscal-invoice';
 
-export type SerializeOrderProfile = {
+type SerializeOrderProfile = {
   isPkp: boolean;
   defaultPpnPercent: Decimal | number | string;
   taxInclusive: boolean;

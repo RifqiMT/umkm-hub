@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 
 ---
@@ -209,7 +209,7 @@ Screens: login, home shell tabs (products, customers, orders, warehouse, profile
 | Web | Vercel |
 | Mobile | App stores |
 
-Redis multi-instance cache and object storage are **phase 2** — only after measured need ([GUARDRAILS.md](./GUARDRAILS.md)). Short in-process analytics TTL is allowed in v1.
+Redis/Upstash for distributed throttling + analytics cache is **optional in v1** when configured (falls back to in-memory / in-process). Object storage remains **phase 2** — only after measured need ([GUARDRAILS.md](./GUARDRAILS.md)).
 
 ---
 

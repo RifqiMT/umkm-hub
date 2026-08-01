@@ -11,7 +11,7 @@ export type PackPricingInput = {
 } & PackPriceFields &
   PackCostFields;
 
-export type ActivePackMath = {
+type ActivePackMath = {
   sizeLabel: string;
   size: number;
   price: number;

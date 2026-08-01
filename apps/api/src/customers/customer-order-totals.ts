@@ -19,7 +19,7 @@ export type CustomerOrderTotalsSeed = {
   cancelledCount: number;
 };
 
-export type CustomerOrderTotalsRow = {
+type CustomerOrderTotalsRow = {
   id: string;
   customerId: string;
   name: string;

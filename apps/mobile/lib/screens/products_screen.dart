@@ -353,47 +353,40 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Future<void> _openView(Product product) async {
     final pack = getActivePack(product);
-    final action = await showDialog<String>(
+    final action = await showAppViewSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(product.name),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DetailRow(label: 'Product ID', value: product.displayId),
-                DetailRow(label: 'Unit', value: product.unit),
-                DetailRow(
-                  label: 'Stock',
-                  value: '${product.stockQty} ${product.unit.toLowerCase()}',
-                ),
-                ..._productEconomicsRows(pack),
-                DetailRow(
-                  label: 'Details',
-                  value: product.details.isEmpty ? '—' : product.details,
-                ),
-              ],
-            ),
+      title: product.name,
+      subtitle: 'Catalog pricing and warehouse stock snapshot.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DetailRow(label: 'Product ID', value: product.displayId),
+          DetailRow(label: 'Unit', value: product.unit),
+          DetailRow(
+            label: 'Stock',
+            value: '${product.stockQty} ${product.unit.toLowerCase()}',
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'delete'),
-            child: const Text('Delete'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'edit'),
-            child: const Text('Edit'),
+          ..._productEconomicsRows(pack),
+          DetailRow(
+            label: 'Details',
+            value: product.details.isEmpty ? '—' : product.details,
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Tr('Close'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'delete'),
+          child: const Tr('Delete'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, 'edit'),
+          child: const Tr('Edit'),
+        ),
+      ],
     );
     if (!mounted) return;
     if (action == 'edit') await _openForm(existing: product);
@@ -462,9 +455,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
         child: items.isEmpty
             ? ListView(
                 children: [
-                  const PageIntro(
+                  PageIntro(
                     subtitle:
                         'Catalog items and pricing. Stock lives in Warehouse.',
+                    metrics: const [
+                      ('SKUs', '0'),
+                    ],
                   ),
                   _buildDataSyncSection(),
                   const SectionLabel(
@@ -483,12 +479,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 itemCount: items.length + 1,
                 itemBuilder: (context, i) {
                   if (i == 0) {
+                    final stocked = items.where((p) => p.stockQty > 0).length;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const PageIntro(
+                        PageIntro(
                           subtitle:
                               'Catalog items and pricing. Stock lives in Warehouse.',
+                          metrics: [
+                            ('SKUs', '${items.length}'),
+                            ('In stock', '$stocked'),
+                          ],
                         ),
                         _buildDataSyncSection(),
                         const SectionLabel(

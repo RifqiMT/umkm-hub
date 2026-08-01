@@ -7,7 +7,7 @@ export type MarginOrderRow = {
   costPerUnit: number | null;
 };
 
-export type PeriodMargin = {
+type PeriodMargin = {
   revenue: number;
   /** Sum of estimated COGS for orders that have catalog cost. Null if none. */
   cost: number | null;

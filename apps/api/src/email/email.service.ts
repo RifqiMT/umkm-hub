@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-export type SendEmailInput = {
+type SendEmailInput = {
   to: string;
   subject: string;
   text: string;

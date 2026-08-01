@@ -429,17 +429,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Future<void> _openView(Customer customer) async {
-    final action = await showDialog<String>(
+    final action = await showAppViewSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(customer.name),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      title: customer.name,
+      subtitle: customer.companyName.isNotEmpty
+          ? customer.companyName
+          : 'Customer directory details.',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
                 DetailRow(label: 'Customer ID', value: customer.displayId),
                 DetailRow(label: 'Title', value: customer.title),
                 DetailRow(label: 'Company', value: customer.companyName),
@@ -520,25 +518,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   label: 'Remarks',
                   value: customer.remarks.isNotEmpty ? customer.remarks : '—',
                 ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'delete'),
-            child: const Text('Delete'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'edit'),
-            child: const Text('Edit'),
-          ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Tr('Close'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'delete'),
+          child: const Tr('Delete'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, 'edit'),
+          child: const Tr('Edit'),
+        ),
+      ],
     );
     if (!mounted) return;
     if (action == 'edit') await _openForm(existing: customer);
@@ -575,6 +570,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 children: [
                   const PageIntro(
                     subtitle: 'CRM contacts and partnership pipeline.',
+                    metrics: [
+                      ('Contacts', '0'),
+                    ],
                   ),
                   _buildDataSyncSection(),
                   const SectionLabel(
@@ -593,11 +591,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 itemCount: items.length + 1,
                 itemBuilder: (context, i) {
                   if (i == 0) {
+                    final withContact = items
+                        .where(
+                          (c) =>
+                              c.email.trim().isNotEmpty ||
+                              c.phone.trim().isNotEmpty,
+                        )
+                        .length;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const PageIntro(
+                        PageIntro(
                           subtitle: 'CRM contacts and partnership pipeline.',
+                          metrics: [
+                            ('Contacts', '${items.length}'),
+                            ('Reachable', '$withContact'),
+                          ],
                         ),
                         _buildDataSyncSection(),
                         const SectionLabel(

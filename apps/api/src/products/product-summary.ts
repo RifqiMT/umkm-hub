@@ -1,6 +1,6 @@
 import { ratePercent, profitMarginRatePercent } from '../common/summary-rates';
 
-export type ProductInventoryAgg = {
+type ProductInventoryAgg = {
   productCount: number;
   totalStockQty: number;
   sellValue: number;

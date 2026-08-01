@@ -2,7 +2,7 @@ const PROFILE_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 const PROFILE_NAME_MIN = 3;
 const PROFILE_NAME_MAX = 64;
 
-export type ProfileNameAvailability = {
+type ProfileNameAvailability = {
   profileName: string;
   available: boolean;
   valid: boolean;

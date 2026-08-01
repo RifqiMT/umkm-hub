@@ -20,7 +20,7 @@ export const STOCK_STATUS_KEYS = ['in_stock', 'out_of_stock'] as const;
 export const COST_SET_KEYS = ['set', 'unset'] as const;
 const PACK_READY_KEYS = ['ready', 'not_ready'] as const;
 
-export type ProductStatisticsInput = {
+type ProductStatisticsInput = {
   productCount: number;
   unit: CountBucketInput[];
   stockStatus: CountBucketInput[];
@@ -29,7 +29,7 @@ export type ProductStatisticsInput = {
   details: WithWithoutInput;
 };
 
-export type ProductStatistics = {
+type ProductStatistics = {
   unit: StatBucket[];
   stockStatus: StatBucket[];
   costSet: StatBucket[];

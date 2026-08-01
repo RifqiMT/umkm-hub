@@ -26,7 +26,7 @@ const COMPACT_TIERS = [
   { abs: 1e6, word: 'million', short: 'Mn' },
 ] as const;
 
-export type CompactParts = {
+type CompactParts = {
   figure: string;
   /** Plain-English magnitude for KPI chips (e.g. "million"). */
   unit: string | null;

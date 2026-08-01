@@ -7,12 +7,12 @@ import {
   type PackPriceFields,
 } from './pack-sizes';
 
-export type PackPricesInput = {
+type PackPricesInput = {
   unit: string;
   pricePerUnit?: number | null;
 } & PackPriceFields;
 
-export type PackCostsInput = {
+type PackCostsInput = {
   unit: string;
   costPerUnit?: number | null;
 } & PackCostFields;

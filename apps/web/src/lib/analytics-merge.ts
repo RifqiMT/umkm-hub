@@ -1,6 +1,6 @@
 import type { AnalyticsOverview } from '@/lib/types';
 
-export type AnalyticsMergeMode = 'core' | 'series' | 'tables';
+type AnalyticsMergeMode = 'core' | 'series' | 'tables';
 
 /** Merge progressive analytics responses without wiping cached series/tables. */
 export function mergeAnalyticsOverview(

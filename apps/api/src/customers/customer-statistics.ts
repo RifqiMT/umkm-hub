@@ -48,7 +48,7 @@ const RELATIONSHIP_LEVEL_KEYS = [
   'UNSET',
 ] as const;
 
-export type CustomerStatisticsInput = {
+type CustomerStatisticsInput = {
   customerCount: number;
   companyType: CountBucketInput[];
   partnershipStage: CountBucketInput[];
@@ -76,7 +76,7 @@ type CustomerPromiseStats = WithWithoutStats & {
   packagingBoxRate: number | null;
 };
 
-export type CustomerStatistics = {
+type CustomerStatistics = {
   companyType: StatBucket[];
   partnershipStage: StatBucket[];
   status: StatBucket[];

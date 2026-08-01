@@ -1,7 +1,7 @@
 import { roundMoney } from '../revenue-targets/revenue-target-math';
 import { repeatOrderDuration } from './repeat-order-duration';
 
-export type ProductOrderRow = {
+type ProductOrderRow = {
   orderId: string;
   productId: string;
   productName: string;
@@ -17,7 +17,7 @@ export type ProductOrderRow = {
   costPerUnit: number | null;
 };
 
-export type ProductPerformanceRow = {
+type ProductPerformanceRow = {
   productId: string;
   name: string;
   unit: string;

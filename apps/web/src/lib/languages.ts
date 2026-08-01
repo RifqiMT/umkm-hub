@@ -1,4 +1,4 @@
-export type LanguageOption = {
+type LanguageOption = {
   code: string;
   name: string;
   nativeName: string;

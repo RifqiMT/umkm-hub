@@ -6,7 +6,7 @@ import {
   RelationshipLevel,
 } from '@prisma/client';
 
-export type CustomerOrderTotalsFilter = {
+type CustomerOrderTotalsFilter = {
   profileId: string;
   search?: string;
   status?: CustomerStatus[];

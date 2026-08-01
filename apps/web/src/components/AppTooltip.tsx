@@ -24,7 +24,7 @@ export type AppTooltipContent = {
   detail?: string;
 };
 
-export type AppTooltipProps = AppTooltipContent & {
+type AppTooltipProps = AppTooltipContent & {
   children: ReactNode;
   /** Preferred side; flips automatically near viewport edges. */
   placement?: 'top' | 'bottom';

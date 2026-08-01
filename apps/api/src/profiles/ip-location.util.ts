@@ -1,4 +1,4 @@
-export type IpLocationResult = {
+type IpLocationResult = {
   found: boolean;
   city: string;
   country: string;

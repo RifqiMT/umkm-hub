@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.250 |
+| **Version** | 1.5.265 |
 | **Date** | 2026-08-01 |
 | **Format** | Epic → Story → Acceptance criteria (AC) |
 | **Personas** | Sari (owner), Budi (field), Dewi (ops) — see [PERSONAS.md](./PERSONAS.md) |
@@ -72,7 +72,7 @@
 
 ### US-2.3 Product stock & sales
 **As** Sari, **I want** a per-product stock vs sales table above Products Statistics, **so that** I can see STR, ITR, SSR, AOV, and UPT without leaving the catalog.  
-**AC:** Columns: product, Stocks (total with current/sold detail), Revenue, Discount (+%), Cost, Profit, STR, ITR (sold÷avg inventory), SSR, orders, AOV (allocated net), UPT; catalog filters apply; paginated `GET /products/stock-sales`; **web-first**.
+**AC:** Columns: product, Stocks (total with current/sold detail), Revenue (gross primary + Gross·Net subline), Discount (+%), Cost (+%), Profit (+%), STR, ITR (sold÷avg inventory), SSR, orders, AOV (allocated net), UPT; catalog filters apply; paginated `GET /products/stock-sales`; row/View opens **product performance** sheet in exclusive focus mode (not catalog sheet); **web-first**.
 
 ---
 
@@ -92,7 +92,7 @@
 
 ### US-3.4 Customer order totals
 **As** Sari, **I want** a per-customer table of order totals above Customers Statistics, **so that** I can see commercial volume without leaving CRM.  
-**AC:** Columns: customer name (+ details), company (+ details), Totals, Discount, Order total, Orders, Packs, Cancelled (+ cancel rate), AOV, UPT; money/packs from non-cancelled linked orders; cancelled counted separately; same Directory filters; paginated `GET /customers/order-totals`; **web-first**.
+**AC:** Columns: customer name (+ details), company (+ details), **Revenue** (gross primary + Gross·Net subline; API totals/grossRevenue + orderTotal), Discount, Orders, Packs, Cancelled (+ cancel rate), AOV, UPT; money/packs from non-cancelled linked orders; cancelled counted separately; same Directory filters; paginated `GET /customers/order-totals`; row/View opens **order performance** sheet in exclusive focus mode (not CRM sheet); **web-first**.
 
 ---
 
@@ -136,7 +136,7 @@
 
 ### US-5.3 Sold history
 **As** Sari, **I want** to see stock drawn by orders (date, product, qty sold, before/after, order ref), **so that** I can audit outbound inventory without leaving Warehouse.  
-**AC:** Entries appear when active orders draw stock (dual-write); empty until dual-write or `npm run backfill:warehouse-sales -w api`; web Sold history above Statistics with **Open order** → `/orders?view=<uuid>`; mobile after Restock history (list/view; Open order web-only); view-only mutations via Orders; search by product/notes/order id.
+**AC:** Entries appear when active orders draw stock (dual-write); empty until dual-write or `npm run backfill:warehouse-sales -w api`; web Sold history above Statistics with exclusive Sold View (focus mode) + **Open order** → `/orders?view=<uuid>`; mobile after Restock history (list/view; Open order web-only); view-only mutations via Orders; search by product/notes/order id.
 
 ---
 
@@ -176,11 +176,11 @@
 
 ### US-8.2a Metric dictionary
 **As** any user, **I want** a Dictionary of metrics in plain English, **so that** I understand KPIs without reading engineering docs.  
-**AC:** Web `/glossary` with search + feature browse + expandable terms (~**101** entries incl. Stock & sales / Order totals / Sold history); mobile Profile → Dictionary; catalogs synced via `npm run glossary:sync`.
+**AC:** Web `/glossary` with search + feature browse + expandable terms (~**102** entries incl. Stock & sales / Order totals / Sold history); mobile Profile → Dictionary; catalogs synced via `npm run glossary:sync`.
 
 ### US-8.2 Narrow viewport / mobile actions
 **As** Budi, **I want** reachable actions on a phone, **so that** I can save forms with the keyboard open.  
-**AC:** Touch targets ≥44px; sticky/bottom actions; responsive chrome (rail / bottom tabs / filter sheets).
+**AC:** Touch targets ≥44px; catalog/insight cards ≤1100; tablet NavigationRail; on narrow, feature View/form chrome scrolls with content (shell nav stays fixed); sticky/bottom actions where desktop density allows; responsive chrome (rail / bottom tabs / filter sheets).
 
 ### US-8.3 Compact money
 **As** Dewi, **I want** large amounts shortened consistently, **so that** tables stay readable.  

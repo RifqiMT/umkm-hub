@@ -13,7 +13,7 @@ const PACK_READY_PRICE_OR: Prisma.ProductWhereInput[] = [
   { priceCustom: { not: null } },
 ];
 
-export type ProductListFilter = Pick<
+type ProductListFilter = Pick<
   ProductQueryDto,
   'search' | 'unit' | 'costSet' | 'packReady' | 'stockStatus'
 >;

@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-08-01 (v1.5.250)) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-08-01 (v1.5.265))) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 

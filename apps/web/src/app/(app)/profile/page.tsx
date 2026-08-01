@@ -7,6 +7,7 @@ import { confirmDelete } from '@/lib/confirm';
 import { useTr } from '@/components/Tr';
 import { clearSession } from '@/lib/auth';
 import { firebaseResendVerification, firebaseSignOut, isFirebaseConfigured } from '@/lib/firebase';
+import { syncFirebaseVerificationToApi } from '@/lib/firebase-session-sync';
 import { getUiLanguageCode, resetUiLanguage, setUiLanguageCode } from '@/lib/ui-language';
 import { useTranslationStatus } from '@/hooks/useTranslationStatus';
 import { ProfileInvoicingSection } from '@/app/(app)/profile/ProfileInvoicingSection';
@@ -249,6 +250,9 @@ export default function ProfilePage() {
       setBooting(true);
       setSnapshotLoading(true);
       try {
+        if (isFirebaseConfigured()) {
+          await syncFirebaseVerificationToApi();
+        }
         const me = await api<Profile>('/profiles/me');
         applyProfile(me);
         setError('');
@@ -290,6 +294,9 @@ export default function ProfilePage() {
   useEffect(() => {
     async function refreshVerification() {
       try {
+        if (isFirebaseConfigured()) {
+          await syncFirebaseVerificationToApi();
+        }
         const me = await api<Profile>('/profiles/me');
         setProfile((prev) => {
           if (!prev) return me;

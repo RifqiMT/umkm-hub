@@ -11,7 +11,6 @@ import {
 import type { User } from 'firebase/auth';
 import {
   firebaseSignOut,
-  getFirebaseIdToken,
   isFirebaseConfigured,
   subscribeFirebaseAuth,
 } from '@/lib/firebase';
@@ -51,7 +50,8 @@ export function FirebaseAuthProvider({
       setProfile(null);
       return false;
     }
-    const idToken = await getFirebaseIdToken(firebaseUser);
+    await firebaseUser.reload();
+    const idToken = await firebaseUser.getIdToken(true);
     if (!idToken) return false;
     try {
       const data = await api<{

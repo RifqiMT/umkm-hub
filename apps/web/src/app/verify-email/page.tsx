@@ -10,6 +10,7 @@ import {
   getFirebaseIdToken,
   isFirebaseConfigured,
 } from '@/lib/firebase';
+import { syncFirebaseVerificationToApi } from '@/lib/firebase-session-sync';
 import { useTr } from '@/components/Tr';
 
 type VerifyState =
@@ -54,7 +55,8 @@ function verifyEmailOnce(token: string, firebaseMode: boolean): Promise<VerifyOk
   const promise = (async () => {
     if (firebaseMode) {
       await firebaseVerifyEmail(token);
-      const idToken = await getFirebaseIdToken();
+      await syncFirebaseVerificationToApi().catch(() => undefined);
+      const idToken = await getFirebaseIdToken(undefined, true);
       if (idToken) {
         try {
           await api('/auth/firebase/session', {
@@ -116,29 +118,41 @@ function VerifyEmailInner() {
   }, []);
 
   useEffect(() => {
-    if (verifiedRedirect && firebaseEnabled) {
-      setState({
-        status: 'ok',
-        message: tr(
-          'Email verified successfully. You can sign in now.',
-        ),
-      });
-      return;
-    }
-
-    if (!token) {
-      if (firebaseEnabled) {
-        // Firebase hosted page (firebaseapp.com) verifies first, then redirects
-        // to /verify-email without oobCode — treat as success, not an error.
+    async function handleFirebaseRedirectSuccess() {
+      if (verifiedRedirect && firebaseEnabled) {
+        await syncFirebaseVerificationToApi().catch(() => undefined);
         setState({
           status: 'ok',
           message: tr(
-            'Your email should be verified. Sign in to continue using UMKM Hub.',
+            'Email verified successfully. You can sign in now.',
           ),
         });
         return;
       }
 
+      if (!token && firebaseEnabled) {
+        const synced = await syncFirebaseVerificationToApi().catch(
+          () => false,
+        );
+        setState({
+          status: 'ok',
+          message: synced
+            ? tr(
+                'Email verified successfully. You can sign in or open Profile.',
+              )
+            : tr(
+                'Your email should be verified. Sign in to continue using UMKM Hub.',
+              ),
+        });
+      }
+    }
+
+    if ((verifiedRedirect || (!token && firebaseEnabled)) && firebaseEnabled) {
+      void handleFirebaseRedirectSuccess();
+      return;
+    }
+
+    if (!token) {
       setState({
         status: 'error',
         message: tr('This verification link is missing a token.'),

@@ -109,11 +109,14 @@ export async function firebaseSignOut() {
   await signOut(getFirebaseAuth());
 }
 
-export async function getFirebaseIdToken(user?: User | null): Promise<string | null> {
+export async function getFirebaseIdToken(
+  user?: User | null,
+  forceRefresh = false,
+): Promise<string | null> {
   if (!isFirebaseConfigured()) return null;
   const current = user ?? getFirebaseAuth().currentUser;
   if (!current) return null;
-  return current.getIdToken();
+  return current.getIdToken(forceRefresh);
 }
 
 export function subscribeFirebaseAuth(onChange: (user: User | null) => void) {

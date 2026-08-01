@@ -76,20 +76,20 @@ Firebase is Google’s free service for login and passwords. Your project is alr
    appId: "1:123456789012:web:abc123def456"
    ```
 
-### Step 1.5 — Fix “verify email” and “reset password” links in emails
+### Step 1.5 — Email links (Vercel users: skip Action URL)
 
-When Firebase sends emails, links must point to **your** website.
+When Firebase sends emails, your **website domain** must be allowed. The app code already sends users to `/verify-email` on Vercel — you do **not** need to change Firebase “Action URL” if you host on Vercel (that save often fails with *“An error occurred updating action URL”*).
 
-1. In Firebase, go to **Authentication** → **Templates** (tab).
-2. **Email address verification** → click the pencil (edit).
-3. Click **Customize action URL** (or similar).
-4. Set the URL to:  
-   `https://umkm-hub-web.vercel.app/verify-email`
-5. Save.
-6. **Password reset** → edit the same way.
-7. Set the URL to:  
-   `https://umkm-hub-web.vercel.app/reset-password`
-8. Save.
+**Do this:**
+
+1. **Authentication** → **Settings** → **Authorized domains**
+2. Confirm **`umkm-hub-web.vercel.app`** is listed (add it if missing)
+3. Leave email **Templates** on the **default** Firebase URL — do not customize Action URL
+
+**Only if you use Firebase Hosting** on your own domain, you can customize Action URL to  
+`https://your-domain.com/__/auth/action`
+
+After sign-up, resend verification from **Profile** on the website if the first email did not arrive (check spam).
 
 ### Step 1.6 — Download the “service account” file (for the API in Part 3)
 

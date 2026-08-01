@@ -13,8 +13,8 @@ Detailed help: [SETUP-GUIDE-PLAIN-ENGLISH.md](./SETUP-GUIDE-PLAIN-ENGLISH.md)
 - [ ] Authentication → Sign-in method → **Email/Password** → Enable
 - [ ] Authentication → Settings → Authorized domains → add `umkm-hub-web.vercel.app`
 - [ ] Project settings → Your apps → copy **apiKey**, **messagingSenderId**, **appId**
-- [ ] Authentication → Templates → verify URL: `https://umkm-hub-web.vercel.app/verify-email`
-- [ ] Authentication → Templates → reset URL: `https://umkm-hub-web.vercel.app/reset-password`
+- [ ] Authentication → Settings → Authorized domains → add `umkm-hub-web.vercel.app`
+- [ ] **Skip** Templates → Action URL (not needed on Vercel; save often fails)
 - [ ] Service accounts → **Generate new private key** → save JSON file (secret!)
 
 ---

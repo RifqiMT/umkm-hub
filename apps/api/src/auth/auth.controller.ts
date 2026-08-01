@@ -35,6 +35,9 @@ export class AuthController {
   authConfig() {
     return {
       firebaseEnabled: this.firebaseAdmin.enabled,
+      ...(this.firebaseAdmin.initError
+        ? { firebaseInitError: this.firebaseAdmin.initError }
+        : {}),
     };
   }
 

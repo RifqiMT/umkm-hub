@@ -8,6 +8,7 @@ import {
   type ServiceAccount,
 } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { parseFirebaseServiceAccountJson } from './firebase-service-account.util';
 
 export type VerifiedFirebaseUser = {
   uid: string;
@@ -19,6 +20,7 @@ export type VerifiedFirebaseUser = {
 export class FirebaseAdminService implements OnModuleInit {
   private readonly logger = new Logger(FirebaseAdminService.name);
   private app: App | null = null;
+  private lastInitError: string | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -33,8 +35,10 @@ export class FirebaseAdminService implements OnModuleInit {
     );
 
     try {
-      if (serviceAccountJson) {
-        const parsed = JSON.parse(serviceAccountJson) as ServiceAccount;
+      if (serviceAccountJson?.trim()) {
+        const parsed = parseFirebaseServiceAccountJson(
+          serviceAccountJson,
+        ) as ServiceAccount;
         this.app =
           getApps().length > 0
             ? getApps()[0]!
@@ -59,10 +63,14 @@ export class FirebaseAdminService implements OnModuleInit {
         return;
       }
 
+      this.lastInitError =
+        'Missing FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY';
       this.logger.warn(
         'Firebase Admin not configured — only legacy JWT auth is available',
       );
     } catch (err) {
+      this.lastInitError =
+        err instanceof Error ? err.message : 'Firebase Admin init failed';
       this.logger.error(
         'Failed to initialize Firebase Admin',
         err instanceof Error ? err.stack : String(err),
@@ -72,6 +80,10 @@ export class FirebaseAdminService implements OnModuleInit {
 
   get enabled(): boolean {
     return this.app != null;
+  }
+
+  get initError(): string | null {
+    return this.enabled ? null : this.lastInitError;
   }
 
   async verifyIdToken(idToken: string): Promise<VerifiedFirebaseUser> {

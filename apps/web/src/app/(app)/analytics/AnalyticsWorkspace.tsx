@@ -3492,8 +3492,8 @@ export default function AnalyticsWorkspace() {
           <ContentSection
             eyebrow="Rates"
             title="Target progress & margin"
-            description="How much of the revenue target you have reached (actual / target), plus estimated profit margin."
-          >
+            description="How much of the revenue target you have reached (actual versus target), plus estimated profit margin."
+      >
             <div
               className="umkm-analytics-charts"
               key={`rates-${granularity}-${timelineKey}`}
@@ -3670,7 +3670,7 @@ export default function AnalyticsWorkspace() {
           <ContentSection
             eyebrow="Mix"
             title="Order status & payment mode"
-            description="Share of orders by fulfillment status (includes cancelled) and by payment mode (active orders only). Timeline follows Weekly / Monthly / Quarterly / Annual."
+            description="Share of orders by fulfillment status (including cancelled) and by payment mode (active orders only). The timeline follows Weekly, Monthly, Quarterly, or Annual."
           >
             <div
               className="umkm-analytics-charts"
@@ -4171,7 +4171,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Product value"
         title={`${scopeLabel} product revenue`}
-        description="Average product revenue is net sales ÷ products with sales. Rankings show the Top 5 and Bottom 5 products by revenue in this timeline."
+        description="Average product revenue is net sales divided by products with sales. Rankings show the top five and bottom five products by revenue in this timeline."
       >
         {!loading &&
         !hasProductRevenue &&
@@ -4356,7 +4356,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Products"
         title={`${scopeLabel} product performance`}
-        description="Revenue is after discount. Discount, COGS, and margin % are shares of the pre-discount total (Discount + Cost + Profit), so they add up to ~100%."
+        description="Revenue is after discount. Discount, cost of goods sold, and margin percent are shares of the pre-discount total (discount, cost, and profit), so they add up to about 100%."
         actions={
           data?.products?.length ? (
             <button
@@ -4585,7 +4585,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Lifetime value"
         title={`${scopeLabel} customer LTV`}
-        description="LTV is net revenue from linked customers. Average LTV tracks ticket size per active buyer; rankings show the Top 5 and Bottom 5 customers in this timeline."
+        description="Lifetime value is net revenue from linked customers. Average lifetime value tracks revenue per active buyer. Rankings show the top five and bottom five customers in this timeline."
       >
         {!loading && !hasLtv && !hasTopLtv && !hasBottomLtv ? (
           <EmptyState
@@ -4767,7 +4767,7 @@ export default function AnalyticsWorkspace() {
       <ContentSection
         eyebrow="Customers"
         title={`${scopeLabel} customer performance`}
-        description="Same metrics as products, grouped by CRM customer. Only orders with a customer assigned appear here. Rates are shares of the pre-discount total."
+        description="The same performance metrics as products, grouped by CRM customer. Only orders with an assigned customer appear here. Rates are shares of the pre-discount total."
         actions={
           data?.customers?.length ? (
             <button

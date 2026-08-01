@@ -64,7 +64,7 @@ const entries = GLOSSARY_ENTRIES.map((entry) => {
   return `  GlossaryEntry(\n${lines.join('\n')}\n  )`;
 }).join(',\n');
 
-const dart = `// GENERATED FILE — do not edit by hand.
+const dart = `// GENERATED FILE. Do not edit by hand.
 // Source: apps/web/src/lib/glossary/{catalog,sections,types}.ts
 // Regenerate: npx tsx scripts/sync-glossary-mobile.ts
 

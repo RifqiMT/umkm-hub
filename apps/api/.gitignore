@@ -5,3 +5,11 @@ coverage
 .env.local
 *.log
 .DS_Store
+# Accidental tsc emit next to TypeScript sources
+prisma/*.js
+prisma/*.js.map
+prisma/*.d.ts
+scripts/*.js
+scripts/*.js.map
+scripts/*.d.ts
+*.tsbuildinfo

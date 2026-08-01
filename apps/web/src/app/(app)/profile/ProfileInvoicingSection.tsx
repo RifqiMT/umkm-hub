@@ -118,7 +118,7 @@ export function ProfileInvoicingSection({
               >
                 <span className="umkm-invoice-mode-kicker">Recommended</span>
                 <strong>Non-PKP (UMKM)</strong>
-                <em>Tagihan / commercial invoice — no PPN line</em>
+                <em>Tagihan / commercial invoice with no PPN line</em>
               </button>
               <button
                 type="button"

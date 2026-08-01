@@ -6,6 +6,7 @@ import { dedupeById } from '@/lib/dedupe-by-id';
 import { confirmDelete } from '@/lib/confirm';
 import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
 import { ProductStatisticsSection } from '@/app/(app)/products/ProductStatisticsSection';
+import { ProductStockSalesSection } from '@/app/(app)/products/ProductStockSalesSection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { OptionChips } from '@/components/OptionChips';
@@ -31,14 +32,22 @@ import {
   formatMoneyExact,
 } from '@/lib/format-money';
 import {
+  clearedPackFormFields,
+  emptyPackFormFields,
+  getActivePack,
+  GRAM_LITER_PACK_SIZES,
+  type ActivePack,
+  type GramLiterPackSize,
+  type PackSizeOption,
+} from '@/lib/product-pack';
+import {
   COST_SET_FILTER_OPTIONS,
   PACK_READY_FILTER_OPTIONS,
   STOCK_STATUS_FILTER_OPTIONS,
 } from '@/lib/product-readiness';
 
-type PackField = 'price50' | 'price100' | 'price250' | 'price500' | 'price1000';
-type CostField = 'cost50' | 'cost100' | 'cost250' | 'cost500' | 'cost1000';
-type PackSizeOption = '50' | '100' | '250' | '500' | '1000' | 'CUSTOM';
+type PackField = `price${GramLiterPackSize}`;
+type CostField = `cost${GramLiterPackSize}`;
 type SortKey = 'name' | 'pack' | 'sell' | 'cost' | 'profit' | 'margin';
 type SortDir = 'asc' | 'desc';
 
@@ -46,18 +55,9 @@ const emptyForm = {
   name: '',
   unit: 'PCS' as (typeof PRODUCT_UNITS)[number],
   pricePerUnit: 0,
-  price50: '' as number | '',
-  price100: '' as number | '',
-  price250: '' as number | '',
-  price500: '' as number | '',
-  price1000: '' as number | '',
+  ...emptyPackFormFields(),
   priceCustom: '' as number | '',
   costPerUnit: '' as number | '',
-  cost50: '' as number | '',
-  cost100: '' as number | '',
-  cost250: '' as number | '',
-  cost500: '' as number | '',
-  cost1000: '' as number | '',
   costCustom: '' as number | '',
   customSize: '' as number | '',
   details: '',
@@ -92,13 +92,11 @@ function toOptionalNumber(value: number | ''): number | null {
 }
 
 const PACK_SIZES: Array<[Exclude<PackSizeOption, 'CUSTOM'>, PackField, CostField]> =
-  [
-    ['50', 'price50', 'cost50'],
-    ['100', 'price100', 'cost100'],
-    ['250', 'price250', 'cost250'],
-    ['500', 'price500', 'cost500'],
-    ['1000', 'price1000', 'cost1000'],
-  ];
+  GRAM_LITER_PACK_SIZES.map((size) => [
+    String(size) as Exclude<PackSizeOption, 'CUSTOM'>,
+    `price${size}` as PackField,
+    `cost${size}` as CostField,
+  ]);
 
 function fieldForSize(size: Exclude<PackSizeOption, 'CUSTOM'>): PackField {
   return `price${size}` as PackField;
@@ -106,56 +104,6 @@ function fieldForSize(size: Exclude<PackSizeOption, 'CUSTOM'>): PackField {
 
 function costFieldForSize(size: Exclude<PackSizeOption, 'CUSTOM'>): CostField {
   return `cost${size}` as CostField;
-}
-
-type ActivePack = {
-  sizeLabel: string;
-  size: number;
-  price: number;
-  cost: number | null;
-  shortUnit: string;
-};
-
-function getActivePack(product: Product): ActivePack | null {
-  const short = unitShort(product.unit);
-  if (product.unit === 'PCS') {
-    return {
-      sizeLabel: '1 pcs',
-      size: 1,
-      price: product.pricePerUnit,
-      cost: product.costPerUnit,
-      shortUnit: 'pcs',
-    };
-  }
-
-  const fixed: Array<[number, number | null, number | null]> = [
-    [50, product.price50, product.cost50],
-    [100, product.price100, product.cost100],
-    [250, product.price250, product.cost250],
-    [500, product.price500, product.cost500],
-    [1000, product.price1000, product.cost1000],
-  ];
-  for (const [size, price, cost] of fixed) {
-    if (price != null) {
-      return {
-        sizeLabel: `${size} ${short}`,
-        size,
-        price,
-        cost,
-        shortUnit: short,
-      };
-    }
-  }
-  if (product.priceCustom != null && product.customSize != null) {
-    return {
-      sizeLabel: `${formatQty(product.customSize)} ${short}`,
-      size: product.customSize,
-      price: product.priceCustom,
-      cost: product.costCustom,
-      shortUnit: short,
-    };
-  }
-  return null;
 }
 
 function packEconomics(pack: ActivePack | null) {
@@ -572,15 +520,11 @@ export default function ProductsPage() {
 
   function detectPackUi(product: Product): { size: PackSizeOption; custom: string } {
     if (product.unit === 'PCS') return { size: '100', custom: '' };
-    const fixed: Array<[PackSizeOption, number | null]> = [
-      ['50', product.price50],
-      ['100', product.price100],
-      ['250', product.price250],
-      ['500', product.price500],
-      ['1000', product.price1000],
-    ];
-    for (const [size, price] of fixed) {
-      if (price != null) return { size, custom: '' };
+    for (const size of GRAM_LITER_PACK_SIZES) {
+      const price = product[`price${size}` as keyof Product] as number | null;
+      if (price != null) {
+        return { size: String(size) as PackSizeOption, custom: '' };
+      }
     }
     if (product.priceCustom != null && product.customSize != null) {
       return { size: 'CUSTOM', custom: String(product.customSize) };
@@ -695,40 +639,19 @@ export default function ProductsPage() {
     setEditingId(product.id);
 
     // Keep only the first configured selling pack (legacy multi-pack → single).
-    const cleared = {
-      price50: '' as number | '',
-      price100: '' as number | '',
-      price250: '' as number | '',
-      price500: '' as number | '',
-      price1000: '' as number | '',
-      priceCustom: '' as number | '',
-      cost50: '' as number | '',
-      cost100: '' as number | '',
-      cost250: '' as number | '',
-      cost500: '' as number | '',
-      cost1000: '' as number | '',
-      costCustom: '' as number | '',
-      customSize: '' as number | '',
-    };
+    const cleared = clearedPackFormFields();
     let packFields = { ...cleared };
     if (product.unit !== 'PCS') {
-      const fixed: Array<
-        [keyof typeof cleared, keyof typeof cleared, number | null, number | null]
-      > = [
-        ['price50', 'cost50', product.price50, product.cost50],
-        ['price100', 'cost100', product.price100, product.cost100],
-        ['price250', 'cost250', product.price250, product.cost250],
-        ['price500', 'cost500', product.price500, product.cost500],
-        ['price1000', 'cost1000', product.price1000, product.cost1000],
-      ];
       let found = false;
-      for (const [priceKey, costKey, price, cost] of fixed) {
+      for (const size of GRAM_LITER_PACK_SIZES) {
+        const price = product[`price${size}` as keyof Product] as number | null;
+        const cost = product[`cost${size}` as keyof Product] as number | null;
         if (price != null) {
           packFields = {
             ...cleared,
-            [priceKey]: price,
-            [costKey]: cost ?? '',
-          };
+            [`price${size}`]: price,
+            [`cost${size}`]: cost ?? '',
+          } as typeof cleared;
           found = true;
           break;
         }
@@ -796,21 +719,7 @@ export default function ProductsPage() {
   }
 
   function clearAllPacks() {
-    return {
-      price50: '' as number | '',
-      price100: '' as number | '',
-      price250: '' as number | '',
-      price500: '' as number | '',
-      price1000: '' as number | '',
-      priceCustom: '' as number | '',
-      cost50: '' as number | '',
-      cost100: '' as number | '',
-      cost250: '' as number | '',
-      cost500: '' as number | '',
-      cost1000: '' as number | '',
-      costCustom: '' as number | '',
-      customSize: '' as number | '',
-    };
+    return clearedPackFormFields();
   }
 
   function removePack() {
@@ -836,35 +745,34 @@ export default function ProductsPage() {
     }
     setLoading(true);
     try {
-      const costFields = {
-        costPerUnit: toOptionalNumber(form.costPerUnit),
-        cost50: toOptionalNumber(form.cost50),
-        cost100: toOptionalNumber(form.cost100),
-        cost250: toOptionalNumber(form.cost250),
-        cost500: toOptionalNumber(form.cost500),
-        cost1000: toOptionalNumber(form.cost1000),
-        costCustom: toOptionalNumber(form.costCustom),
-      };
+      const costFields = Object.fromEntries(
+        GRAM_LITER_PACK_SIZES.flatMap((size) => [
+          [`cost${size}`, toOptionalNumber(form[`cost${size}` as CostField])],
+        ]),
+      ) as Record<CostField, number | null>;
+      const packPriceFields = Object.fromEntries(
+        GRAM_LITER_PACK_SIZES.map((size) => [
+          `price${size}`,
+          toOptionalNumber(form[`price${size}` as PackField]),
+        ]),
+      );
       const body =
         form.unit === 'PCS'
           ? {
               name: form.name,
               unit: form.unit,
               pricePerUnit: form.pricePerUnit,
-              costPerUnit: costFields.costPerUnit,
+              costPerUnit: toOptionalNumber(form.costPerUnit),
               details: form.details,
             }
           : {
               name: form.name,
               unit: form.unit,
-              price50: toOptionalNumber(form.price50),
-              price100: toOptionalNumber(form.price100),
-              price250: toOptionalNumber(form.price250),
-              price500: toOptionalNumber(form.price500),
-              price1000: toOptionalNumber(form.price1000),
+              ...packPriceFields,
               priceCustom: toOptionalNumber(form.priceCustom),
               customSize: toOptionalNumber(form.customSize),
               ...costFields,
+              costCustom: toOptionalNumber(form.costCustom),
               details: form.details,
             };
 
@@ -932,7 +840,7 @@ export default function ProductsPage() {
               : 'Define catalog items with selling price and optional cost.'
           }
           action={
-            <div className="umkm-stage-actions">
+            <>
               <FeatureDataTransferToggle
                 open={dataSyncOpen}
                 controlsId="feature-sync-products"
@@ -941,7 +849,7 @@ export default function ProductsPage() {
               <button type="button" className="umkm-btn" onClick={startCreate}>
                 Add product
               </button>
-            </div>
+            </>
           }
           stats={[
             {
@@ -1046,7 +954,7 @@ export default function ProductsPage() {
       ) : (
         <PageHeader
           title="Products"
-          description="Define catalog items with selling price and optional cost per piece or pack. Stock lives in Warehouse."
+          description="Define catalog items with selling price and optional cost per piece or pack. Manage stock in Warehouse."
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
@@ -1236,12 +1144,10 @@ export default function ProductsPage() {
                     changePackSize(size);
                   }}
                   options={[
-                    ...(['50', '100', '250', '500', '1000'] as const).map(
-                      (size) => ({
-                        value: size as PackSizeOption,
-                        label: `${size} ${unitShort(form.unit)}`,
-                      }),
-                    ),
+                    ...GRAM_LITER_PACK_SIZES.map((size) => ({
+                      value: String(size) as PackSizeOption,
+                      label: `${size} ${unitShort(form.unit)}`,
+                    })),
                     { value: 'CUSTOM' as PackSizeOption, label: 'Custom' },
                   ]}
                 />
@@ -1340,7 +1246,7 @@ export default function ProductsPage() {
       <ContentSection
         eyebrow="Catalog"
         title="Products"
-        description="Search and manage catalog items. Restock stock in Warehouse."
+        description="Search and manage catalog items. Restock inventory in Warehouse."
       >
         <div className="umkm-catalog-toolbar">
           <div className="umkm-field umkm-catalog-search">
@@ -1736,6 +1642,16 @@ export default function ProductsPage() {
           </>
         )}
       </ContentSection>
+
+      <ProductStockSalesSection
+        filters={{
+          search: debouncedSearch,
+          unit: unitFilters,
+          costSet: costSetFilters,
+          packReady: packReadyFilters,
+          stockStatus: stockStatusFilters,
+        }}
+      />
 
       <ContentSection eyebrow="Statistics" quiet>
         <ProductStatisticsSection

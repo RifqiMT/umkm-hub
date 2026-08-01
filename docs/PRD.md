@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
+| **Version** | 1.5.250 |
 | **Date** | 2026-07-31 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
@@ -68,14 +68,16 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-P12 | Forgot/reset password: `POST /auth/forgot-password` (login = username or email; generic success; anti-enumeration) + `POST /auth/reset-password` (token + new password); HMAC token at rest; TTL 24h; request cooldown 60s; web `/forgot-password` + `/reset-password` |
 | FR-P13 | Feature-scoped export/import via `entity=products|customers|orders|warehouse|targets` on full export/import endpoints; Products/Customers/Orders/Warehouse/Targets UIs expose FeatureDataTransfer |
 | FR-P14 | Profile invoicing identity: optional businessName, businessPhone, businessAddress, npwp; isPkp; defaultPpnPercent (default 11); taxInclusive; invoicePrefix — used for PDF and e-Faktur prep |
+| FR-P15 | Optional Firebase Auth: `GET /auth/config`; `POST /auth/firebase/session` (ID token → API JWT); `POST /auth/firebase/register` (ID token + profileName); JwtAuthGuard accepts Firebase ID token when Admin SDK configured, else legacy access JWT; Profile may store `firebaseUid` |
 
 ### FR-Product
 
 | ID | Requirement |
 |----|-------------|
 | FR-PR1 | Human product code field `Product.productId` = `{INITIALS}_{PACK}_{uuid}` (e.g. Cabai Merah 100 → `CB_100_<uuid>`); unique per profile; regenerates prefix when name or active pack size changes. Distinct from UUID primary key and from `Order.productId` / `OrderLine.productId` FKs |
-| FR-PR2 | Fields: name, unit (pcs/gram/liter), pricePerUnit; for gram/liter exactly one pack (50/100/250/500/1000/custom) with selling price and optional cost. Show unit/pack profit and profit margin % when cost is set. Stock managed via Warehouse |
+| FR-PR2 | Fields: name, unit (pcs/gram/liter), pricePerUnit; for gram/liter exactly one pack from **1 / 5 / 10 / 25 / 50 / 100 / 250 / 500 / 1000 / custom** with selling price and optional cost (`priceN`/`costN`). Show unit/pack profit and profit margin % when cost is set. Stock managed via Warehouse |
 | FR-PR3 | View / add / modify / delete within owning profile; delete blocked if order lines exist |
+| FR-PR4 | Web Stock & sales table above Products Statistics: product (+ id/unit), Stocks (total = current + sold, with current/sold subline), Revenue (allocated net), Discount (+ %), Cost (sold × catalog cost), Profit (revenue − cost), STR (sold÷(sold+current)), ITR (sold÷average inventory; beginning≈current+sold), SSR (current÷sold), Orders, AOV (allocated net ÷ orders), UPT (packs ÷ orders); sold/orders from non-cancelled lines; same catalog filters; paginated `GET /products/stock-sales` |
 
 ### FR-Customer
 
@@ -86,6 +88,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-C3 | When postal code and country are both provided on create/edit, look up locality and auto-fill empty (or previously auto-filled) address, city, and province. Manual edits are preserved |
 | FR-C4 | View / add / modify / delete within owning profile; list filterable by status/type/relationship; search matches city/province/country/postal |
 | FR-C5 | Optional customer NPWP for B2B PDF / e-Faktur buyer identity |
+| FR-C6 | Web Order totals table above Customers Statistics: per linked customer, name (+ details), company (+ details), Totals (Σ lineTotal), Discount (Σ lineTotal − totalOrderValue), Order total (Σ totalOrderValue), Orders (active count), Packs (Σ packCount), Cancelled (+ cancel rate), AOV, UPT; money/packs from non-cancelled; same Directory filters; paginated `GET /customers/order-totals` |
 
 ### FR-Order
 
@@ -108,7 +111,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-O15 | Optional paymentDueDate (required in UX when paymentStatus is delayed payment) |
 | FR-O16 | Authenticated user can download printable PDF invoice: `GET /orders/:id/invoice/pdf` (web primary; auto-assign fiscalInvoiceNumber when empty) |
 | FR-O17 | Authenticated user can download e-Faktur **prep** export: `GET /orders/:id/invoice/fiscal?format=csv|xml` (not DJP submission) |
-| FR-O18 | Order may set fiscalInvoiceNumber and includePpn (null → profile isPkp); amountDue from fiscal breakdown of totalOrderValue |
+| FR-O18 | Order may store `fiscalInvoiceNumber` and `includePpn` (null → profile isPkp); `amountDue` is a **computed read DTO** from fiscal breakdown of `totalOrderValue`. v1 UI: Paid % / installments use amountDue; PDF auto-assigns fiscal # when empty; **no dedicated includePpn / fiscal # editors on the order form** |
 
 ### FR-Warehouse
 
@@ -120,6 +123,9 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-W4 | Increment product.stockQty in a transaction on create; **edit** adjusts stock by delta in a transaction (`PATCH /warehouse/:id`, web UI) |
 | FR-W5 | Create + list + view + **edit**; no delete of restock rows in v1 (mobile edit deferred) |
 | FR-W6 | Show current stock, active catalog pack (size + sell/cost/profit/margin), packs-on-hand (stock ÷ pack size), potential revenue/cost/profit, and margin % |
+| FR-W7 | Persist **sold history** (`WarehouseSale`) when orders draw stock: qtySold, soldDate, stockBefore/stockAfter, order/orderLine link, pack snapshots; clear + rewrite on order edit; clear on cancel restore |
+| FR-W8 | Read-only sold history: `GET /warehouse/sales` (+ `/:id`); web section above Statistics with **Open order** deep-link `/orders?view=<orderUuid>`; mobile after Restock history (list/view only); no create/edit from Warehouse (mutations via Orders) |
+| FR-W9 | Idempotent CLI backfill reconstructs missing `WarehouseSale` rows for active order lines (restock+sale replay per product) |
 
 ### FR-RevenueTargets
 

@@ -67,7 +67,7 @@ export function FeatureStage({
           <h1>{tr(title)}</h1>
           <p>{typeof subtitle === 'string' ? tr(subtitle) : subtitle}</p>
         </div>
-        {action}
+        <div className="umkm-stage-actions">{action}</div>
       </div>
 
       <div className="umkm-stage-body">

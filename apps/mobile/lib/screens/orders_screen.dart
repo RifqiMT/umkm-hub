@@ -510,28 +510,38 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   color: UmkmColors.brand.withOpacity(0.25),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _OrderSummaryCell(
-                      label: 'Total',
-                      value: formatMoney(total),
-                    ),
-                  ),
-                  Expanded(
-                    child: _OrderSummaryCell(
-                      label: 'Paid',
-                      value: formatMoney(paid),
-                    ),
-                  ),
-                  Expanded(
-                    child: _OrderSummaryCell(
-                      label: 'Remaining',
-                      value: formatMoney(remaining),
-                      emphasize: true,
-                    ),
-                  ),
-                ],
+              child: Builder(
+                builder: (context) {
+                  // On create with no payments yet, Paid/Remaining only repeat Total.
+                  final showCollection = fullExisting != null ||
+                      installmentRows.isNotEmpty ||
+                      paid > 0;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _OrderSummaryCell(
+                          label: 'Total',
+                          value: formatMoney(total),
+                        ),
+                      ),
+                      if (showCollection) ...[
+                        Expanded(
+                          child: _OrderSummaryCell(
+                            label: 'Paid',
+                            value: formatMoney(paid),
+                          ),
+                        ),
+                        Expanded(
+                          child: _OrderSummaryCell(
+                            label: 'Remaining',
+                            value: formatMoney(remaining),
+                            emphasize: true,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 12),

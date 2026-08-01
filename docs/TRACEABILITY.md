@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Purpose** | Map PRD requirements → API → clients → tests/docs |
 
 ---
@@ -28,14 +28,17 @@
 | FR-P12 Forgot/reset password | `POST /auth/forgot-password`, `reset-password` | `/forgot-password`, `/reset-password` | Login forgot flow | password-reset specs |
 | FR-P13 Feature-scoped transfer | `entity=` on export/import | FeatureDataTransfer on domain pages | FeatureDataTransfer | `export-entities.ts` |
 | FR-P14 Invoicing identity | Profile fiscal fields on `PATCH /profiles/me` | `/profile` invoicing section | ProfileScreen invoicing | VARIABLES Profile fiscal; US-1.11 |
+| FR-P15 Firebase Auth | `GET /auth/config`; `POST /auth/firebase/session`; `POST /auth/firebase/register`; guard accepts Firebase ID token | Firebase web flows | Firebase mobile when configured | `firebase-auth.service.ts`; ENV-LOCAL / DEPLOY |
 | FR-PR1 Product code | `Product.productId` builder | `/products` | ProductsScreen | `product-sku.spec.ts` |
 | FR-PR2 Pack pricing + COGS | `/products` CRUD | `/products` | ProductsScreen | `product-pricing.spec.ts`, `product-pack-math.spec.ts` |
 | FR-PR3 Product CRUD / delete guard | ProductsService | `/products` | ProductsScreen | ProductsService |
+| FR-PR4 Product stock & sales | `GET /products/stock-sales` | `ProductStockSalesSection` | — (web-first) | `product-stock-sales.spec.ts` |
 | FR-C1 Customer code | `Customer.customerId` builder | `/customers` | CustomersScreen | `customer-sku.spec.ts` |
 | FR-C2 Customer fields | `/customers` | `/customers` | CustomersScreen | CustomersService |
 | FR-C3 Postal geo fill | `GET /geo/postal-lookup` | Customer form | Customer form | `postal-lookup.util.spec.ts` |
 | FR-C4 Customer CRUD + filters | `/customers` query | `/customers` | CustomersScreen | — |
 | FR-C5 Customer NPWP | `Customer.npwp` | Customer form | Customer form | VARIABLES; US-3.x |
+| FR-C6 Customer order totals | `GET /customers/order-totals` | `CustomerOrderTotalsSection` | — (web-first) | `customer-order-totals.spec.ts` |
 | FR-O1 Order code | `Order.orderId` builder | `/orders` | OrdersScreen | `order-sku.spec.ts` |
 | FR-O2–O3 Multi-line + discount | `/orders` + `order-math` | `/orders` | OrdersScreen | `order-math.spec.ts` |
 | FR-O4 Payment status | Order enum | `/orders` | OrdersScreen | shared enums |
@@ -51,9 +54,12 @@
 | FR-O15 Payment due date | `Order.paymentDueDate` | Order form (required UX for delayed) | Order form | VARIABLES |
 | FR-O16 PDF invoice | `GET /orders/:id/invoice/pdf` | Orders download PDF | — (web-first) | `invoice.service.ts`, `invoice-pdf.ts` |
 | FR-O17 e-Faktur prep | `GET /orders/:id/invoice/fiscal?format=csv\|xml` | Orders fiscal download | — (web-first) | `fiscal-invoice.ts` |
-| FR-O18 amountDue / includePpn / fiscal # | `resolveOrderAmountDue`; Order fields | Order form + Paid % | Order math | VARIABLES; PRODUCT |
+| FR-O18 amountDue / includePpn / fiscal # | `resolveOrderAmountDue`; Order fields | Paid % / PDF auto # (no form editors) | Order math via amountDue | VARIABLES; PRODUCT |
 | FR-W1–W4, W6 Warehouse core | `/warehouse` create/list/get/summary | `/warehouse` | WarehouseScreen | `warehouse-dates.spec.ts` |
 | FR-W5 Warehouse edit | `PATCH /warehouse/:id` (stock delta) | `/warehouse` edit | — (mobile edit deferred) | WarehouseService |
+| FR-W7 Sold ledger write | `OrdersService.drawStockWithSales` / `clearOrderSales` | — | — | Order create/update/cancel tx |
+| FR-W8 Sold history read | `GET /warehouse/sales`, `GET /warehouse/sales/:id` | Sold history + **Open order** `/orders?view=` | WarehouseScreen Sold history | `serialize-warehouse-sale.spec.ts` |
+| FR-W9 Sold history backfill | `src/warehouse/backfill-sales.ts` / `npm run backfill:warehouse-sales -w api` | — | — | CLI idempotent insert |
 | FR-T1–T5 Revenue targets | `/revenue-targets` | `/targets` | — (web-first) | `revenue-target-math.spec.ts` |
 | FR-T6 Targets stage rates | annual + month actuals | `feature-stage-metrics.ts` on `/targets` | — | VARIABLES targets stage rates |
 | FR-A1–A5 Analytics core | `GET /analytics` | `/analytics` | Profile → Analytics | `order-actuals.spec.ts` |
@@ -104,11 +110,15 @@
 | Export / import | `apps/api/src/export/` |
 | Translate | `apps/api/src/translate/` |
 | Products | `apps/api/src/products/` |
+| Product stock & sales | `apps/api/src/products/product-stock-sales.ts` |
 | Customers | `apps/api/src/customers/` |
+| Customer order totals | `apps/api/src/customers/customer-order-totals.ts` |
 | Orders | `apps/api/src/orders/` |
 | Invoice PDF / fiscal | `apps/api/src/orders/invoice.service.ts`, `invoice-pdf.ts`, `fiscal-invoice.ts`, `invoice.controller.ts` |
 | Domain statistics | `apps/api/src/**/**-statistics.ts`, `common/statistics-buckets.ts` |
-| Warehouse | `apps/api/src/warehouse/` |
+| Warehouse | `apps/api/src/warehouse/` (restock + sales + backfill) |
+| Firebase auth | `apps/api/src/auth/firebase-*.ts` |
+| Redis | `apps/api/src/redis/` |
 | Revenue targets | `apps/api/src/revenue-targets/` |
 | Analytics | `apps/api/src/analytics/` |
 | Geo | `apps/api/src/geo/` |
@@ -129,15 +139,15 @@
 | Resource | Base path | Methods (summary) |
 |----------|-----------|-------------------|
 | Health | `/api/v1/health` | GET |
-| Auth | `/api/v1/auth` | register, register-availability, login, refresh, verify-email, forgot-password, reset-password |
+| Auth | `/api/v1/auth` | register, register-availability, login, refresh, verify-email, forgot/reset-password; **config**; **firebase/session**; **firebase/register** |
 | Profiles | `/api/v1/profiles/me` | GET, PATCH, DELETE; detect-location; email send-verification |
 | Export | `/api/v1/export` | GET eligibility; GET `?format=json|csv|csv-unified` [& `entity=`] |
 | Import | `/api/v1/import` | POST multipart `?format=json|csv-unified` [& `entity=`] |
 | Translate | `/api/v1/translate` | POST `batch` (JWT), `batch-public` |
-| Products | `/api/v1/products` | CRUD + `GET summary` (incl. embedded `statistics`) |
-| Customers | `/api/v1/customers` | CRUD + `GET summary` (incl. embedded `statistics`) |
+| Products | `/api/v1/products` | CRUD + `GET summary` (incl. `statistics`) + **`GET stock-sales`** |
+| Customers | `/api/v1/customers` | CRUD + `GET summary` (incl. `statistics`) + **`GET order-totals`** |
 | Orders | `/api/v1/orders` | create, list, get, patch, `GET summary` (incl. `statistics`); `GET :id/invoice/pdf`; `GET :id/invoice/fiscal` |
-| Warehouse | `/api/v1/warehouse` | create, list, get, **patch**, `GET summary` (incl. `statistics`) |
+| Warehouse | `/api/v1/warehouse` | create, list, get, **patch**, `GET summary` (incl. `statistics`); **`GET sales`**, **`GET sales/:id`** |
 | Revenue targets | `/api/v1/revenue-targets` | years, get/put/delete by year |
 | Analytics | `/api/v1/analytics` | GET `?years=` / `year=` + `include` + `granularity` |
 | Geo | `/api/v1/geo/postal-lookup` | GET |
@@ -151,8 +161,13 @@
 | Mobile revenue targets UI | Deferred (web-first); API ready |
 | Mobile PDF / e-Faktur download | Deferred (web-first); API ready |
 | Mobile warehouse restock edit | Deferred (web-first); API + web ready |
+| Mobile Stock & sales table | Deferred (web-first); API ready |
+| Mobile Order totals table | Deferred (web-first); API ready |
+| Mobile domain statistics sections | Deferred (web-first); summary `statistics` API ready |
+| Mobile Open order from Sold history | Deferred (web-first deep-link) |
 | Web automated unit/E2E suite | Rely on `npm run build` + API tests |
 | Multi-user RBAC | Explicit non-goal v1 |
 | Official DJP e-Faktur filing | Explicit non-goal — prep CSV/XML only |
+| Order-form includePpn / fiscal # editors | API fields only; PDF auto-numbers |
 
 Related: [PRD.md](./PRD.md) · [USER_STORIES.md](./USER_STORIES.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

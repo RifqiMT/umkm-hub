@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Check production setup progress — plain English output.
+# Check PRODUCTION setup progress — plain English output.
+# For local development, use: npm run dev:check
 # Usage: scripts/setup-check.sh
 set -euo pipefail
 

@@ -43,6 +43,14 @@ export class ProductsController {
     return this.productsService.getSummary(user.profileId, query);
   }
 
+  @Get('stock-sales')
+  findStockSales(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ProductQueryDto,
+  ) {
+    return this.productsService.findStockSales(user.profileId, query);
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser() user: AuthUser,

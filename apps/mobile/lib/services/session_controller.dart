@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
+import '../models/models.dart';
 import 'api_service.dart';
 import 'firebase_auth_service.dart';
 

@@ -31,6 +31,10 @@ class Product {
     required this.pricePerUnit,
     required this.details,
     this.productId = '',
+    this.price1,
+    this.price5,
+    this.price10,
+    this.price25,
     this.price50,
     this.price100,
     this.price250,
@@ -38,6 +42,10 @@ class Product {
     this.price1000,
     this.priceCustom,
     this.costPerUnit,
+    this.cost1,
+    this.cost5,
+    this.cost10,
+    this.cost25,
     this.cost50,
     this.cost100,
     this.cost250,
@@ -59,6 +67,10 @@ class Product {
   final double stockQty;
   final double pricePerUnit;
   final String details;
+  final double? price1;
+  final double? price5;
+  final double? price10;
+  final double? price25;
   final double? price50;
   final double? price100;
   final double? price250;
@@ -66,6 +78,10 @@ class Product {
   final double? price1000;
   final double? priceCustom;
   final double? costPerUnit;
+  final double? cost1;
+  final double? cost5;
+  final double? cost10;
+  final double? cost25;
   final double? cost50;
   final double? cost100;
   final double? cost250;
@@ -91,6 +107,10 @@ class Product {
         stockQty: (json['stockQty'] as num).toDouble(),
         pricePerUnit: (json['pricePerUnit'] as num).toDouble(),
         details: (json['details'] as String?) ?? '',
+        price1: (json['price1'] as num?)?.toDouble(),
+        price5: (json['price5'] as num?)?.toDouble(),
+        price10: (json['price10'] as num?)?.toDouble(),
+        price25: (json['price25'] as num?)?.toDouble(),
         price50: (json['price50'] as num?)?.toDouble(),
         price100: (json['price100'] as num?)?.toDouble(),
         price250: (json['price250'] as num?)?.toDouble(),
@@ -98,6 +118,10 @@ class Product {
         price1000: (json['price1000'] as num?)?.toDouble(),
         priceCustom: (json['priceCustom'] as num?)?.toDouble(),
         costPerUnit: (json['costPerUnit'] as num?)?.toDouble(),
+        cost1: (json['cost1'] as num?)?.toDouble(),
+        cost5: (json['cost5'] as num?)?.toDouble(),
+        cost10: (json['cost10'] as num?)?.toDouble(),
+        cost25: (json['cost25'] as num?)?.toDouble(),
         cost50: (json['cost50'] as num?)?.toDouble(),
         cost100: (json['cost100'] as num?)?.toDouble(),
         cost250: (json['cost250'] as num?)?.toDouble(),
@@ -118,6 +142,10 @@ class Product {
         'stockQty': stockQty,
         'pricePerUnit': pricePerUnit,
         'details': details,
+        'price1': price1,
+        'price5': price5,
+        'price10': price10,
+        'price25': price25,
         'price50': price50,
         'price100': price100,
         'price250': price250,
@@ -125,6 +153,10 @@ class Product {
         'price1000': price1000,
         'priceCustom': priceCustom,
         'costPerUnit': costPerUnit,
+        'cost1': cost1,
+        'cost5': cost5,
+        'cost10': cost10,
+        'cost25': cost25,
         'cost50': cost50,
         'cost100': cost100,
         'cost250': cost250,
@@ -602,6 +634,55 @@ class WarehouseRestock {
       unitSnapshot: (json['unit'] as String?) ??
           (json['unitSnapshot'] as String?) ??
           (product?['unit'] as String?),
+    );
+  }
+}
+
+class WarehouseSale {
+  WarehouseSale({
+    required this.id,
+    required this.productId,
+    required this.orderId,
+    required this.qtySold,
+    required this.soldDate,
+    required this.stockBefore,
+    required this.stockAfter,
+    this.notes = '',
+    this.productName,
+    this.unitSnapshot,
+    this.orderRef,
+  });
+
+  final String id;
+  final String productId;
+  final String orderId;
+  final double qtySold;
+  final String soldDate;
+  final double stockBefore;
+  final double stockAfter;
+  final String notes;
+  final String? productName;
+  final String? unitSnapshot;
+  final String? orderRef;
+
+  factory WarehouseSale.fromJson(Map<String, dynamic> json) {
+    final product = json['product'] as Map<String, dynamic>?;
+    final order = json['order'] as Map<String, dynamic>?;
+    return WarehouseSale(
+      id: json['id'] as String,
+      productId: json['productId'] as String,
+      orderId: json['orderId'] as String,
+      qtySold: (json['qtySold'] as num).toDouble(),
+      soldDate: (json['soldDate'] as String?) ?? '',
+      stockBefore: (json['stockBefore'] as num).toDouble(),
+      stockAfter: (json['stockAfter'] as num).toDouble(),
+      notes: (json['notes'] as String?) ?? '',
+      productName: product?['name'] as String?,
+      unitSnapshot: (json['unit'] as String?) ??
+          (json['unitSnapshot'] as String?) ??
+          (product?['unit'] as String?),
+      orderRef: (json['orderRef'] as String?) ??
+          (order?['orderId'] as String?),
     );
   }
 }

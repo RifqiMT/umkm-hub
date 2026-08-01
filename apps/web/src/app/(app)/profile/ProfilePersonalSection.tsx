@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent } from 'react';
+import { FormEvent, useMemo } from 'react';
 import { CountryCombobox } from '@/components/CountryCombobox';
 import {
   ContentSection,
@@ -38,6 +38,18 @@ type ProfilePersonalSectionProps = {
   onClearLocation: () => void;
 };
 
+function personalMonogram(firstName: string, lastName: string, email: string) {
+  const first = firstName.trim();
+  const last = lastName.trim();
+  if (first && last) {
+    return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+  }
+  if (first) return first.slice(0, 2).toUpperCase();
+  if (last) return last.slice(0, 2).toUpperCase();
+  const local = email.split('@')[0]?.trim() ?? '';
+  return local.slice(0, 2).toUpperCase() || 'UH';
+}
+
 export function ProfilePersonalSection({
   booting,
   loading,
@@ -67,17 +79,59 @@ export function ProfilePersonalSection({
 }: ProfilePersonalSectionProps) {
   const showLocationActions =
     locationSet || locationCity || locationCountry || clearLocation;
+  const displayName = [firstName.trim(), lastName.trim()]
+    .filter(Boolean)
+    .join(' ');
+  const monogram = useMemo(
+    () => personalMonogram(firstName, lastName, email),
+    [firstName, lastName, email],
+  );
+  const emailVerified = Boolean(profile?.emailVerified);
+  const hasEmail = Boolean(profile?.email);
+  const locationSummary = [locationCity.trim(), locationCountry.trim()]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <ContentSection
       className="umkm-form-panel umkm-profile-personal"
       eyebrow="Identity"
       title="Personal details"
-      description="Contact and location for this workspace owner — not used for sign-in."
+      description="Optional contact and location for this workspace. These details are separate from sign-in."
     >
       <form className="umkm-profile-personal-form" onSubmit={onSubmit}>
+        <div
+          className={`umkm-profile-personal-preview${dirty ? ' is-dirty' : ''}`}
+          aria-live="polite"
+        >
+          <span className="umkm-profile-personal-avatar" aria-hidden>
+            {monogram}
+          </span>
+          <div className="umkm-profile-personal-preview-copy">
+            <strong className={displayName ? undefined : 'is-placeholder'}>
+              {displayName || 'Add your name'}
+            </strong>
+            <p className="umkm-profile-personal-preview-meta">
+              <span className="notranslate">{email || 'No email on file'}</span>
+              {locationSummary && !clearLocation ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{locationSummary}</span>
+                </>
+              ) : null}
+            </p>
+          </div>
+          {hasEmail ? (
+            <span
+              className={`umkm-profile-personal-status${emailVerified ? ' is-ok' : ' is-warn'}`}
+            >
+              {emailVerified ? 'Verified' : 'Unverified'}
+            </span>
+          ) : null}
+        </div>
+
         <FormSection
-          title="About you"
+          title="Name"
           description="How you appear on this profile page."
         >
           <div className="umkm-profile-field-grid">
@@ -111,22 +165,34 @@ export function ProfilePersonalSection({
         <div className="umkm-profile-email-block">
           <FormSection
             title="Email"
-            description="Permanently linked to your username."
+            description="Linked to your username at registration and cannot be changed."
           >
-            <div className="umkm-profile-readonly-field">
-              <FieldLabel htmlFor="profile-email">Email address</FieldLabel>
-              <input
-                id="profile-email"
-                type="email"
-                value={email}
-                readOnly
-                disabled
-                aria-describedby="profile-email-status"
-              />
+            <div className="umkm-profile-email-locked">
+              <div className="umkm-profile-readonly-field">
+                <FieldLabel htmlFor="profile-email">Email address</FieldLabel>
+                <div className="umkm-profile-email-input-row">
+                  <input
+                    id="profile-email"
+                    type="email"
+                    value={email}
+                    readOnly
+                    disabled
+                    aria-describedby="profile-email-status"
+                  />
+                  {hasEmail ? (
+                    <span
+                      className={`umkm-profile-email-chip${emailVerified ? ' is-ok' : ' is-warn'}`}
+                      aria-hidden
+                    >
+                      {emailVerified ? 'Verified' : 'Needs verify'}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </FormSection>
 
-          {profile?.email && !profile.emailVerified ? (
+          {hasEmail && !emailVerified ? (
             <div className="umkm-profile-verify-callout" role="status">
               <div className="umkm-profile-verify-callout-icon" aria-hidden>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -147,7 +213,7 @@ export function ProfilePersonalSection({
               <div className="umkm-profile-verify-callout-copy">
                 <strong>Verify your email</strong>
                 <p>
-                  Confirm this address to unlock full account verification and
+                  Confirm this address to finish account verification and enable
                   recovery options.
                 </p>
                 <button
@@ -160,9 +226,9 @@ export function ProfilePersonalSection({
                 </button>
               </div>
             </div>
-          ) : profile?.emailVerified ? (
+          ) : emailVerified ? (
             <p id="profile-email-status" className="umkm-profile-email-ok">
-              Email verified — your account is fully verified.
+              Email verified. Your account is fully verified.
             </p>
           ) : (
             <p id="profile-email-status" className="umkm-name-check">
@@ -219,24 +285,56 @@ export function ProfilePersonalSection({
           <div className="umkm-profile-location-actions">
             <button
               type="button"
-              className="umkm-btn secondary"
+              className="umkm-btn secondary umkm-profile-location-detect"
               onClick={onDetectLocation}
               disabled={booting || detecting}
             >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3.25"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="7"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+              </svg>
               {detecting ? 'Detecting…' : 'Detect from network'}
             </button>
             {showLocationActions ? (
               <button
                 type="button"
-                className="umkm-btn secondary"
+                className="umkm-btn ghost"
                 disabled={booting}
                 onClick={onClearLocation}
               >
-                Clear location
+                Clear
               </button>
             ) : null}
             {locationSource === 'IP' && locationSet ? (
               <span className="umkm-profile-location-badge">From network</span>
+            ) : locationSource === 'MANUAL' && locationSet ? (
+              <span className="umkm-profile-location-badge is-manual">
+                Manual
+              </span>
             ) : null}
           </div>
         </FormSection>

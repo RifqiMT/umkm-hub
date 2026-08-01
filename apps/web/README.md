@@ -1,8 +1,8 @@
 # UMKM Hub Web
 
-Next.js 15 ops UI — catalog, CRM, orders (PDF / e-Faktur prep), warehouse create+edit, targets, analytics, domain statistics, dictionary, dashboard, export/import, language, profile invoicing identity.
+Next.js 15 ops UI — catalog (**Stock & sales**), CRM (**Order totals**), orders (PDF / e-Faktur prep), warehouse (edit + **Sold history** + Open order), targets, analytics, domain statistics, dictionary (~101 terms), dashboard, export/import, language, profile invoicing, Firebase auth (production).
 
-Docs **v1.5.233**.
+Docs **v1.5.250**.
 
 ## Local run
 

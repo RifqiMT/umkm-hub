@@ -11,6 +11,8 @@
     "db:migrate": "npm --prefix apps/api run prisma:deploy",
     "db:generate": "npm --prefix apps/api run prisma:generate",
     "db:seed": "npm --prefix apps/api run prisma:seed",
+    "db:repair": "bash scripts/repair-local-migrations.sh",
+    "db:reset": "bash scripts/db-reset-local.sh",
     "api:dev": "npm --prefix apps/api run start:dev",
     "api:test": "npm --prefix apps/api test",
     "web:dev": "npm --prefix apps/web run dev",
@@ -19,7 +21,9 @@
     "build": "npm --prefix apps/web run build",
     "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "deploy:env": "bash scripts/print-production-env.sh",
+    "dev:check": "bash scripts/dev-check.sh",
     "setup:check": "bash scripts/setup-check.sh",
+    "setup:prod:check": "bash scripts/setup-check.sh",
     "setup:open": "bash scripts/open-setup-links.sh",
     "setup:firebase-vercel": "bash scripts/add-firebase-to-vercel.sh",
     "glossary:sync": "npx tsx scripts/sync-glossary-mobile.ts"

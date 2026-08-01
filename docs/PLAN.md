@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-07-31 (v1.5.233) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-08-01 (v1.5.250)) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 
@@ -156,8 +156,23 @@ Profile owns all Product, Customer, Order rows (multi-tenant isolation by `profi
 **Warehouse rules**
 1. Product must belong to same profile.
 2. `stockAfter = stockBefore + qtyAdded`; product.stockQty updated in the same transaction.
-3. Create + list only in v1 (no edit/delete restock rows).
+3. Create + list + **web edit** restock; no delete restock rows in v1.
 4. Product delete cascades restock history.
+
+### WarehouseSale
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | UUID (auto) | |
+| `profileId` | FK | Owner |
+| `productId` | FK | Product sold |
+| `orderId` / `orderLineId` | FK | Line unique → one sale row |
+| `qtySold` | decimal | Units drawn |
+| `soldDate` | date | From order date |
+| `notes` | text | Default `Order {orderId}` |
+| `unitSnapshot` / pack snapshots | | From order line |
+| `stockBefore` / `stockAfter` | decimal | Progressive per line in tx |
+
+**Sold history rules:** dual-write on order stock draw; clear+rewrite on edit; clear on cancel restore; Warehouse UI read-only (`GET /warehouse/sales`).
 
 ---
 
@@ -197,8 +212,11 @@ Base: `/api/v1`
 ### Warehouse
 - `GET /warehouse` — restock history (optional `search` by product name)
 - `POST /warehouse` — restock existing product (`productId`, `qtyAdded`, `restockDate?`, `notes?`)
+- `PATCH /warehouse/:id` — edit restock (web; stock delta)
 - `GET /warehouse/:id`
-- *(no edit/delete restock in v1)*
+- `GET /warehouse/sales` — sold history (search: product / notes / order id)
+- `GET /warehouse/sales/:id`
+- *(no delete restock; no create/edit sale from Warehouse)*
 
 All resource routes require `Authorization: Bearer <accessToken>` and enforce `profileId` scoping.
 
@@ -315,7 +333,7 @@ Update `/docs` with:
 
 ## 11. Out of Scope (v1)
 
-> Living docs ([PRODUCT.md](./PRODUCT.md), [PRD.md](./PRD.md)) supersede outdated plan bullets. Shipped since this plan was first written: printable PDF + e-Faktur **prep**, PPN/`amountDue`, domain statistics, warehouse edit (web).
+> Living docs ([PRODUCT.md](./PRODUCT.md), [PRD.md](./PRD.md)) supersede outdated plan bullets. Shipped since this plan was first written: printable PDF + e-Faktur **prep**, PPN/`amountDue`, domain statistics, warehouse edit (web), warehouse **sold history**.
 
 Still out of scope for v1:
 - Multi-user teams under one UMKM

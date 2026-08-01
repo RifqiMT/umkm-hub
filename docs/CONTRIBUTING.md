@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
+| **Version** | 1.5.250 |
 | **Related** | [ARCHITECTURE.md](./ARCHITECTURE.md), [GUARDRAILS.md](./GUARDRAILS.md), root [README.md](../README.md) |
 
 ---
@@ -36,6 +36,19 @@ What `scripts/sync-env.sh` does:
 - Author new migrations with `cd apps/api && npm run prisma:migrate`
 - Sandboxes apply migrations with `npm run sync` or `npm run db:migrate` — do **not** rely on API boot to migrate
 - Document breaking env keys in the PR and add them to `.env.example`
+
+---
+
+## Local vs production
+
+Local development uses **Docker Postgres + JWT auth** on your machine. Production uses **Render + Vercel + Firebase + Redis** — never mix URLs or secrets between them.
+
+| Check | Command |
+|-------|---------|
+| Local sandbox | `npm run dev:check` |
+| Production deploy | `npm run setup:check` |
+
+Full guide: [ENV-LOCAL.md](./ENV-LOCAL.md) · Production env: [ENV-UMKM-HUB-PRODUCTION.md](./ENV-UMKM-HUB-PRODUCTION.md)
 
 ---
 

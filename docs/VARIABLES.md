@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.232 |
+| **Code tip aligned** | v1.5.251 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -19,6 +19,7 @@ erDiagram
   Profile ||--o{ Customer : owns
   Profile ||--o{ Order : owns
   Profile ||--o{ WarehouseRestock : owns
+  Profile ||--o{ WarehouseSale : owns
   Profile ||--o{ RevenueTargetPlan : owns
   Profile ||--o{ EmailVerificationToken : has
   Profile ||--o{ PasswordResetToken : has
@@ -27,8 +28,11 @@ erDiagram
   Product ||--o{ Order : "primary line denorm"
   Product ||--o{ OrderLine : "ordered on"
   Product ||--o{ WarehouseRestock : restocked
+  Product ||--o{ WarehouseSale : sold
   Order ||--o{ OrderLine : has
   Order ||--o{ OrderInstallment : has
+  Order ||--o{ WarehouseSale : draws
+  OrderLine ||--|| WarehouseSale : "0..1 sale"
 
   Profile {
     uuid id PK
@@ -95,6 +99,16 @@ erDiagram
     uuid profileId FK
     uuid productId FK
     decimal qtyAdded
+    decimal stockBefore
+    decimal stockAfter
+  }
+  WarehouseSale {
+    uuid id PK
+    uuid profileId FK
+    uuid productId FK
+    uuid orderId FK
+    uuid orderLineId UK
+    decimal qtySold
     decimal stockBefore
     decimal stockAfter
   }
@@ -286,9 +300,9 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `Product.productId` | Product code | Human + system product code | `{INITIALS}_{PACK}_{uuid}` | Product API/UI; unique per profile | `CB_100_00000000-…` |
 | `name` | Product name | Catalog display name | Required string | Products | `Cabai Merah` |
 | `unit` | Product unit | Stock/sell unit | `PCS` \| `GRAM` \| `LITER` | Products | `GRAM` |
-| `price50`…`price1000` | Pack sell prices | Selling price for fixed pack sizes | Optional decimals; exactly one pack active for gram/liter | Product | `20000` for 100g |
+| `price1`…`price1000` | Pack sell prices | Selling price for fixed pack sizes | Optional decimals; sizes **1, 5, 10, 25, 50, 100, 250, 500, 1000**; exactly one pack active for gram/liter | Product; `packages/shared` `GRAM_LITER_PACK_SIZES` | `20000` for 100g |
 | `priceCustom` / `customSize` | Custom pack | Custom size + sell price | Optional pair | Product | size `75`, price `9000` |
-| `cost50`…`cost1000` | Pack costs | Purchase/COGS for fixed packs | Optional | Product | `3000` for 100g |
+| `cost1`…`cost1000` | Pack costs | Purchase/COGS for fixed packs | Optional; same size slots as prices | Product | `3000` for 100g |
 | `costCustom` | Custom pack cost | COGS for `customSize` | Optional; shares size | Product | `4500` |
 | `pricePerUnit` | Unit sell price | Price per 1 stock unit | PCS = entered; else `packPrice / packSize` | Product / Orders base | `200` |
 | `costPerUnit` | Unit cost | COGS per 1 stock unit | PCS = entered; else `packCost / packSize`; nullable | Product | `30` |
@@ -300,6 +314,20 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `potentialProfit` | Potential profit | Inventory gross profit | `stockQty × unitProfit` or null | Product API / Warehouse | `9000` |
 | `packsOnHand` | Packs on hand | How many catalog packs in stock | `stockQty / packSize` | Warehouse UI | `15` |
 | `details` | Product details | Free-text notes | max 5000; View only in list UX | Product | `Halal certified` |
+| `products.stockSales.currentStocks` | Current stocks | On-hand stock units | `GREATEST(stockQty, 0)` | `GET /products/stock-sales` | `1500` |
+| `products.stockSales.soldStocks` | Sold stocks | Units sold on non-cancelled orders | `Σ OrderLine.productQty` | `GET /products/stock-sales` | `4200` |
+| `products.stockSales.totalStocks` | Stocks (total) | Current + sold; UI primary Stocks figure | `currentStocks + soldStocks` | `GET /products/stock-sales`; Stock & sales table | `5700` |
+| `products.stockSales.revenue` | Product revenue | Discount-allocated net line revenue | `Σ lineTotal × order.totalOrderValue / order.lineTotal` | `GET /products/stock-sales` | `2220000` |
+| `products.stockSales.discount` | Product discount | Allocated order discount on product lines | `Σ lineTotal × (order.lineTotal − order.totalOrderValue) / order.lineTotal` | `GET /products/stock-sales` | `120000` |
+| `products.stockSales.discountPercent` | Discount % | Discount share of gross | `discount ÷ (revenue + discount) × 100` | `GET /products/stock-sales` | `5.1` |
+| `products.stockSales.cost` | Product COGS | Estimated cost of units sold | `soldStocks × costPerUnit` (null if cost unset) | `GET /products/stock-sales` | `900000` |
+| `products.stockSales.profit` | Product profit | Net after COGS | `revenue − cost` (null if cost unset) | `GET /products/stock-sales` | `1320000` |
+| `products.stockSales.sellThroughRate` | STR | Sell-through rate | `sold ÷ (sold + current) × 100` | `GET /products/stock-sales` | `73.68` |
+| `products.stockSales.inventoryTurnover` | ITR | Inventory turnover (qty) | `sold ÷ ((beginning + ending) ÷ 2)` where beginning ≈ current + sold, ending = current | `GET /products/stock-sales` | `1.2` |
+| `products.stockSales.stockToSalesRatio` | SSR | Stock-to-sales ratio (qty) | `current ÷ sold` | `GET /products/stock-sales` | `0.36` |
+| `products.stockSales.orderCount` | Product orders | Distinct non-cancelled orders with the SKU | `COUNT DISTINCT Order.id` | `GET /products/stock-sales` | `12` |
+| `products.stockSales.avgOrderValue` | Product AOV | Mean allocated net revenue per order | `Σ (lineTotal × order.totalOrderValue / order.lineTotal) ÷ orderCount` | `GET /products/stock-sales` | `185000` |
+| `products.stockSales.unitsPerTransaction` | Product UPT | Mean packs per order | `Σ packCount ÷ orderCount` | `GET /products/stock-sales` | `2.5` |
 
 ### 4.3 Customers (CRM)
 
@@ -323,6 +351,16 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `relationshipLevel` | Relationship level | Sales stage | `NEGOTIATION` \| `REQUEST_SAMPLE` \| `CLOSING_FIRST_ORDER` \| `WILL_CONTACT` \| `INITIAL_APPROACH` | Customer | `REQUEST_SAMPLE` |
 | `approvalPercentage` | Approval % | Deal confidence | integer 0–100 | Customer | `70` |
 | `remarks` | Remarks | Free notes | Optional | Customer | `Call Monday` |
+| `customers.orderTotals.totals` | Customer totals | Pre-discount sum of linked orders | `Σ Order.lineTotal` (status ≠ CANCELLED, linked) | `GET /customers/order-totals`; Customers Order totals | `2000000` |
+| `customers.orderTotals.discount` | Customer discount | Absolute discount off linked orders | `Σ (lineTotal − totalOrderValue)` | `GET /customers/order-totals` | `120000` |
+| `customers.orderTotals.orderTotal` | Customer order total | Post-discount commercial sum | `Σ Order.totalOrderValue` | `GET /customers/order-totals` | `1880000` |
+| `customers.orderTotals.discountPercent` | Customer discount % | Discount share of totals | `discount ÷ totals × 100` or null | Serialized on order-totals | `6` |
+| `customers.orderTotals.orderCount` | Customer order count | Linked non-cancelled orders | `COUNT(Order)` where status ≠ CANCELLED | `GET /customers/order-totals` | `8` |
+| `customers.orderTotals.packsSold` | Customer packs | Packs on non-cancelled linked orders | `Σ OrderLine.packCount` | `GET /customers/order-totals` | `24` |
+| `customers.orderTotals.cancelledCount` | Cancelled orders | Linked cancelled orders | `COUNT` where status = CANCELLED | `GET /customers/order-totals` | `1` |
+| `customers.orderTotals.cancelRate` | Cancel rate | Share of linked orders cancelled | `cancelled ÷ (active + cancelled) × 100` | `GET /customers/order-totals` | `11.11` |
+| `customers.orderTotals.avgOrderValue` | Customer AOV | Mean post-discount order value | `orderTotal ÷ orderCount` | `GET /customers/order-totals` | `235000` |
+| `customers.orderTotals.unitsPerTransaction` | Customer UPT | Mean packs per active order | `packsSold ÷ orderCount` | `GET /customers/order-totals` | `3` |
 
 ### 4.4 Orders, lines & payments
 
@@ -354,7 +392,7 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `discountValue` | Discount value | % or amount | % ≤ 100; amount ≤ order lineTotal | Order | `10` |
 | `totalOrderValue` | Total order value | After order-level discount (pre-PPN commercial total) | %: `line×(1−d/100)`; amount: `line−d` | Order | `135000` |
 | `includePpn` | Include PPN | Order override for PKP tax | `null` → use profile `isPkp`; else boolean | Order | `null` |
-| `amountDue` | Amount due | Invoice total after fiscal breakdown | `computeFiscalBreakdown(totalOrderValue, …).total` via `resolveOrderAmountDue` | Order read DTO; installments; Paid % | `149850` |
+| `amountDue` | Amount due | Invoice total after fiscal breakdown (**computed read DTO**, not a Prisma column) | `computeFiscalBreakdown(totalOrderValue, …).total` via `resolveOrderAmountDue` | Order read DTO; installments; Paid % | `149850` |
 | `computeFiscalBreakdown` | Fiscal DPP/PPN/total | Tax breakdown for PDF/e-Faktur | Non-PKP: DPP=total, PPN=0. Inclusive: DPP=total/(1+r), PPN=total−DPP. Exclusive: DPP=total, PPN=DPP×r, total=DPP+PPN | `fiscal-invoice.ts` | `{ dpp:135000, ppn:14850, total:149850 }` |
 | `fiscalInvoiceNumber` | Fiscal invoice number | Human invoice # on PDF | `PREFIX-YYYYMMDD-XXXXXXXX`; auto on PDF if empty | Order | `INV-20260731-A1B2C3D4` |
 | `paymentDueDate` | Payment due date | When delayed payment is due | Optional date; UX-required for DELAYED_PAYMENT | Order | `2026-08-15` |
@@ -387,6 +425,12 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `restockDate` | Restock date | Business date of incoming stock | Defaults to today | WarehouseRestock | `2026-07-24` |
 | `notes` | Restock notes | Optional free text | — | WarehouseRestock | `Supplier batch A` |
 | `stockBefore` / `stockAfter` | Stock snapshots | Inventory before/after restock | `after = before + qtyAdded` | WarehouseRestock | `1000` / `1500` |
+| `qtySold` | Sold qty | Stock units drawn by an order line | `= OrderLine.productQty`; progressive per line | WarehouseSale | `2.5` |
+| `soldDate` | Sold date | Business date of the stock draw | Copied from `Order.orderDate` | WarehouseSale | `2026-08-01` |
+| `orderLineId` | Sale line key | Unique link to the order line that drew stock | 1:1 with OrderLine | WarehouseSale | uuid |
+| `orderRef` | Order reference | Human order code for UI | `order.orderId` (serialized) | `GET /warehouse/sales` | `ORD-99` |
+| `sale.stockBefore` / `sale.stockAfter` | Sale stock snapshots | On-hand immediately before/after the draw | `after = max(0, before − qtySold)` | WarehouseSale | `10` / `7.5` |
+| `packSizeSnapshot` / `packCount` | Pack snapshots | Pack size/count at sale time | Copied from OrderLine | WarehouseSale | `1` / `2.5` |
 
 ### 4.6 Revenue targets
 
@@ -502,7 +546,11 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 |---------|------|
 | Order math | `apps/api/src/orders/order-math.ts` |
 | Invoice / fiscal | `order-installments.ts`, `fiscal-invoice.ts`, `invoice.service.ts`, `invoice-pdf.ts` |
+| Stock & sales | `apps/api/src/products/product-stock-sales.ts` |
+| Order totals | `apps/api/src/customers/customer-order-totals.ts` |
+| Warehouse sales | `apps/api/src/warehouse/` (`WarehouseSale`, `backfill-sales.ts`) |
 | Statistics | `*-statistics.ts`, `statistics-buckets.ts` |
+| Shared pack sizes | `packages/shared/src/product-packs.ts` (`GRAM_LITER_PACK_SIZES`) |
 | Shared totals helper | `packages/shared/src/index.ts` |
 | Revenue target math | `apps/api/src/revenue-targets/revenue-target-math.ts` |
 | Targets FeatureStage rates | `apps/web/src/lib/feature-stage-metrics.ts` |

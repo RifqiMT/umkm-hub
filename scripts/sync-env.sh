@@ -203,6 +203,9 @@ log "Checking env key drift vs templates"
 check_env_drift "$ROOT/apps/api/.env.example" "$ROOT/apps/api/.env" "API"
 check_env_drift "$ROOT/apps/web/.env.example" "$ROOT/apps/web/.env.local" "Web"
 
+log "Checking local env is not pointed at production"
+bash "$ROOT/scripts/guard-local-env.sh" || true
+
 wait_for_postgres 40
 
 install_node_pkg "$ROOT/apps/api" "apps/api"
@@ -224,8 +227,10 @@ sync_mobile
 log "Done ($MODE). Next steps:"
 echo "  API:  npm run api:dev     → http://localhost:3001/api/v1/health"
 echo "  Web:  npm run web:dev     → http://localhost:3000"
+echo "  Check: npm run dev:check  → verify local env (not production)"
 echo "  After every pull / teammate change: npm run sync"
+echo "  Local vs prod: docs/ENV-LOCAL.md"
 if [[ "$DO_SEED" -eq 1 ]]; then
-  echo "  Demo login: demo / demopass1"
+  echo "  Demo login: rifqi_tjahyono / 12041994"
 fi
 exit 0

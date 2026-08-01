@@ -3,11 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.251 |
+| **Date** | 2026-08-01 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.232 |
+| **Code tip aligned** | v1.5.251 |
+| **Docs stamp** | 1.5.251 |
 
 ---
 
@@ -19,14 +20,15 @@ Each seller operates under a single **Profile** (tenant). That profile owns prod
 
 The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
-- A priced product catalog with optional COGS
+- A priced product catalog with pack sizes (incl. 1/5/10/25 g·L) and optional COGS
 - Structured B2B customer pipeline and delivery address (optional buyer NPWP)
 - Multi-line pack-based orders with discounts, installments, **bill vs invoice collection**, **payment due date**, and stock control
 - **Printable PDF invoices** and **e-Faktur prep** (CSV/XML) using seller PKP/PPN settings — prep aids, not DJP filing
-- Warehouse restock history (create + **edit** on web) and inventory valuation
+- **Stock & sales** and **Order totals** insight tables (web) plus filter-aware **statistics**
+- Warehouse restock history (create + **edit** on web), **sold history** (order stock draws; Open order on web), and inventory valuation
 - Yearly revenue targets with attainment / on-plan / pace / coverage
-- Analytics (W/M/Q/Y) plus filter-aware **statistics breakdowns** on catalog domains
-- Dictionary, optional UI language, export/import, forgot/reset password
+- Analytics (W/M/Q/Y) plus Dictionary (~101 terms), optional UI language, export/import, forgot/reset password
+- Production auth via **Firebase**; optional **Redis/Upstash** for throttling + analytics cache
 
 ---
 
@@ -38,12 +40,13 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | 2 | **Safer order capture** | Totals, stock checks, amount due (incl. PPN when PKP) |
 | 3 | **Structured B2B CRM** | Pipeline fields + optional buyer NPWP |
 | 4 | **Invoice readiness** | PDF download + e-Faktur CSV/XML prep from profile fiscal identity |
-| 5 | **Warehouse visibility** | Restock create/edit (web), history, valuation |
-| 6 | **Revenue planning** | Manual/systematic targets with FeatureStage rates |
-| 7 | **Decision-ready analytics** | Multi-granularity charts + domain statistics breakdowns |
-| 8 | **Portable data** | JSON/CSV export/import + feature-scoped transfer |
-| 9 | **Shared language** | Dictionary + optional UI translate |
-| 10 | **Trustworthy identity** | Immutable username/email, verify, reset password, sealed location |
+| 5 | **Warehouse visibility** | Restock create/edit (web), sold history + Open order, valuation |
+| 6 | **Catalog & CRM insight** | Stock & sales (STR/ITR/SSR) + Order totals volume (web) |
+| 7 | **Revenue planning** | Manual/systematic targets with FeatureStage rates |
+| 8 | **Decision-ready analytics** | Multi-granularity charts + domain statistics breakdowns |
+| 9 | **Portable data** | JSON/CSV export/import + feature-scoped transfer |
+| 10 | **Shared language** | Dictionary (~101 terms) + optional UI translate |
+| 11 | **Trustworthy identity** | Firebase or legacy JWT; immutable username/email; verify; sealed location |
 
 ---
 
@@ -56,24 +59,27 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 - Export/import (own or allowlisted all-profiles; `entity=` feature scope); UI language
 
 ### 3.2 Products
-- CRUD; packs + optional COGS; human `productId`; Warehouse-managed stock
+- CRUD; gram/liter packs **1 / 5 / 10 / 25 / 50 / 100 / 250 / 500 / 1000 / custom** + optional COGS; human `productId`; Warehouse-managed stock
+- **Stock & sales** table (web, `GET /products/stock-sales`): Stocks (total with current/sold detail), Revenue, Discount (+%), Cost, Profit, STR, ITR, SSR, Orders, AOV, UPT above Statistics
 - Filter-aware summary + **statistics** breakdowns; feature transfer
 
 ### 3.3 Customers
 - CRUD + postal geo; human `customerId`; optional **buyer NPWP**
+- **Order totals** table (web, `GET /customers/order-totals`): Totals / Discount / Order total / Orders / Packs / Cancelled (+ rate) / AOV / UPT above Statistics
 - Summary + **statistics**; feature transfer
 
 ### 3.4 Orders
 - Multi-line packs; discount; payment terms; status lifecycle; installments
 - **Bill** (CREATED/SENT + billDate) vs **invoice collection** (CREATED/SENT/PARTIALLY_PAID/FULLY_PAID + invoiceDate)
-- Collection status derived vs **`amountDue`** (not raw `totalOrderValue` when PPN applies)
-- Optional `paymentDueDate` (esp. delayed payment); `fiscalInvoiceNumber`; `includePpn` override
-- **PDF:** `GET /orders/:id/invoice/pdf` (web download; auto invoice # if empty)
-- **Fiscal prep:** `GET /orders/:id/invoice/fiscal?format=csv|xml` (e-Faktur-oriented export; not DJP submission)
+- Collection status derived vs **`amountDue`** (read DTO from fiscal breakdown; not a DB column)
+- Optional `paymentDueDate` (UX-required for delayed payment)
+- API fields `fiscalInvoiceNumber` / `includePpn` (null → profile `isPkp`); **no dedicated order-form controls in v1** — PDF auto-assigns fiscal # when empty
+- **PDF:** `GET /orders/:id/invoice/pdf` (web); **Fiscal prep:** `…/fiscal?format=csv|xml`
 - Summary + **statistics**; feature transfer; pagination max 500_000
 
 ### 3.5 Warehouse
 - Restock create + **edit** (web `PATCH /warehouse/:id`); list/view; no delete in v1
+- **Sold history** ledger (`WarehouseSale`) dual-written on order stock draw/restore; read-only `GET /warehouse/sales`; web **Open order** → `/orders?view=<uuid>`; CLI backfill for pre-ledger orders
 - Summary + **statistics**; feature transfer
 
 ### 3.6 Revenue targets (web-first)
@@ -109,9 +115,9 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Client | Role | Notes |
 |--------|------|-------|
-| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal downloads; warehouse edit; invoicing settings; statistics |
-| **Mobile** | Field CRM/orders | Invoicing fields on Profile; Analytics/Dictionary; **Targets & PDF web-first** |
-| **API** | System of record | `/api/v1` incl. invoice PDF/fiscal, export/import, translate |
+| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal; warehouse edit; Stock & sales; Order totals; Sold history Open order; statistics; invoicing |
+| **Mobile** | Field CRM/orders | Profile invoicing; Sold history list/view; Analytics/Dictionary; **web-first:** Targets, PDF/fiscal, restock edit, Stock & sales, Order totals, statistics UI, Open order |
+| **API** | System of record | `/api/v1` incl. Firebase session/register, invoice PDF/fiscal, stock-sales, order-totals, warehouse sales, Redis-backed throttle/cache when configured |
 
 ---
 
@@ -132,10 +138,12 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 | Topic | Standard |
 |-------|----------|
 | API base | `/api/v1` |
-| Auth | JWT; register-availability; verify; forgot/reset |
+| Auth | JWT (legacy) and/or Firebase Auth; register-availability; verify; forgot/reset |
 | Invoice | `GET /orders/:id/invoice/pdf`, `…/fiscal?format=csv\|xml` |
+| Insights | `GET /products/stock-sales`, `GET /customers/order-totals`, `GET /warehouse/sales` |
 | Pagination | Default 20; max 500_000 |
-| Env | See CONTRIBUTING — location, reset, export, Resend, public URL |
+| Cache / limits | Optional Redis/Upstash for throttle + analytics cache |
+| Env | See CONTRIBUTING / ENV-LOCAL / DEPLOY — Firebase, Redis, location, reset, export, Resend |
 | Sandbox | `npm run setup` / `sync` — never overwrite `.env` |
 
 ---
@@ -144,10 +152,10 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Layer | Technology |
 |-------|------------|
-| API | NestJS 11, Prisma 6, PostgreSQL 16, JWT/bcrypt |
-| Web | Next.js 15, React 19, Tailwind 4, Recharts |
+| API | NestJS 11, Prisma 6, PostgreSQL 16, JWT/bcrypt, optional Firebase Admin + Redis/Upstash |
+| Web | Next.js 15, React 19, Tailwind 4, Recharts, Firebase client (prod) |
 | Mobile | Flutter (Provider, fl_chart, Manrope) |
-| Shared | `@umkm-hub/shared` |
+| Shared | `@umkm-hub/shared` (enums, pack sizes, helpers) |
 | Local | Docker Compose, `scripts/sync-env.sh` |
 
 ---

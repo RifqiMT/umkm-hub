@@ -40,6 +40,14 @@ export class CustomersController {
     return this.customersService.getSummary(user.profileId, query);
   }
 
+  @Get('order-totals')
+  findOrderTotals(
+    @CurrentUser() user: AuthUser,
+    @Query() query: CustomerQueryDto,
+  ) {
+    return this.customersService.findOrderTotals(user.profileId, query);
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser() user: AuthUser,

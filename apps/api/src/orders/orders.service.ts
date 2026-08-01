@@ -355,6 +355,72 @@ export class OrdersService {
     return deltas;
   }
 
+  /**
+   * Draw stock per order line and write WarehouseSale rows with true
+   * before → after snapshots (handles multi-line same product).
+   */
+  private async drawStockWithSales(
+    tx: Prisma.TransactionClient,
+    profileId: string,
+    order: { id: string; orderDate: Date; orderId: string },
+  ) {
+    const lines = await tx.orderLine.findMany({
+      where: { orderId: order.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+    if (lines.length === 0) return;
+
+    const runningStock = new Map<string, number>();
+    const note = order.orderId ? `Order ${order.orderId}` : `Order ${order.id}`;
+
+    for (const line of lines) {
+      let before = runningStock.get(line.productId);
+      if (before === undefined) {
+        const product = await tx.product.findUniqueOrThrow({
+          where: { id: line.productId },
+        });
+        before = decimalToNumber(product.stockQty);
+      }
+      const qty = decimalToNumber(line.productQty);
+      const after = before - qty;
+      if (after < -0.00005) {
+        throw new BadRequestException(
+          `Insufficient stock while recording sale for product ${line.productId}`,
+        );
+      }
+
+      await tx.warehouseSale.create({
+        data: {
+          profileId,
+          productId: line.productId,
+          orderId: order.id,
+          orderLineId: line.id,
+          qtySold: qty,
+          soldDate: order.orderDate,
+          notes: note,
+          unitSnapshot: line.unitSnapshot,
+          packSizeSnapshot: line.packSizeSnapshot,
+          packCount: line.packCount,
+          stockBefore: before,
+          stockAfter: Math.max(0, after),
+        },
+      });
+
+      await tx.product.update({
+        where: { id: line.productId },
+        data: { stockQty: Math.max(0, after) },
+      });
+      runningStock.set(line.productId, Math.max(0, after));
+    }
+  }
+
+  private async clearOrderSales(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ) {
+    await tx.warehouseSale.deleteMany({ where: { orderId } });
+  }
+
   private skuFor(orderDate: Date | string, id: string) {
     return buildOrderSku(orderDate, id);
   }
@@ -517,10 +583,11 @@ export class OrdersService {
       await replaceInstallments(tx, order.id, installments);
 
       if (status !== OrderStatus.CANCELLED) {
-        await this.applyStockDelta(
-          tx,
-          this.stockDeltasFromLines(resolved, -1),
-        );
+        await this.drawStockWithSales(tx, profileId, {
+          id: order.id,
+          orderDate,
+          orderId: sku,
+        });
       }
 
       const full = await tx.order.findFirst({
@@ -1155,17 +1222,12 @@ export class OrdersService {
         );
       }
 
-      // Stock: restore old draw if previously active; draw new if becoming/staying active.
+      // Stock + sold ledger: restore prior draw, rewrite lines, then re-draw.
       if (!wasCancelled) {
+        await this.clearOrderSales(tx, id);
         await this.applyStockDelta(
           tx,
           this.stockDeltasFromLines(oldLines, 1),
-        );
-      }
-      if (!willBeCancelled) {
-        await this.applyStockDelta(
-          tx,
-          this.stockDeltasFromLines(resolved, -1),
         );
       }
 
@@ -1206,6 +1268,14 @@ export class OrdersService {
 
       if (dto.installments) {
         await replaceInstallments(tx, id, dto.installments);
+      }
+
+      if (!willBeCancelled) {
+        await this.drawStockWithSales(tx, profileId, {
+          id,
+          orderDate,
+          orderId: sku,
+        });
       }
 
       const full = await tx.order.findFirst({

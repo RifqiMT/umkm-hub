@@ -42,6 +42,30 @@ export class CreateProductDto {
   @optionalPackPrice()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
+  price1?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price5?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price10?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price25?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
   price50?: number | null;
 
   @IsOptional()
@@ -79,6 +103,30 @@ export class CreateProductDto {
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   costPerUnit?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost1?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost5?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost10?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost25?: number | null;
 
   @IsOptional()
   @optionalPackPrice()
@@ -149,6 +197,30 @@ export class UpdateProductDto {
   @optionalPackPrice()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
+  price1?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price5?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price10?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  price25?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
   price50?: number | null;
 
   @IsOptional()
@@ -186,6 +258,30 @@ export class UpdateProductDto {
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   costPerUnit?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost1?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost5?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost10?: number | null;
+
+  @IsOptional()
+  @optionalPackPrice()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  cost25?: number | null;
 
   @IsOptional()
   @optionalPackPrice()

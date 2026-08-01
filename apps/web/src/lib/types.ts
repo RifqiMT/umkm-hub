@@ -5,6 +5,10 @@ export type Product = {
   unit: 'PCS' | 'GRAM' | 'LITER';
   stockQty: number;
   pricePerUnit: number;
+  price1: number | null;
+  price5: number | null;
+  price10: number | null;
+  price25: number | null;
   price50: number | null;
   price100: number | null;
   price250: number | null;
@@ -12,6 +16,10 @@ export type Product = {
   price1000: number | null;
   priceCustom: number | null;
   costPerUnit: number | null;
+  cost1: number | null;
+  cost5: number | null;
+  cost10: number | null;
+  cost25: number | null;
   cost50: number | null;
   cost100: number | null;
   cost250: number | null;
@@ -171,6 +179,33 @@ export type ProductStatistics = {
   details: WithWithoutStats;
 };
 
+/** Per-product stock vs sales metrics (catalog Order totals analogue). */
+export type ProductStockSales = {
+  id: string;
+  productId: string;
+  name: string;
+  unit: string;
+  /** currentStocks + soldStocks. */
+  totalStocks: number;
+  /** Current on-hand stock. */
+  currentStocks: number;
+  soldStocks: number;
+  /** Discount-allocated net revenue. */
+  revenue: number;
+  discount: number;
+  discountPercent: number | null;
+  /** sold × catalog costPerUnit; null when cost unset. */
+  cost: number | null;
+  /** revenue − cost; null when cost unset. */
+  profit: number | null;
+  sellThroughRate: number | null;
+  inventoryTurnover: number | null;
+  stockToSalesRatio: number | null;
+  orderCount: number;
+  avgOrderValue: number | null;
+  unitsPerTransaction: number | null;
+};
+
 export type WarehouseSummary = {
   earliestRestockDate: string | null;
   latestRestockDate: string | null;
@@ -247,6 +282,37 @@ export type CustomerStatistics = {
   country: CustomerStatBucket[];
 };
 
+/** Per-customer commercial totals from linked orders. */
+export type CustomerOrderTotals = {
+  id: string;
+  customerId: string;
+  name: string;
+  title: string;
+  companyName: string;
+  companyType: string;
+  email: string;
+  phone: string;
+  /** Σ Order.lineTotal (pre-discount, non-cancelled). */
+  totals: number;
+  /** Σ (lineTotal − totalOrderValue) for non-cancelled. */
+  discount: number;
+  /** Σ Order.totalOrderValue (post-discount, non-cancelled). */
+  orderTotal: number;
+  /** Non-cancelled linked order count. */
+  orderCount: number;
+  /** Σ OrderLine.packCount on non-cancelled orders. */
+  packsSold: number;
+  /** Cancelled linked order count. */
+  cancelledCount: number;
+  /** cancelled ÷ (active + cancelled) × 100. */
+  cancelRate: number | null;
+  /** orderTotal ÷ orderCount. */
+  avgOrderValue: number | null;
+  /** packsSold ÷ orderCount (Units Per Transaction). */
+  unitsPerTransaction: number | null;
+  discountPercent: number | null;
+};
+
 export type WarehouseRestock = {
   id: string;
   productId: string;
@@ -257,6 +323,25 @@ export type WarehouseRestock = {
   unit?: 'PCS' | 'GRAM' | 'LITER';
   stockBefore: number;
   stockAfter: number;
+  product?: Product;
+};
+
+export type WarehouseSale = {
+  id: string;
+  productId: string;
+  orderId: string;
+  orderLineId: string;
+  qtySold: number;
+  soldDate: string;
+  notes: string;
+  unitSnapshot?: 'PCS' | 'GRAM' | 'LITER';
+  unit?: 'PCS' | 'GRAM' | 'LITER';
+  packSizeSnapshot?: number | null;
+  packCount?: number | null;
+  stockBefore: number;
+  stockAfter: number;
+  orderRef?: string;
+  order?: { id: string; orderId: string; orderDate: string };
   product?: Product;
 };
 

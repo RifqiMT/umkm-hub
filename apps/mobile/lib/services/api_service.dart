@@ -284,6 +284,15 @@ class ApiService {
         .toList();
   }
 
+  Future<List<WarehouseSale>> listWarehouseSales() async {
+    final data =
+        await request('GET', '/warehouse/sales', query: {'limit': '100'});
+    final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
+    return items
+        .map((e) => WarehouseSale.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   String _filenameFromDisposition(String? header, String fallback) {
     if (header == null || header.isEmpty) return fallback;
     final utf = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false)

@@ -1,11 +1,11 @@
 import type { GlossaryEntry } from './types';
 
 /**
- * User-facing metric dictionary. Plain English only — keep tip voice.
+ * User-facing metric dictionary. Plain English only. Keep tip voice.
  * Eng/schema detail lives in docs/VARIABLES.md.
  */
 export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
-  // —— Orders / Dashboard fulfillment ——
+  // -- Orders / Dashboard fulfillment --
   {
     id: 'orders.revenue',
     label: 'Revenue',
@@ -37,7 +37,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'orders.cancellationRate',
     label: 'Cancel rate',
     description:
-      'Of all orders in the current filter or period, what share were cancelled. A higher rate means more orders never completed. This rate uses every matching order in the denominator—including cancelled ones—so you can see how often deals fall through.',
+      'Of all orders in the current filter or period, what share were cancelled. A higher rate means more orders never completed. This rate uses every matching order in the denominator, including cancelled ones, so you can see how often deals fall through.',
     formula: 'Cancelled orders ÷ all matching orders × 100',
     features: ['dashboard', 'orders'],
     aliases: [
@@ -94,7 +94,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'order.paidAmount',
     label: 'Paid amount',
     description:
-      'Cash already collected on one order. Every installment you record adds to this total. It never includes cancelled-order logic by itself—it simply sums the payment rows attached to that order.',
+      'Cash already collected on one order. Every installment you record adds to this total. It never includes cancelled-order logic by itself. It simply sums the payment rows attached to that order.',
     formula: 'Add up all installment amounts on the order',
     features: ['orders'],
     aliases: ['collected', 'Paid'],
@@ -112,13 +112,13 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'avgOrderValue',
     label: 'Average order value (AOV)',
     description:
-      'The typical ticket size for the period: average revenue per non-cancelled order. Rising AOV means customers are buying larger or higher-priced baskets; falling AOV means smaller tickets even if order count is high.',
-    formula: 'Revenue ÷ order count',
-    features: ['analytics', 'dashboard'],
+      'The typical ticket size: average revenue per non-cancelled order. On Analytics and Dashboard it uses period or timeline revenue. On Products Stock & sales it is that product’s allocated net revenue divided by orders that include the SKU. On Customers Order totals it is the customer’s post-discount order total divided by their active linked orders.',
+    formula: 'Revenue ÷ order count (scope depends on the page)',
+    features: ['analytics', 'dashboard', 'products', 'customers'],
     aliases: ['AOV', 'ticket size', 'avg order', 'Avg order'],
   },
 
-  // —— Products ——
+  // -- Products --
   {
     id: 'products.inventorySellValue',
     label: 'Inventory value',
@@ -192,7 +192,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'products.potentialProfit',
     label: 'Inventory profit',
     description:
-      'Estimated profit if you sold all current stock at catalog prices, using only SKUs that have a unit cost. Shown as Profit on the Warehouse stage. It is a planning figure for warehouse value—not booked accounting profit from past orders.',
+      'Estimated profit if you sold all current stock at catalog prices, using only SKUs that have a unit cost. Shown as Profit on the Warehouse stage. It is a planning figure for warehouse value, not booked accounting profit from past orders.',
     formula: 'Inventory sell value − inventory cost (only on SKUs with cost)',
     features: ['warehouse', 'products'],
     aliases: ['potential profit', 'Profit value'],
@@ -207,7 +207,126 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     aliases: ['stock cost', 'COGS on hand', 'Cost value'],
   },
 
-  // —— Customers ——
+  // -- Products Stock & sales table --
+  {
+    id: 'products.stockSales.totalStocks',
+    label: 'Stocks (total)',
+    description:
+      'On the Products Stock & sales table, the primary stock figure for one SKU: current on-hand units plus units already sold on non-cancelled orders. It approximates lifetime units that have been available for that product in this workspace. The secondary line under Stocks breaks out Current and Sold.',
+    formula: 'Current stocks + sold stocks',
+    features: ['products'],
+    aliases: [
+      'Total stocks',
+      'Stocks',
+      'total stocks',
+      'lifetime stocks',
+    ],
+  },
+  {
+    id: 'products.stockSales.currentStocks',
+    label: 'Current stocks',
+    description:
+      'On-hand warehouse quantity for one product right now (never shown below zero). Appears under Stocks on the Stock & sales table and is the ending inventory used in STR, ITR, and SSR.',
+    formula: 'On-hand stock quantity, floored at zero',
+    features: ['products', 'warehouse'],
+    aliases: ['Current', 'current stocks', 'on-hand stocks'],
+  },
+  {
+    id: 'products.stockSales.soldStocks',
+    label: 'Sold stocks',
+    description:
+      'How many stock units of this product have been sold on non-cancelled orders (sum of order line quantities). Cancelled orders do not count. Shown under Stocks on Stock & sales and used in STR, ITR, SSR, and cost.',
+    formula: 'Add product quantities from non-cancelled order lines for this SKU',
+    features: ['products'],
+    aliases: ['Sold', 'sold stocks', 'units sold', 'qty sold'],
+  },
+  {
+    id: 'products.stockSales.revenue',
+    label: 'Product revenue (Stock & sales)',
+    description:
+      'Net sales money attributed to this product across all non-cancelled orders, after sharing each order’s discount across its lines. Same allocation idea as Analytics product revenue, but Stock & sales covers the full catalog history in view rather than an Analytics timeline.',
+    formula:
+      'For each line: line total × (order total ÷ order subtotal); then add those shares',
+    features: ['products'],
+    aliases: ['Revenue', 'stock sales revenue', 'allocated revenue'],
+  },
+  {
+    id: 'products.stockSales.discount',
+    label: 'Product discount (Stock & sales)',
+    description:
+      'How much order-level discount was allocated to this product’s lines on non-cancelled orders. The Stock & sales Discount column also shows discount as a percent of gross (revenue + discount).',
+    formula:
+      'For each line: line total × (order subtotal − order total) ÷ order subtotal; then add. Discount % = discount ÷ (revenue + discount) × 100',
+    features: ['products'],
+    aliases: ['Discount', 'stock sales discount', 'allocated discount'],
+  },
+  {
+    id: 'products.stockSales.cost',
+    label: 'Product cost (Stock & sales)',
+    description:
+      'Estimated cost of goods sold for this product: units sold times the current catalog unit cost. If the product has no unit cost, Cost and Profit show as empty. This uses today’s catalog cost, not a historical cost snapshot.',
+    formula: 'Sold stocks × unit cost (blank when unit cost is unset)',
+    features: ['products'],
+    aliases: ['Cost', 'stock sales cost', 'COGS', 'product COGS'],
+  },
+  {
+    id: 'products.stockSales.profit',
+    label: 'Product profit (Stock & sales)',
+    description:
+      'Estimated profit for this product on Stock & sales: allocated net revenue minus estimated cost of units sold. Blank when unit cost is unset so profit is not invented.',
+    formula: 'Revenue − cost (blank when cost is unset)',
+    features: ['products'],
+    aliases: ['Profit', 'stock sales profit'],
+  },
+  {
+    id: 'products.stockSales.sellThroughRate',
+    label: 'Sell-through rate (STR)',
+    description:
+      'Of the units that have been available for this product (sold plus still on hand), what share has already sold. 100% means nothing is left on hand; 0% means you have stock but no sales yet. Blank when both sold and current are zero.',
+    formula: 'Sold stocks ÷ (sold stocks + current stocks) × 100',
+    features: ['products'],
+    aliases: ['STR', 'sell through', 'sell-through', 'Sell-through'],
+  },
+  {
+    id: 'products.stockSales.inventoryTurnover',
+    label: 'Inventory turnover (ITR)',
+    description:
+      'How many times this product’s average inventory has turned over through sales. Beginning inventory is approximated as current plus sold; ending is current on hand; average is halfway between them. Using average inventory keeps the ratio stable when on-hand stock is very low (unlike sold ÷ current alone).',
+    formula:
+      'Sold ÷ average inventory, where average = (beginning + ending) ÷ 2, beginning ≈ current + sold, ending = current',
+    features: ['products'],
+    aliases: [
+      'ITR',
+      'inventory turnover',
+      'turnover ratio',
+      'Inventory turnover ratio',
+    ],
+  },
+  {
+    id: 'products.stockSales.stockToSalesRatio',
+    label: 'Stock-to-sales ratio (SSR)',
+    description:
+      'How many units you still hold for each unit already sold. A value above 1 means more stock on hand than has been sold; below 1 means sales have outpaced remaining stock. Blank when nothing has been sold yet.',
+    formula: 'Current stocks ÷ sold stocks',
+    features: ['products'],
+    aliases: [
+      'SSR',
+      'stock to sales',
+      'stock-to-sales',
+      'Stock-to-sales',
+    ],
+  },
+  {
+    id: 'products.stockSales.orderCount',
+    label: 'Product orders',
+    description:
+      'How many distinct non-cancelled orders include this product. Used as the denominator for product AOV and UPT on Stock & sales.',
+    formula: 'Count distinct non-cancelled orders that contain this SKU',
+    features: ['products'],
+    aliases: ['Orders', 'product order count', 'SKU orders'],
+  },
+
+  // -- Customers --
   {
     id: 'customers.customerCount',
     label: 'Customers',
@@ -248,7 +367,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'customers.closingRate',
     label: 'Closing rate',
     description:
-      'Share of contacts whose relationship stage is Closing first order—people you believe are near signing or placing a first purchase. A higher rate means more of the CRM is in late-stage conversation.',
+      'Share of contacts whose relationship stage is Closing first order: people you believe are near signing or placing a first purchase. A higher rate means more of the CRM is in late-stage conversation.',
     formula: 'Closing-first-order contacts ÷ customers in view × 100',
     features: ['customers', 'dashboard'],
     aliases: ['Closing', 'pipeline close'],
@@ -257,7 +376,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'customers.promiseRate',
     label: 'Promise rate',
     description:
-      'Share of contacts that have at least one commercial promise flagged—such as annual bonus, on-time delivery, or packaging box. Promises help you remember commitments you made during negotiation.',
+      'Share of contacts that have at least one commercial promise flagged, such as annual bonus, on-time delivery, or packaging box. Promises help you remember commitments you made during negotiation.',
     formula: 'Contacts with any promise ÷ customers in view × 100',
     features: ['customers'],
     aliases: ['Promises'],
@@ -272,7 +391,73 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     aliases: ['Contact', 'reachable', 'reachability'],
   },
 
-  // —— Targets ——
+  // -- Customers Order totals table --
+  {
+    id: 'customers.orderTotals.totals',
+    label: 'Customer totals (pre-discount)',
+    description:
+      'On the Customers Order totals table, the sum of linked order subtotals before order-level discounts. Only non-cancelled orders that name this customer are included. Compare with Order total to see how much discount was given.',
+    formula: 'Add line totals (subtotals) of linked non-cancelled orders',
+    features: ['customers'],
+    aliases: ['Totals', 'customer totals', 'pre-discount totals'],
+  },
+  {
+    id: 'customers.orderTotals.discount',
+    label: 'Customer discount',
+    description:
+      'Absolute discount money taken off this customer’s linked non-cancelled orders (subtotal minus final total on each order). The column may also show discount as a percent of Totals.',
+    formula:
+      'Add (order subtotal − order total) for linked non-cancelled orders; Discount % = discount ÷ totals × 100',
+    features: ['customers'],
+    aliases: ['Discount', 'customer discount amount'],
+  },
+  {
+    id: 'customers.orderTotals.orderTotal',
+    label: 'Customer order total',
+    description:
+      'Post-discount commercial value of this customer’s linked non-cancelled orders. This is the money side of Order totals and the numerator for customer AOV.',
+    formula: 'Add final order totals of linked non-cancelled orders',
+    features: ['customers'],
+    aliases: ['Order total', 'customer order total', 'linked revenue'],
+  },
+  {
+    id: 'customers.orderTotals.orderCount',
+    label: 'Customer orders',
+    description:
+      'How many linked non-cancelled orders this customer has. Cancelled linked orders are counted separately under Cancelled. Used for customer AOV and UPT.',
+    formula: 'Count linked orders that are not cancelled',
+    features: ['customers'],
+    aliases: ['Orders', 'active orders', 'customer order count'],
+  },
+  {
+    id: 'customers.orderTotals.packsSold',
+    label: 'Customer packs',
+    description:
+      'Total packs sold to this customer on linked non-cancelled orders. Used with Orders to compute customer units per transaction (UPT).',
+    formula: 'Add pack counts from lines on linked non-cancelled orders',
+    features: ['customers'],
+    aliases: ['Packs', 'customer packs sold'],
+  },
+  {
+    id: 'customers.orderTotals.cancelledCount',
+    label: 'Customer cancelled orders',
+    description:
+      'How many linked orders for this customer were cancelled. Shown with cancel rate on Order totals so you can see deal fall-through beside active volume.',
+    formula: 'Count linked orders with status Cancelled',
+    features: ['customers'],
+    aliases: ['Cancelled', 'cancelled count', 'customer cancellations'],
+  },
+  {
+    id: 'customers.orderTotals.cancelRate',
+    label: 'Customer cancel rate',
+    description:
+      'Of this customer’s linked orders (active plus cancelled), what share were cancelled. Blank when the customer has no linked orders at all.',
+    formula: 'Cancelled ÷ (active + cancelled) × 100',
+    features: ['customers'],
+    aliases: ['Cancel rate', 'customer cancellation rate'],
+  },
+
+  // -- Targets --
   {
     id: 'targets.annualTarget',
     label: 'Annual target',
@@ -357,7 +542,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'targets.weeklyTarget',
     label: 'Weekly target',
     description:
-      'In Analytics Weekly view, each ISO week gets a fair slice of your monthly targets. Days that fall in January use January’s daily share; days that spill into February use February’s—so weeks that cross months are split correctly instead of dumping a whole month into one week.',
+      'In Analytics Weekly view, each ISO week gets a fair slice of your monthly targets. Days that fall in January use January’s daily share; days that spill into February use February’s, so weeks that cross months are split correctly instead of dumping a whole month into one week.',
     formula:
       'For each month the week touches: month target × (days of that week in the month ÷ days in that month), then add those pieces',
     features: ['analytics', 'targets'],
@@ -367,7 +552,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'targets.nextYearProjected',
     label: 'Next year',
     description:
-      'Projected revenue for the following calendar year from your annual plan’s year-over-year growth setting when annual mode is Systematic. This is a planning projection from the Targets page—not actual sales booked next year.',
+      'Projected revenue for the following calendar year from your annual plan’s year-over-year growth setting when annual mode is Systematic. This is a planning projection from the Targets page, not actual sales booked next year.',
     formula: 'This year’s annual base × (1 + annual growth percent / 100)',
     features: ['targets'],
     aliases: ['next year projected', 'projected annual', 'Next year'],
@@ -382,21 +567,21 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     aliases: ['YoY growth %', 'year growth', 'annual YoY'],
   },
 
-  // —— Analytics ——
+  // -- Analytics --
   {
     id: 'analytics.avgBasketSize',
     label: 'Units per transaction (UPT)',
     description:
-      'How large a typical order is in packs: average packs sold per non-cancelled order. Higher UPT means customers buy more units per visit; lower UPT means smaller baskets even if revenue is high from price.',
-    formula: 'Total packs sold ÷ order count',
-    features: ['analytics'],
-    aliases: ['UPT', 'basket size', 'avg basket'],
+      'How large a typical order is in packs: average packs sold per non-cancelled order. On Analytics it uses the selected timeline. On Products Stock & sales it is packs of that SKU divided by orders that include it. On Customers Order totals it is the customer’s packs divided by their active linked orders.',
+    formula: 'Total packs sold ÷ order count (scope depends on the page)',
+    features: ['analytics', 'products', 'customers'],
+    aliases: ['UPT', 'basket size', 'avg basket', 'Units Per Transaction'],
   },
   {
     id: 'analytics.avgPurchaseFrequency',
     label: 'Average purchase frequency (APF)',
     description:
-      'How often your linked customers buy, on average. Only orders tied to a customer count. It is linked orders divided by distinct customers—so repeat buyers raise the number, while many one-time buyers keep it closer to one.',
+      'How often your linked customers buy, on average. Only orders tied to a customer count. It is linked orders divided by distinct customers, so repeat buyers raise the number, while many one-time buyers keep it closer to one.',
     formula: 'Linked orders ÷ distinct customers with linked orders',
     features: ['analytics'],
     aliases: ['APF', 'purchase frequency', 'order frequency'],
@@ -452,7 +637,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.productSaleCount',
     label: 'Products sold',
     description:
-      'How many distinct catalog products had any sales in the Analytics scope. Idle SKUs are left out. This is the denominator for Average product revenue—not the same as Packs sold.',
+      'How many distinct catalog products had any sales in the Analytics scope. Idle SKUs are left out. This is the denominator for Average product revenue, not the same as Packs sold.',
     formula: 'Count distinct products that appear on non-cancelled order lines',
     features: ['analytics'],
     aliases: ['SKUs sold', 'products with sales', 'productSaleCount'],
@@ -491,7 +676,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.statusShares',
     label: 'Order status mix',
     description:
-      'Percent of orders in each fulfillment status for the selected period—Pending, Confirmed, Shipped, Delivered, and Cancelled. Unlike most Analytics charts, cancelled orders are included so cancel share is visible in the mix.',
+      'Percent of orders in each fulfillment status for the selected period: Pending, Confirmed, Shipped, Delivered, and Cancelled. Unlike most Analytics charts, cancelled orders are included so cancel share is visible in the mix.',
     formula: '(Orders in status ÷ all orders in period including cancelled) × 100',
     features: ['analytics'],
     aliases: ['status distribution', 'status mix'],
@@ -510,7 +695,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.avgFirstPaymentDays',
     label: 'First payment lead time',
     description:
-      'Average days from order date until the first installment is recorded. This shows how quickly cash starts coming in after a sale—important for credit and delayed-payment customers.',
+      'Average days from order date until the first installment is recorded. This shows how quickly cash starts coming in after a sale, which is important for credit and delayed-payment customers.',
     formula: 'Average of (first installment date − order date) in days',
     features: ['analytics'],
     aliases: ['first payment days', 'First pay', 'First payment duration'],
@@ -561,9 +746,9 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.productDiscountPercent',
     label: 'Product discount %',
     description:
-      'For a product’s (or customer’s) sales in the period, how large discounts were relative to the pre-discount total. Shown as “% off” in Analytics tables. Helps you see which SKUs are sold with heavy discounting versus near list price.',
+      'For a product’s (or customer’s) sales, how large discounts were relative to the pre-discount total. Shown as “% off” in Analytics tables and under Discount on Products Stock & sales and Customers Order totals.',
     formula: 'Discount given ÷ (net revenue + discount) × 100',
-    features: ['analytics'],
+    features: ['analytics', 'products', 'customers'],
     aliases: ['line discount', '% off', 'Discount %'],
   },
   {
@@ -588,40 +773,40 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.productRevenue',
     label: 'Product revenue',
     description:
-      'Net sales attributed to one product (or one linked customer) in the Analytics scope after order discounts are allocated across lines. Cancelled orders are left out.',
+      'Net sales attributed to one product (or one linked customer) after order discounts are allocated across lines. Cancelled orders are left out. Analytics follows the selected timeline; Products Stock & sales uses the same allocation over catalog history in view (see also Product revenue (Stock & sales)).',
     formula: 'Sum of discount-allocated line revenue for that product or customer',
-    features: ['analytics'],
-    aliases: ['customer revenue', 'line revenue'],
+    features: ['analytics', 'products'],
+    aliases: ['customer revenue', 'line revenue', 'Revenue'],
   },
   {
     id: 'analytics.productDiscount',
     label: 'Product discount',
     description:
-      'Order-level discount money allocated to one product’s (or customer’s) lines in the Analytics scope. Comparing this with product revenue shows how much list price was given away.',
+      'Order-level discount money allocated to one product’s (or customer’s) lines. Comparing this with product revenue shows how much list price was given away. Appears in Analytics and on Products Stock & sales.',
     formula: 'Pre-discount line total − allocated net revenue',
-    features: ['analytics'],
-    aliases: ['allocated discount', 'Discount amount'],
+    features: ['analytics', 'products'],
+    aliases: ['allocated discount', 'Discount amount', 'Discount'],
   },
   {
     id: 'analytics.productCost',
     label: 'Product cost',
     description:
-      'Estimated cost of goods for one product’s (or customer’s) sales in the Analytics scope, using catalog unit costs × quantities sold. Blank when cost is not set on the catalog.',
+      'Estimated cost of goods for one product’s (or customer’s) sales, using catalog unit costs × quantities sold. Blank when cost is not set on the catalog. Analytics scopes by timeline; Stock & sales uses lifetime sold quantity for the SKU.',
     formula: 'Unit cost × quantity sold (null if unit cost is missing)',
-    features: ['analytics'],
+    features: ['analytics', 'products'],
     aliases: ['estimated COGS', 'Cost'],
   },
   {
     id: 'analytics.productProfit',
     label: 'Product profit',
     description:
-      'Estimated profit for one product’s (or customer’s) sales in the Analytics scope: net revenue minus estimated cost. Pair with Product margin % for the pre-discount share view.',
+      'Estimated profit for one product’s (or customer’s) sales: net revenue minus estimated cost. Appears in Analytics product performance and Products Stock & sales. Pair with Product margin % for the pre-discount share view in Analytics.',
     formula: 'Product revenue − product cost',
-    features: ['analytics'],
-    aliases: ['line profit', 'customer profit'],
+    features: ['analytics', 'products'],
+    aliases: ['line profit', 'product profit', 'Profit'],
   },
 
-  // —— Core money / stock concepts ——
+  // -- Core money / stock concepts --
   {
     id: 'product.pricePerUnit',
     label: 'Unit sell price',
@@ -716,52 +901,81 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'warehouse.stockBeforeAfter',
     label: 'Stock before / after',
     description:
-      'Snapshots of on-hand quantity immediately before and after a restock. After always equals before plus quantity added. Shown on restock history and restock forms.',
-    formula: 'stockAfter = stockBefore + qtyAdded',
+      'Snapshots of on-hand quantity immediately before and after a restock or sale. For restocks, after equals before plus quantity added. For sold history, after equals before minus quantity sold (floored at zero).',
+    formula:
+      'Restock: stockAfter = stockBefore + qtyAdded; Sale: stockAfter = max(0, stockBefore − qtySold)',
     features: ['warehouse'],
     aliases: ['Before', 'After', 'Stock after', 'On hand now'],
+  },
+  {
+    id: 'warehouse.qtySold',
+    label: 'Sold quantity',
+    description:
+      'How many units were drawn from stock by an order line. Sold history is written automatically when an active order saves; editing or cancelling the order rewrites or clears those rows. Warehouse shows sold history read-only.',
+    formula: 'Equals the order line quantity at stock draw time',
+    features: ['warehouse', 'orders'],
+    aliases: ['qty sold', 'units sold', 'Sold', 'Sold history'],
+  },
+  {
+    id: 'warehouse.soldDate',
+    label: 'Sold date',
+    description:
+      'The business date recorded on a Warehouse sold-history row. It is copied from the order’s order date when stock is drawn so the ledger lines up with when the sale was booked.',
+    formula: 'Copied from the related order’s order date',
+    features: ['warehouse'],
+    aliases: ['sale date', 'Sold date'],
+  },
+  {
+    id: 'warehouse.orderRef',
+    label: 'Order reference',
+    description:
+      'The human order code shown on a sold-history row so you can jump back to the order that drew the stock. Open order uses the underlying order id.',
+    formula: 'Taken from the related order’s order id / display code',
+    features: ['warehouse', 'orders'],
+    aliases: ['order ref', 'Order', 'Open order'],
   },
   {
     id: 'order.totalOrderValue',
     label: 'Order total',
     description:
-      'The final amount the customer owes for one order after line amounts and order-level discounts are applied. Installments and paid % are measured against this total.',
+      'The final amount the customer owes for one order after line amounts and order-level discounts are applied. Installments and paid % are measured against this total. Customers Order totals sums these for linked non-cancelled orders.',
     formula:
       'If percent discount: line total × (1 − discount%/100); if amount discount: line total − discount amount',
-    features: ['orders'],
+    features: ['orders', 'customers'],
     aliases: ['total order value', 'invoice total', 'Total', 'Order total'],
   },
   {
     id: 'order.lineTotal',
     label: 'Line total (pre-discount)',
     description:
-      'Sum of the order’s line amounts before the order-level discount is applied. On the order sheet this is labeled Subtotal. Comparing this with the final order total shows how large the discount was on that order. Each line itself is pack price × pack count.',
+      'Sum of the order’s line amounts before the order-level discount is applied. On the order sheet this is labeled Subtotal. Comparing this with the final order total shows how large the discount was on that order. Each line itself is pack price × pack count. Customers Order totals sums these as Totals.',
     formula:
       'Order: sum of every line’s (pack price × pack count). Line: pack price × pack count',
-    features: ['orders'],
+    features: ['orders', 'customers'],
     aliases: [
       'Subtotal',
       'gross lines',
       'pre-discount',
       'line total',
       'Line total',
+      'Totals',
     ],
   },
   {
     id: 'order.discountValue',
     label: 'Order discount',
     description:
-      'The order-level discount you apply on top of line subtotals—either a percent of the pre-discount total or a fixed amount. It reduces Subtotal down to Order total.',
+      'The order-level discount you apply on top of line subtotals, either a percent of the pre-discount total or a fixed amount. It reduces Subtotal down to Order total. Customers Order totals sums these absolute offs per linked customer.',
     formula:
       'Percent: line total × discount%/100; Amount: the discount amount you enter (capped at line total)',
-    features: ['orders'],
+    features: ['orders', 'customers'],
     aliases: ['Discount amount', 'Discount %', 'discount value'],
   },
   {
     id: 'dashboard.period',
     label: 'Dashboard period',
     description:
-      'The time window that scopes order metrics on the Dashboard—such as Today, This week, or This month—using each order’s order date. Product and customer summary bands stay workspace-wide so catalog and CRM health remain visible beside period sales.',
+      'The time window that scopes order metrics on the Dashboard, such as Today, This week, or This month, using each order’s order date. Product and customer summary bands stay workspace-wide so catalog and CRM health remain visible beside period sales.',
     formula: 'Include orders whose order date falls in the selected from/to window',
     features: ['dashboard'],
     aliases: ['period filter', 'date preset'],
@@ -770,7 +984,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.timeline',
     label: 'Analytics timeline',
     description:
-      'Which calendar years Analytics should cover. You can pick one year, several years, or All timelines. Weekly, Monthly, and Quarterly charts then show every ISO week, calendar month, or calendar quarter inside that selection—not only a short trailing window.',
+      'Which calendar years Analytics should cover. You can pick one year, several years, or All timelines. Weekly, Monthly, and Quarterly charts then show every ISO week, calendar month, or calendar quarter inside that selection, not only a short trailing window.',
     formula: 'One year, several years, or the full app year range (2020–2035)',
     features: ['analytics'],
     aliases: ['years filter', 'all timelines'],

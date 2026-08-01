@@ -5,8 +5,10 @@ import {
   OrderLine,
   Customer,
   WarehouseRestock,
+  WarehouseSale,
   OrderInstallment,
 } from '@prisma/client';
+import { GRAM_LITER_PACK_SIZES } from '../../products/pack-sizes';
 import {
   calculatePotentialCost,
   calculatePotentialProfit,
@@ -41,18 +43,14 @@ export function serializeProduct(product: Product) {
     ...product,
     stockQty,
     pricePerUnit,
-    price50: optionalDecimal(product.price50),
-    price100: optionalDecimal(product.price100),
-    price250: optionalDecimal(product.price250),
-    price500: optionalDecimal(product.price500),
-    price1000: optionalDecimal(product.price1000),
+    ...Object.fromEntries(
+      GRAM_LITER_PACK_SIZES.flatMap((size) => [
+        [`price${size}`, optionalDecimal(product[`price${size}` as keyof Product] as Decimal | null | undefined)],
+        [`cost${size}`, optionalDecimal(product[`cost${size}` as keyof Product] as Decimal | null | undefined)],
+      ]),
+    ),
     priceCustom: optionalDecimal(product.priceCustom),
     costPerUnit,
-    cost50: optionalDecimal(product.cost50),
-    cost100: optionalDecimal(product.cost100),
-    cost250: optionalDecimal(product.cost250),
-    cost500: optionalDecimal(product.cost500),
-    cost1000: optionalDecimal(product.cost1000),
     costCustom: optionalDecimal(product.costCustom),
     customSize: optionalDecimal(product.customSize),
     potentialRevenue: calculatePotentialRevenue(stockQty, pricePerUnit),
@@ -185,6 +183,41 @@ export function serializeWarehouseRestock(
     stockAfter: decimalToNumber(restock.stockAfter),
     unit: restock.unitSnapshot,
     product: restock.product ? serializeProduct(restock.product) : undefined,
+  };
+}
+
+export function serializeWarehouseSale(
+  sale: WarehouseSale & {
+    product?: Product | null;
+    order?: { id: string; orderId: string; orderDate: Date } | null;
+  },
+) {
+  return {
+    id: sale.id,
+    profileId: sale.profileId,
+    productId: sale.productId,
+    orderId: sale.orderId,
+    orderLineId: sale.orderLineId,
+    qtySold: decimalToNumber(sale.qtySold),
+    soldDate: dateOnlyIso(sale.soldDate)!,
+    notes: sale.notes,
+    unitSnapshot: sale.unitSnapshot,
+    unit: sale.unitSnapshot,
+    packSizeSnapshot: decimalToNumber(sale.packSizeSnapshot),
+    packCount: decimalToNumber(sale.packCount),
+    stockBefore: decimalToNumber(sale.stockBefore),
+    stockAfter: decimalToNumber(sale.stockAfter),
+    createdAt: sale.createdAt,
+    updatedAt: sale.updatedAt,
+    orderRef: sale.order?.orderId || sale.orderId,
+    order: sale.order
+      ? {
+          id: sale.order.id,
+          orderId: sale.order.orderId,
+          orderDate: dateOnlyIso(sale.order.orderDate)!,
+        }
+      : undefined,
+    product: sale.product ? serializeProduct(sale.product) : undefined,
   };
 }
 

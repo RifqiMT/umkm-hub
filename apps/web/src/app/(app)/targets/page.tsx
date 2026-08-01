@@ -346,7 +346,7 @@ export default function TargetsPage() {
             : 'Set a yearly revenue plan and track attainment by month.'
         }
         action={
-          <div className="umkm-stage-actions umkm-targets-stage-actions">
+          <div className="umkm-targets-stage-actions">
             <FeatureDataTransferToggle
               open={dataSyncOpen}
               controlsId="feature-sync-targets"

@@ -21,6 +21,7 @@ import {
   FeatureDataTransferToggle,
 } from '@/components/FeatureDataTransfer';
 import { CustomerStatisticsSection } from '@/app/(app)/customers/CustomerStatisticsSection';
+import { CustomerOrderTotalsSection } from '@/app/(app)/customers/CustomerOrderTotalsSection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { FeatureStage } from '@/components/FeatureStage';
@@ -534,7 +535,7 @@ export default function CustomersPage() {
               : 'Required: name, title, company name, company type.'
           }
           action={
-            <div className="umkm-stage-actions">
+            <>
               <FeatureDataTransferToggle
                 open={dataSyncOpen}
                 controlsId="feature-sync-customers"
@@ -543,7 +544,7 @@ export default function CustomersPage() {
               <button type="button" className="umkm-btn" onClick={startCreate}>
                 Add customer
               </button>
-            </div>
+            </>
           }
           stats={[
             {
@@ -632,7 +633,7 @@ export default function CustomersPage() {
       ) : (
         <PageHeader
           title="Customers"
-          description="Required: name, title, company name, company type. Other CRM fields are optional."
+          description="Manage buyer contacts and company details. Name, title, company name, and company type are required."
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
@@ -790,12 +791,12 @@ export default function CustomersPage() {
           className="umkm-form-panel"
           eyebrow="Customer"
           title={editingId ? 'Modify customer' : 'Create customer'}
-          description="Required: name, title, company name, and company type."
-        >
+          description="Enter name, title, company name, and company type. Other CRM fields are optional."
+      >
           <form onSubmit={onSubmit}>
             <FormSection
               title="Identity"
-              description="Required contact and company details."
+              description="Contact and company details needed to save this customer."
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
@@ -861,7 +862,7 @@ export default function CustomersPage() {
                     value={form.npwp}
                     onChange={(e) => setForm({ ...form, npwp: e.target.value })}
                     maxLength={20}
-                    placeholder="Optional — for B2B invoices & e-Faktur"
+                    placeholder="Optional, for B2B invoices and e-Faktur"
                     inputMode="numeric"
                     autoComplete="off"
                   />
@@ -875,7 +876,7 @@ export default function CustomersPage() {
 
             <FormSection
               title="Address"
-              description="Enter postal code and country first — address, city, and province fill in automatically when found."
+              description="Enter postal code and country first. Address, city, and province fill in automatically when a match is found."
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">
@@ -910,7 +911,7 @@ export default function CustomersPage() {
                   ) : null}
                   {postalLookupStatus === 'miss' ? (
                     <p className="umkm-sub" role="status">
-                      No match for that postal code yet — fill address fields
+                      No match for that postal code yet. Fill address fields
                       manually.
                     </p>
                   ) : null}
@@ -1513,6 +1514,16 @@ export default function CustomersPage() {
           </>
         )}
       </ContentSection>
+
+      <CustomerOrderTotalsSection
+        filters={{
+          search: debouncedSearch,
+          status: statusFilters,
+          companyType: companyTypeFilters,
+          relationshipLevel: relationshipLevelFilters,
+          partnershipStage: partnershipStageFilters,
+        }}
+      />
 
       <ContentSection eyebrow="Statistics" quiet>
         <CustomerStatisticsSection

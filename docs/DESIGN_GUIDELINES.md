@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Sources of truth** | `apps/web/src/app/globals.css`; `apps/mobile/lib/theme/umkm_theme.dart` |
 
 ---
@@ -156,8 +156,8 @@ Rules:
 | `.umkm-dashboard*` / `.umkm-dash-domain*` / `.umkm-dash-period*` | Dashboard: stage period panel, workspace board, featured + lean domains, text rail |
 | `DashboardPeriodFilter` | Grouped period panel (near / months / longer); scopes order metrics |
 | `AppTooltip` / `.umkm-tip*` | Portal metric tooltips: label, exact value, plain-English description, optional formula detail; hover / focus / touch; edge-aware placement |
-| Dictionary / `.umkm-glossary-*` | Searchable metric glossary (80 terms, all with formulas): always-visible feature chips + search, grouped or filtered card grid, expand in-place for meaning + formula; mobile catalog synced via `npm run glossary:sync` |
-| Profile / `.umkm-profile*` | Account workspace: identity strip, personal details (name/email verify/location + detect), summary snapshot stats, credentials with password strength, shortcut links, tips, danger zone; responsive two-column → stacked |
+| Dictionary / `.umkm-glossary-*` | Searchable metric glossary (**101** terms, all with formulas): always-visible feature chips + search, grouped or filtered card grid, expand in-place for meaning + formula; mobile catalog synced via `npm run glossary:sync` |
+| Profile / `.umkm-profile*` | Account workspace: identity strip, **Personal details** live preview (monogram + email status + location summary), grouped Name / Email / Location blocks, verify callout, network detect; summary snapshot, credentials with password strength, shortcuts, tips, danger zone; responsive two-column → stacked |
 | `/verify-email` | Public auth-style page that consumes email verification tokens |
 | `/register` | Split auth layout: teal brand panel + create-profile form; live unified availability (both fields); conflict alert + Sign in CTA; password strength |
 | `.umkm-chart-tooltip*` | Analytics chart hover cards (series rows + optional caption) |
@@ -181,14 +181,14 @@ Rules:
 | `ChoiceChipGroup` | Enum chips |
 | `PageIntro` | Subtitle under AppBar |
 | Dictionary (`GlossaryScreen`) | Horizontal feature chips with counts, expandable term tiles (preview → meaning/formula) |
-| Profile (`ProfileScreen`) | Identity header, workspace snapshot tiles, credentials + confirm password, Analytics/Dictionary shortcuts, tips, danger zone |
+| Profile (`ProfileScreen`) | Identity header, personal-details preview card + grouped Name/Email/Location, workspace snapshot tiles, credentials + confirm password, Analytics/Dictionary shortcuts, tips, danger zone |
 
 ### 5.3 Tables & catalogs
 
 - Desktop: `.umkm-table-wrap.umkm-catalog-table-wrap` + sticky blurred header, light zebra, hover, `.is-num`, `.is-actions`
 - Sort: `.umkm-th-sort` with `data-dir="asc|desc"` (CSS caret)
 - ≤900px: hide table; show `.umkm-catalog-cards` (identity + divider metrics)
-- **Feature stage** (list home for Dashboard / Orders / Products / Warehouse / Customers / Targets / Analytics): single section with title, CTA, volume stats, and health rate meters (`.umkm-stage`); stacks ≤1100px / ≤600px
+- **Feature stage** (list home for Dashboard / Orders / Products / Warehouse / Customers / Targets / Analytics): single section with title, CTA, volume stats, and health rate meters (`.umkm-stage`); ≤1100px volume is hero + 2-col secondaries; ≤600px order is title → metrics → actions (no empty flex gap)
 - **Dashboard:** Period panel on the stage; stage stats are period-scoped (Revenue / Orders / Packs + order health). Workspace board: featured Fulfillment + Catalog / Pipeline (hero, two side stats, one spotlight). Slim rail for Warehouse / Targets / Analytics. Stacks ≤1100px / ≤700px
 - Orders date filters: compact from/to dropdowns (`.umkm-date-range-filter`) for order / shipment / invoice dates; multi-select for status and payment (Cash / Consignment / Delayed)
 - List filters: multi-select dropdown (`.umkm-multi-filter`) for status/unit — empty selection = all; checkbox panel; not chip strips
@@ -198,6 +198,9 @@ Rules:
 - Warehouse inventory also filters **In stock** / **Out of stock** (same rules as Warehouse stage rates)
 - **Products:** name + unit chip + soft SKU; details in View only
 - **Orders list:** date + soft order ID; shipment in View Timeline only; pack = `size × count` + quiet qty/@ price; **Paid** column = installments ÷ **amountDue** (meter + %); PDF / fiscal prep actions on order detail
+- **Stock & sales** (Products, web): dense insight table above Statistics — Stocks primary with current/sold subline; money + STR/ITR/SSR; same catalog filter context
+- **Order totals** (Customers, web): commercial + volume columns above Statistics; same Directory filters
+- **Sold history** (Warehouse): ledger table above Statistics; **Open order** navigates to Orders view sheet (`?view=`)
 - **Domain statistics:** filter-aware mix sections below feature stage (Products / Customers / Orders / Warehouse) — complementary to summary rate meters, not a second dashboard
 - **Profile invoicing:** dedicated fiscal identity block (NPWP, PKP, PPN %, taxInclusive, invoice prefix) — calm form density, same tokens as personal details
 - Money: `formatMoney` (million / billion / …); chart axes: `formatCompactAxis` (Mn/Bn); Analytics packs/orders/qty: `formatCompactQty` (same magnitude words as money; under 1 million stays full digits)

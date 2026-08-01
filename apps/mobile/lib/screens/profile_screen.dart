@@ -82,8 +82,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     countryCtrl.addListener(() {
-      if (_hydrating || locationSource != 'IP') return;
-      setState(() => locationSource = 'MANUAL');
+      if (_hydrating) return;
+      setState(() {
+        if (locationSource == 'IP') locationSource = 'MANUAL';
+        message = null;
+      });
     });
     _load();
   }
@@ -926,7 +929,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SectionLabel(
           'Identity',
-          subtitle: 'Optional contact details — not used for sign-in.',
+          subtitle:
+              'Optional contact and location for this workspace. These details are separate from sign-in.',
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -934,24 +938,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Personal details',
             description: locationNeedsReentry
                 ? 'Your previous location used an older hash format and must be entered again.'
-                : 'Detect from your network or type city/country. Stored encrypted; IP is hashed.',
+                : 'Name, email status, and workspace location in one place.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: firstNameCtrl,
-                  enabled: !booting,
-                  decoration: const InputDecoration(labelText: 'First name'),
-                  onChanged: (_) => setState(() => message = null),
+                _PersonalPreviewCard(
+                  firstName: firstNameCtrl.text,
+                  lastName: lastNameCtrl.text,
+                  email: emailCtrl.text,
+                  city: clearLocation ? '' : cityCtrl.text,
+                  country: clearLocation ? '' : countryCtrl.text,
+                  emailVerified: emailVerified,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: lastNameCtrl,
-                  enabled: !booting,
-                  decoration: const InputDecoration(labelText: 'Last name'),
-                  onChanged: (_) => setState(() => message = null),
+                const SizedBox(height: 14),
+                Text(
+                  'Name',
+                  style: UmkmType.body(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: UmkmColors.ink,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                Text(
+                  'How you appear on this profile page.',
+                  style: UmkmType.body(size: 12.5, color: UmkmColors.muted),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: firstNameCtrl,
+                        enabled: !booting,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'First name',
+                          hintText: 'Optional',
+                        ),
+                        onChanged: (_) => setState(() => message = null),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: lastNameCtrl,
+                        enabled: !booting,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'Last name',
+                          hintText: 'Optional',
+                        ),
+                        onChanged: (_) => setState(() => message = null),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Email',
+                  style: UmkmType.body(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: UmkmColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Linked to your username at registration and cannot be changed.',
+                  style: UmkmType.body(size: 12.5, color: UmkmColors.muted),
+                ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: emailCtrl,
                   readOnly: true,
@@ -959,27 +1017,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'Email address',
-                    helperText:
-                        'Permanently linked to this username — email cannot be changed.',
-                    helperMaxLines: 3,
                   ),
                 ),
-                if (!emailVerified && (loadedEmail ?? '').isNotEmpty) ...[
+                if ((loadedEmail ?? '').isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed:
-                        (booting || sendingVerify) ? null : _sendVerification,
-                    icon: sendingVerify
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.mark_email_unread_outlined, size: 18),
-                    label: Text(
-                      sendingVerify
-                          ? 'Sending…'
-                          : 'Send verification email',
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: StatusChip(
+                      label: emailVerified ? 'Verified' : 'Unverified',
+                      tone: emailVerified
+                          ? StatusTone.brand
+                          : StatusTone.neutral,
+                    ),
+                  ),
+                ],
+                if (!emailVerified && (loadedEmail ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                    decoration: BoxDecoration(
+                      color: UmkmColors.brandSoft.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: UmkmColors.brand.withOpacity(0.28),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Verify your email',
+                          style: UmkmType.body(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: UmkmColors.brandDeep,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Confirm this address to finish account verification.',
+                          style: UmkmType.body(
+                            size: 12.5,
+                            color: UmkmColors.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          onPressed: (booting || sendingVerify)
+                              ? null
+                              : _sendVerification,
+                          icon: sendingVerify
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.mark_email_unread_outlined,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            sendingVerify
+                                ? 'Sending…'
+                                : 'Send verification email',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -993,7 +1099,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                Text(
+                  'Location',
+                  style: UmkmType.body(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: UmkmColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  locationNeedsReentry
+                      ? 'Enter city and country again to restore location.'
+                      : 'Detect from your network or type manually. Stored encrypted; IP is hashed.',
+                  style: UmkmType.body(size: 12.5, color: UmkmColors.muted),
+                ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: cityCtrl,
                   enabled: !booting,
@@ -1010,42 +1132,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
                 CountryField(controller: countryCtrl),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed:
-                      (booting || detecting) ? null : _detectLocation,
-                  icon: detecting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location_outlined, size: 18),
-                  label: Text(
-                    detecting ? 'Detecting…' : 'Detect from network',
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed:
+                          (booting || detecting) ? null : _detectLocation,
+                      icon: detecting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location_outlined, size: 18),
+                      label: Text(
+                        detecting ? 'Detecting…' : 'Detect from network',
+                      ),
+                    ),
+                    if (locationSet ||
+                        cityCtrl.text.isNotEmpty ||
+                        countryCtrl.text.isNotEmpty ||
+                        clearLocation)
+                      TextButton(
+                        onPressed: booting
+                            ? null
+                            : () {
+                                _hydrating = true;
+                                setState(() {
+                                  cityCtrl.clear();
+                                  countryCtrl.clear();
+                                  locationSource = null;
+                                  clearLocation = true;
+                                  message = null;
+                                });
+                                _hydrating = false;
+                              },
+                        child: const Text('Clear'),
+                      ),
+                    if (locationSource == 'IP' && locationSet)
+                      const StatusChip(
+                        label: 'From network',
+                        tone: StatusTone.brand,
+                      )
+                    else if (locationSource == 'MANUAL' && locationSet)
+                      const StatusChip(
+                        label: 'Manual',
+                        tone: StatusTone.neutral,
+                      ),
+                  ],
                 ),
-                if (locationSet ||
-                    cityCtrl.text.isNotEmpty ||
-                    countryCtrl.text.isNotEmpty ||
-                    clearLocation) ...[
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: booting
-                        ? null
-                        : () {
-                            _hydrating = true;
-                            setState(() {
-                              cityCtrl.clear();
-                              countryCtrl.clear();
-                              locationSource = null;
-                              clearLocation = true;
-                              message = null;
-                            });
-                            _hydrating = false;
-                          },
-                    child: const Text('Clear location'),
-                  ),
-                ],
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed:
@@ -1505,6 +1642,134 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _PersonalPreviewCard extends StatelessWidget {
+  const _PersonalPreviewCard({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.city,
+    required this.country,
+    required this.emailVerified,
+  });
+
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String city;
+  final String country;
+  final bool emailVerified;
+
+  String get _displayName {
+    final parts = [firstName.trim(), lastName.trim()]
+        .where((part) => part.isNotEmpty);
+    return parts.join(' ');
+  }
+
+  String get _monogram {
+    String takeTwo(String value) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return '';
+      return trimmed.substring(0, trimmed.length >= 2 ? 2 : 1).toUpperCase();
+    }
+
+    final first = firstName.trim();
+    final last = lastName.trim();
+    if (first.isNotEmpty && last.isNotEmpty) {
+      return '${first[0]}${last[0]}'.toUpperCase();
+    }
+    if (first.isNotEmpty) return takeTwo(first);
+    if (last.isNotEmpty) return takeTwo(last);
+    final local = email.split('@').first.trim();
+    if (local.isEmpty) return 'UH';
+    return takeTwo(local);
+  }
+
+  String get _location {
+    return [city.trim(), country.trim()]
+        .where((part) => part.isNotEmpty)
+        .join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _displayName;
+    final location = _location;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            UmkmColors.brandSoft.withOpacity(0.55),
+            UmkmColors.surface,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: UmkmColors.brand.withOpacity(0.22)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [UmkmColors.brand, UmkmColors.brandDeep],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              _monogram,
+              style: UmkmType.body(
+                size: 15,
+                weight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? 'Add your name' : name,
+                  style: UmkmType.body(
+                    size: 15,
+                    weight: FontWeight.w700,
+                    color: name.isEmpty ? UmkmColors.muted : UmkmColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (email.trim().isNotEmpty) email.trim(),
+                    if (location.isNotEmpty) location,
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: UmkmType.body(size: 12.5, color: UmkmColors.muted),
+                ),
+              ],
+            ),
+          ),
+          if (email.trim().isNotEmpty) ...[
+            const SizedBox(width: 8),
+            StatusChip(
+              label: emailVerified ? 'Verified' : 'Unverified',
+              tone: emailVerified ? StatusTone.brand : StatusTone.neutral,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -19,6 +19,10 @@ export type InventoryValueAgg = {
 
 const PACK_READY_SQL = Prisma.sql`(
   p.unit = 'PCS'::"ProductUnit"
+  OR p."price1" IS NOT NULL
+  OR p."price5" IS NOT NULL
+  OR p."price10" IS NOT NULL
+  OR p."price25" IS NOT NULL
   OR p.price50 IS NOT NULL
   OR p.price100 IS NOT NULL
   OR p.price250 IS NOT NULL

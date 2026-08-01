@@ -11,6 +11,7 @@ import {
   PageHeader,
 } from '@/components/PageHeader';
 import { WarehouseStatisticsSection } from '@/app/(app)/warehouse/WarehouseStatisticsSection';
+import { WarehouseSoldHistorySection } from '@/app/(app)/warehouse/WarehouseSoldHistorySection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
@@ -44,7 +45,6 @@ import type {
   WarehouseSummary,
 } from '@/lib/types';
 import {
-  formatDateLabel,
   formatMoney,
   formatMoneyParts,
   formatCompactQty,
@@ -666,40 +666,14 @@ export default function WarehousePage() {
           title="Warehouse"
           loading={listLoading && !stageSummary}
           subtitle={
-            stageSummary ? (
-              <>
-                {!filtersActive &&
-                (stageSummary.earliestRestockDate ||
-                  stageSummary.latestRestockDate) ? (
-                  <>
-                    <time
-                      dateTime={stageSummary.earliestRestockDate ?? undefined}
-                    >
-                      {formatDateLabel(stageSummary.earliestRestockDate)}
-                    </time>
-                    <span className="umkm-stage-dash" aria-hidden>
-                      –
-                    </span>
-                    <time
-                      dateTime={stageSummary.latestRestockDate ?? undefined}
-                    >
-                      {formatDateLabel(stageSummary.latestRestockDate)}
-                    </time>
-                    <span className="umkm-stage-sep" aria-hidden>
-                      ·
-                    </span>
-                  </>
-                ) : null}
-                {filtersActive
-                  ? 'Filtered inventory value and stock health'
-                  : 'Inventory value and restock health'}
-              </>
-            ) : (
-              'Track stock by pack, inventory value, and restocks.'
-            )
+            stageSummary
+              ? filtersActive
+                ? 'Filtered inventory value and stock health'
+                : 'Inventory value and restock health'
+              : 'Track stock by pack, inventory value, and restocks.'
           }
           action={
-            <div className="umkm-stage-actions">
+            <>
               <FeatureDataTransferToggle
                 open={dataSyncOpen}
                 controlsId="feature-sync-warehouse"
@@ -713,7 +687,7 @@ export default function WarehousePage() {
               >
                 Add restock
               </button>
-            </div>
+            </>
           }
           stats={[
             {
@@ -823,7 +797,7 @@ export default function WarehousePage() {
       ) : (
         <PageHeader
           title="Warehouse"
-          description="Track stock by pack, inventory value, and restocks."
+          description="Track on-hand stock by pack, inventory value, restocks, and sales drawn by orders."
         />
       )}
       {error ? <div className="umkm-error">{error}</div> : null}
@@ -1496,8 +1470,8 @@ export default function WarehousePage() {
           <ContentSection
             eyebrow="Inventory"
             title="Stock on hand"
-            description="Stock, active pack, and inventory value from catalog rates."
-          >
+            description="On-hand stock, active pack, and inventory value from catalog rates."
+      >
             <div className="umkm-catalog-toolbar">
               <div className="umkm-field umkm-catalog-search">
                 <FieldLabel htmlFor="wh-search">Search</FieldLabel>
@@ -1865,7 +1839,7 @@ export default function WarehousePage() {
           <ContentSection
             eyebrow="History"
             title="Restock history"
-            description="Stock additions with before → after quantities and pack equivalents."
+            description="Review stock additions, including quantity before and after each restock and pack equivalents."
           >
             {histLoading && history.length === 0 ? null : histMeta.total === 0 ? (
               <EmptyState
@@ -2134,6 +2108,8 @@ export default function WarehousePage() {
               </>
             )}
           </ContentSection>
+
+          <WarehouseSoldHistorySection search={debouncedSearch} />
 
           <ContentSection eyebrow="Statistics" quiet>
             <WarehouseStatisticsSection

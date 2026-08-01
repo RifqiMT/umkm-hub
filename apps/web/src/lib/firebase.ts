@@ -135,5 +135,3 @@ export async function firebaseConfirmReset(oobCode: string, newPassword: string)
   await verifyPasswordResetCode(getFirebaseAuth(), oobCode);
   await confirmPasswordReset(getFirebaseAuth(), oobCode, newPassword);
 }
-
-export { type User as FirebaseUser };

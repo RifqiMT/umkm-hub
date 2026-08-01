@@ -10,6 +10,7 @@ import { PaginationQueryDto } from '../common/dto/pagination.dto';
 import {
   decimalToNumber,
   serializeWarehouseRestock,
+  serializeWarehouseSale,
 } from '../common/utils/serialize';
 import {
   CreateWarehouseRestockDto,
@@ -40,6 +41,10 @@ const warehouseProductSelect = {
   unit: true,
   stockQty: true,
   pricePerUnit: true,
+  price1: true,
+  price5: true,
+  price10: true,
+  price25: true,
   price50: true,
   price100: true,
   price250: true,
@@ -47,6 +52,10 @@ const warehouseProductSelect = {
   price1000: true,
   priceCustom: true,
   costPerUnit: true,
+  cost1: true,
+  cost5: true,
+  cost10: true,
+  cost25: true,
   cost50: true,
   cost100: true,
   cost250: true,
@@ -284,6 +293,57 @@ export class WarehouseService {
       ),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  async findAllSales(profileId: string, query: PaginationQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where: Prisma.WarehouseSaleWhereInput = { profileId };
+    const search = query.search?.trim();
+    if (search) {
+      where.OR = [
+        { product: { name: { contains: search, mode: 'insensitive' } } },
+        { notes: { contains: search, mode: 'insensitive' } },
+        { order: { orderId: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.warehouseSale.count({ where }),
+      this.prisma.warehouseSale.findMany({
+        where,
+        include: {
+          product: { select: warehouseProductSelect },
+          order: {
+            select: { id: true, orderId: true, orderDate: true },
+          },
+        },
+        orderBy: [{ soldDate: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items: items.map((row) => serializeWarehouseSale(row)),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  async findOneSale(profileId: string, id: string) {
+    const sale = await this.prisma.warehouseSale.findFirst({
+      where: { id, profileId },
+      include: {
+        product: { select: warehouseProductSelect },
+        order: {
+          select: { id: true, orderId: true, orderDate: true },
+        },
+      },
+    });
+    if (!sale) {
+      throw new NotFoundException('Sold history entry not found');
+    }
+    return serializeWarehouseSale(sale);
   }
 
   async findOne(profileId: string, id: string) {

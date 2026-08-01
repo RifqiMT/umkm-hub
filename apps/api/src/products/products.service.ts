@@ -29,6 +29,15 @@ import {
   inventoryValueSelectSql,
   mapInventoryValueRow,
 } from './product-inventory-sql';
+import {
+  productStockSalesCountSql,
+  productStockSalesPageSql,
+} from './product-stock-sales-sql';
+import {
+  serializeProductStockSales,
+  type ProductStockSalesSeed,
+} from './product-stock-sales';
+import { nullFixedPackFields, type PackCostFields, type PackPriceFields } from './pack-sizes';
 import { Decimal } from '@prisma/client/runtime/library';
 
 /** Lean list row — product notes load on GET /products/:id. */
@@ -40,6 +49,10 @@ const productListSelect = {
   unit: true,
   stockQty: true,
   pricePerUnit: true,
+  price1: true,
+  price5: true,
+  price10: true,
+  price25: true,
   price50: true,
   price100: true,
   price250: true,
@@ -47,6 +60,10 @@ const productListSelect = {
   price1000: true,
   priceCustom: true,
   costPerUnit: true,
+  cost1: true,
+  cost5: true,
+  cost10: true,
+  cost25: true,
   cost50: true,
   cost100: true,
   cost250: true,
@@ -60,17 +77,8 @@ const productListSelect = {
 
 function nullPacks() {
   return {
-    price50: null,
-    price100: null,
-    price250: null,
-    price500: null,
-    price1000: null,
+    ...nullFixedPackFields(),
     priceCustom: null,
-    cost50: null,
-    cost100: null,
-    cost250: null,
-    cost500: null,
-    cost1000: null,
     costCustom: null,
     customSize: null,
   };
@@ -87,21 +95,38 @@ function optionalExisting(
 
 type PricingSnapshot = {
   pricePerUnit: number;
-  price50: number | null;
-  price100: number | null;
-  price250: number | null;
-  price500: number | null;
-  price1000: number | null;
-  priceCustom: number | null;
   costPerUnit: number | null;
-  cost50: number | null;
-  cost100: number | null;
-  cost250: number | null;
-  cost500: number | null;
-  cost1000: number | null;
-  costCustom: number | null;
-  customSize: number | null;
-};
+} & PackPriceFields &
+  PackCostFields;
+
+function pickPackPricing(input: PackPriceFields & PackCostFields & { pricePerUnit?: number | null; costPerUnit?: number | null; unit: ProductUnit }) {
+  return {
+    unit: input.unit,
+    pricePerUnit: input.pricePerUnit,
+    price1: input.price1 ?? null,
+    price5: input.price5 ?? null,
+    price10: input.price10 ?? null,
+    price25: input.price25 ?? null,
+    price50: input.price50 ?? null,
+    price100: input.price100 ?? null,
+    price250: input.price250 ?? null,
+    price500: input.price500 ?? null,
+    price1000: input.price1000 ?? null,
+    priceCustom: input.priceCustom ?? null,
+    customSize: input.customSize ?? null,
+    costPerUnit: input.costPerUnit,
+    cost1: input.cost1 ?? null,
+    cost5: input.cost5 ?? null,
+    cost10: input.cost10 ?? null,
+    cost25: input.cost25 ?? null,
+    cost50: input.cost50 ?? null,
+    cost100: input.cost100 ?? null,
+    cost250: input.cost250 ?? null,
+    cost500: input.cost500 ?? null,
+    cost1000: input.cost1000 ?? null,
+    costCustom: input.costCustom ?? null,
+  };
+}
 
 @Injectable()
 export class ProductsService {
@@ -109,43 +134,16 @@ export class ProductsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private buildPricingData(input: {
-    unit: ProductUnit;
-    pricePerUnit?: number | null;
-    price50?: number | null;
-    price100?: number | null;
-    price250?: number | null;
-    price500?: number | null;
-    price1000?: number | null;
-    priceCustom?: number | null;
-    costPerUnit?: number | null;
-    cost50?: number | null;
-    cost100?: number | null;
-    cost250?: number | null;
-    cost500?: number | null;
-    cost1000?: number | null;
-    costCustom?: number | null;
-    customSize?: number | null;
-  }): PricingSnapshot {
+  private buildPricingData(
+    input: {
+      unit: ProductUnit;
+      pricePerUnit?: number | null;
+      costPerUnit?: number | null;
+    } & PackPriceFields &
+      PackCostFields,
+  ): PricingSnapshot {
     try {
-      const packInput = {
-        unit: input.unit,
-        pricePerUnit: input.pricePerUnit,
-        price50: input.price50,
-        price100: input.price100,
-        price250: input.price250,
-        price500: input.price500,
-        price1000: input.price1000,
-        priceCustom: input.priceCustom,
-        customSize: input.customSize,
-        costPerUnit: input.costPerUnit,
-        cost50: input.cost50,
-        cost100: input.cost100,
-        cost250: input.cost250,
-        cost500: input.cost500,
-        cost1000: input.cost1000,
-        costCustom: input.costCustom,
-      };
+      const packInput = pickPackPricing(input);
       const pricePerUnit = resolvePricePerUnit(packInput);
       const costPerUnit = resolveCostPerUnit(packInput);
 
@@ -157,22 +155,16 @@ export class ProductsService {
         };
       }
 
+      const {
+        unit: _unit,
+        pricePerUnit: _resolvedPrice,
+        costPerUnit: _resolvedCost,
+        ...packFields
+      } = packInput;
       return {
         pricePerUnit,
         costPerUnit,
-        price50: input.price50 ?? null,
-        price100: input.price100 ?? null,
-        price250: input.price250 ?? null,
-        price500: input.price500 ?? null,
-        price1000: input.price1000 ?? null,
-        priceCustom: input.priceCustom ?? null,
-        cost50: input.cost50 ?? null,
-        cost100: input.cost100 ?? null,
-        cost250: input.cost250 ?? null,
-        cost500: input.cost500 ?? null,
-        cost1000: input.cost1000 ?? null,
-        costCustom: input.costCustom ?? null,
-        customSize: input.customSize ?? null,
+        ...packFields,
       };
     } catch (err) {
       throw new BadRequestException(
@@ -184,6 +176,10 @@ export class ProductsService {
   private pricingInputFromProduct(product: {
     unit: ProductUnit;
     pricePerUnit: Decimal | number;
+    price1: Decimal | number | null;
+    price5: Decimal | number | null;
+    price10: Decimal | number | null;
+    price25: Decimal | number | null;
     price50: Decimal | number | null;
     price100: Decimal | number | null;
     price250: Decimal | number | null;
@@ -191,6 +187,10 @@ export class ProductsService {
     price1000: Decimal | number | null;
     priceCustom: Decimal | number | null;
     costPerUnit: Decimal | number | null;
+    cost1: Decimal | number | null;
+    cost5: Decimal | number | null;
+    cost10: Decimal | number | null;
+    cost25: Decimal | number | null;
     cost50: Decimal | number | null;
     cost100: Decimal | number | null;
     cost250: Decimal | number | null;
@@ -199,39 +199,33 @@ export class ProductsService {
     costCustom: Decimal | number | null;
     customSize: Decimal | number | null;
   }): PricingSnapshot & { unit: ProductUnit } {
+    const dec = (value: Decimal | number | null) =>
+      value == null ? null : decimalToNumber(value);
     return {
       unit: product.unit,
       pricePerUnit: decimalToNumber(product.pricePerUnit),
-      price50: product.price50 == null ? null : decimalToNumber(product.price50),
-      price100:
-        product.price100 == null ? null : decimalToNumber(product.price100),
-      price250:
-        product.price250 == null ? null : decimalToNumber(product.price250),
-      price500:
-        product.price500 == null ? null : decimalToNumber(product.price500),
-      price1000:
-        product.price1000 == null ? null : decimalToNumber(product.price1000),
-      priceCustom:
-        product.priceCustom == null
-          ? null
-          : decimalToNumber(product.priceCustom),
-      costPerUnit:
-        product.costPerUnit == null
-          ? null
-          : decimalToNumber(product.costPerUnit),
-      cost50: product.cost50 == null ? null : decimalToNumber(product.cost50),
-      cost100:
-        product.cost100 == null ? null : decimalToNumber(product.cost100),
-      cost250:
-        product.cost250 == null ? null : decimalToNumber(product.cost250),
-      cost500:
-        product.cost500 == null ? null : decimalToNumber(product.cost500),
-      cost1000:
-        product.cost1000 == null ? null : decimalToNumber(product.cost1000),
-      costCustom:
-        product.costCustom == null ? null : decimalToNumber(product.costCustom),
-      customSize:
-        product.customSize == null ? null : decimalToNumber(product.customSize),
+      price1: dec(product.price1),
+      price5: dec(product.price5),
+      price10: dec(product.price10),
+      price25: dec(product.price25),
+      price50: dec(product.price50),
+      price100: dec(product.price100),
+      price250: dec(product.price250),
+      price500: dec(product.price500),
+      price1000: dec(product.price1000),
+      priceCustom: dec(product.priceCustom),
+      costPerUnit: dec(product.costPerUnit),
+      cost1: dec(product.cost1),
+      cost5: dec(product.cost5),
+      cost10: dec(product.cost10),
+      cost25: dec(product.cost25),
+      cost50: dec(product.cost50),
+      cost100: dec(product.cost100),
+      cost250: dec(product.cost250),
+      cost500: dec(product.cost500),
+      cost1000: dec(product.cost1000),
+      costCustom: dec(product.costCustom),
+      customSize: dec(product.customSize),
     };
   }
 
@@ -409,6 +403,45 @@ export class ProductsService {
                 count: row._count,
               })),
             }),
+    };
+  }
+
+  /**
+   * Per-product stock vs sales metrics
+   * (stocks, revenue / discount / cost / profit, STR / ITR / SSR / AOV / UPT).
+   * Filter-aware with catalog Directory; includes SKUs with zero sales.
+   */
+  async findStockSales(profileId: string, query: ProductQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter = {
+      profileId,
+      search: query.search,
+      unit: query.unit,
+      stockStatus: query.stockStatus,
+      costSet: query.costSet,
+      packReady: query.packReady,
+    };
+    const offset = (page - 1) * limit;
+
+    const [countRows, pageRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ total: number }>>(
+        productStockSalesCountSql(filter),
+      ),
+      this.prisma.$queryRaw<ProductStockSalesSeed[]>(
+        productStockSalesPageSql(filter, limit, offset),
+      ),
+    ]);
+
+    const total = Number(countRows[0]?.total ?? 0);
+    return {
+      items: pageRows.map((row) => serializeProductStockSales(row)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     };
   }
 

@@ -323,6 +323,10 @@ export class ExportService {
         unit: p.unit,
         stockQty: decimalToPlain(p.stockQty),
         pricePerUnit: decimalToPlain(p.pricePerUnit),
+        price1: decimalToPlain(p.price1),
+        price5: decimalToPlain(p.price5),
+        price10: decimalToPlain(p.price10),
+        price25: decimalToPlain(p.price25),
         price50: decimalToPlain(p.price50),
         price100: decimalToPlain(p.price100),
         price250: decimalToPlain(p.price250),
@@ -330,6 +334,10 @@ export class ExportService {
         price1000: decimalToPlain(p.price1000),
         priceCustom: decimalToPlain(p.priceCustom),
         costPerUnit: decimalToPlain(p.costPerUnit),
+        cost1: decimalToPlain(p.cost1),
+        cost5: decimalToPlain(p.cost5),
+        cost10: decimalToPlain(p.cost10),
+        cost25: decimalToPlain(p.cost25),
         cost50: decimalToPlain(p.cost50),
         cost100: decimalToPlain(p.cost100),
         cost250: decimalToPlain(p.cost250),
@@ -471,6 +479,10 @@ export class ExportService {
       unit: string;
       stockQty: Decimal;
       pricePerUnit: Decimal | null;
+      price1: Decimal | null;
+      price5: Decimal | null;
+      price10: Decimal | null;
+      price25: Decimal | null;
       price50: Decimal | null;
       price100: Decimal | null;
       price250: Decimal | null;
@@ -478,6 +490,10 @@ export class ExportService {
       price1000: Decimal | null;
       priceCustom: Decimal | null;
       costPerUnit: Decimal | null;
+      cost1: Decimal | null;
+      cost5: Decimal | null;
+      cost10: Decimal | null;
+      cost25: Decimal | null;
       cost50: Decimal | null;
       cost100: Decimal | null;
       cost250: Decimal | null;
@@ -498,6 +514,10 @@ export class ExportService {
       unit: p.unit,
       stockQty: decimalToPlain(p.stockQty),
       pricePerUnit: decimalToPlain(p.pricePerUnit),
+      price1: decimalToPlain(p.price1),
+      price5: decimalToPlain(p.price5),
+      price10: decimalToPlain(p.price10),
+      price25: decimalToPlain(p.price25),
       price50: decimalToPlain(p.price50),
       price100: decimalToPlain(p.price100),
       price250: decimalToPlain(p.price250),
@@ -505,6 +525,10 @@ export class ExportService {
       price1000: decimalToPlain(p.price1000),
       priceCustom: decimalToPlain(p.priceCustom),
       costPerUnit: decimalToPlain(p.costPerUnit),
+      cost1: decimalToPlain(p.cost1),
+      cost5: decimalToPlain(p.cost5),
+      cost10: decimalToPlain(p.cost10),
+      cost25: decimalToPlain(p.cost25),
       cost50: decimalToPlain(p.cost50),
       cost100: decimalToPlain(p.cost100),
       cost250: decimalToPlain(p.cost250),

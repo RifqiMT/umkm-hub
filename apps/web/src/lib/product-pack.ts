@@ -1,6 +1,13 @@
 import type { Product } from '@/lib/types';
 import { formatCompactQty } from '@/lib/format-money';
 
+export const GRAM_LITER_PACK_SIZES = [
+  1, 5, 10, 25, 50, 100, 250, 500, 1000,
+] as const;
+
+export type GramLiterPackSize = (typeof GRAM_LITER_PACK_SIZES)[number];
+export type PackSizeOption = `${GramLiterPackSize}` | 'CUSTOM';
+
 export type ActivePack = {
   sizeLabel: string;
   size: number;
@@ -45,17 +52,12 @@ export function getActivePack(product: Product): ActivePack | null {
     };
   }
 
-  const fixed: Array<[number, number | null, number | null]> = [
-    [50, product.price50, product.cost50],
-    [100, product.price100, product.cost100],
-    [250, product.price250, product.cost250],
-    [500, product.price500, product.cost500],
-    [1000, product.price1000, product.cost1000],
-  ];
-  for (const [size, price, cost] of fixed) {
+  for (const size of GRAM_LITER_PACK_SIZES) {
+    const price = product[`price${size}` as keyof Product] as number | null;
+    const cost = product[`cost${size}` as keyof Product] as number | null;
     if (price != null) {
       return {
-        sizeLabel: `${size} ${short}`,
+        sizeLabel: `${formatPackSize(size)} ${short}`,
         size,
         price,
         cost,
@@ -132,4 +134,35 @@ export function formatPacksOnHand(
     return `${formatCompactQty(count)} pcs`;
   }
   return `${formatCompactQty(count)} packs (${pack.sizeLabel})`;
+}
+
+export function emptyPackFormFields(): Record<
+  `price${GramLiterPackSize}` | `cost${GramLiterPackSize}`,
+  number | ''
+> {
+  return Object.fromEntries(
+    GRAM_LITER_PACK_SIZES.flatMap((size) => [
+      [`price${size}`, ''],
+      [`cost${size}`, ''],
+    ]),
+  ) as Record<
+    `price${GramLiterPackSize}` | `cost${GramLiterPackSize}`,
+    number | ''
+  >;
+}
+
+export function clearedPackFormFields(): Record<
+  | `price${GramLiterPackSize}`
+  | `cost${GramLiterPackSize}`
+  | 'priceCustom'
+  | 'costCustom'
+  | 'customSize',
+  number | ''
+> {
+  return {
+    ...emptyPackFormFields(),
+    priceCustom: '',
+    costCustom: '',
+    customSize: '',
+  };
 }

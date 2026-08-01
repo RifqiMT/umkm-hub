@@ -46,6 +46,22 @@ export class WarehouseController {
     return this.warehouseService.getSummary(user.profileId, query);
   }
 
+  @Get('sales')
+  findAllSales(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.warehouseService.findAllSales(user.profileId, query);
+  }
+
+  @Get('sales/:id')
+  findOneSale(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.warehouseService.findOneSale(user.profileId, id);
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser() user: AuthUser,

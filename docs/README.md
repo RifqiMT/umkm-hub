@@ -1,6 +1,6 @@
 # UMKM Hub Documentation Index
 
-Canonical product and engineering documentation for **UMKM Hub** (v1.5.233). Start with the product overview, then use the matrix below by role.
+Canonical product and engineering documentation for **UMKM Hub** (v1.5.250). Start with the product overview, then use the matrix below by role.
 
 ---
 
@@ -22,6 +22,8 @@ Canonical product and engineering documentation for **UMKM Hub** (v1.5.233). Sta
 | Historical development log | [CHANGELOG.md](./CHANGELOG.md) |
 | Approved implementation plan | [PLAN.md](./PLAN.md) |
 | Repo bootstrap | [../README.md](../README.md) |
+| Local development env | [ENV-LOCAL.md](./ENV-LOCAL.md) |
+| Production deployment env | [ENV-UMKM-HUB-PRODUCTION.md](./ENV-UMKM-HUB-PRODUCTION.md) |
 
 ---
 
@@ -50,9 +52,9 @@ Canonical product and engineering documentation for **UMKM Hub** (v1.5.233). Sta
 | Topic | Covered in |
 |-------|------------|
 | Product overview & benefits | PRODUCT |
-| Features & core logics (incl. amountDue, PDF/fiscal prep, statistics) | PRODUCT, PRD, VARIABLES |
+| Features & core logics (amountDue, PDF/fiscal, Stock & sales, Order totals, Sold history, statistics) | PRODUCT, PRD, VARIABLES |
 | Business guidelines | PRODUCT, GUARDRAILS |
-| Tech guidelines & stack | PRODUCT, ARCHITECTURE, README |
+| Tech guidelines & stack (Firebase, Redis/Upstash) | PRODUCT, ARCHITECTURE, README |
 | Personas & user stories | PERSONAS, USER_STORIES |
 | Variables + formulas + charts | VARIABLES |
 | Product & OKR metrics | METRICS |
@@ -61,6 +63,6 @@ Canonical product and engineering documentation for **UMKM Hub** (v1.5.233). Sta
 | Guardrails (tech + business + perf) | GUARDRAILS |
 | Changelog | CHANGELOG |
 
-**Code tip aligned:** v1.5.232 · **Docs stamp:** 1.5.233
+**Code tip aligned:** v1.5.251 · **Docs stamp:** 1.5.251
 
 When shipping a user-visible change: update **CHANGELOG**, bump version stamps on PRODUCT/PRD if needed, and adjust VARIABLES / TRACEABILITY / DESIGN when formulas, FR coverage, or UI tokens change.

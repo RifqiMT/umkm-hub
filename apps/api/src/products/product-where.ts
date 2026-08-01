@@ -1,5 +1,17 @@
 import { ProductUnit, Prisma } from '@prisma/client';
 import type { ProductQueryDto } from './dto/product-query.dto';
+import { GRAM_LITER_PACK_SIZES } from './pack-sizes';
+
+const PACK_READY_PRICE_OR: Prisma.ProductWhereInput[] = [
+  { unit: ProductUnit.PCS },
+  ...GRAM_LITER_PACK_SIZES.map(
+    (size) =>
+      ({
+        [`price${size}`]: { not: null },
+      }) as Prisma.ProductWhereInput,
+  ),
+  { priceCustom: { not: null } },
+];
 
 export type ProductListFilter = Pick<
   ProductQueryDto,
@@ -34,15 +46,7 @@ export function buildProductWhere(
   const packReady = query.packReady ?? [];
   if (packReady.length === 1) {
     const readyClause: Prisma.ProductWhereInput = {
-      OR: [
-        { unit: ProductUnit.PCS },
-        { price50: { not: null } },
-        { price100: { not: null } },
-        { price250: { not: null } },
-        { price500: { not: null } },
-        { price1000: { not: null } },
-        { priceCustom: { not: null } },
-      ],
+      OR: PACK_READY_PRICE_OR,
     };
     where.AND = [
       ...(Array.isArray(where.AND)

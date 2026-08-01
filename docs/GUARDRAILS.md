@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Purpose** | Technical and business limitations that constrain product development |
 
 ---
@@ -22,6 +22,9 @@
 | Order create/update runs in a DB transaction with stock updates | Consistency under concurrency |
 | Installment sum must be ≤ **`amountDue`** (fiscal total), not raw `totalOrderValue` alone | Correct collection when PPN applies |
 | Warehouse restock create/edit runs in a DB transaction (stock + history snapshots) | Auditability |
+| Order stock draws dual-write `WarehouseSale` (before/after) in the same transaction; order edit clears + rewrites sales; cancel clears sales when restoring stock | Auditable sold history |
+| Sold history is read-only from Warehouse UI — mutations only via Orders | Clear ownership of inventory mutations |
+| Historical sold rows use CLI backfill (`backfill:warehouse-sales`); do not invent before/after on the list hot path | Keep API reads lean; one-time ops for legacy data |
 | Reject order qty > available stock | Prevent negative inventory |
 | Reject warehouse `qtyAdded` ≤ 0 on create; edit adjusts stock by signed delta with validation | Data integrity |
 | Reject discount % > 100 or amount > line total | Commercial sanity |
@@ -32,7 +35,7 @@
 | Never overwrite existing local `.env` / `.env.local` from automation | Protect local secrets & overrides |
 | Schema PRs without committed Prisma migration are rejected | Sandbox compatibility |
 | Money math uses 4 decimal places; shared helpers for order/target/analytics | Avoid drift across clients |
-| Prefer measured caching: short in-process TTL for analytics windows is allowed; Redis still deferred until multi-instance need | Performance Guardrail — profile first |
+| Prefer measured caching: Redis/Upstash when configured for multi-instance; else short in-process TTL | Performance Guardrail — profile first |
 
 ---
 
@@ -54,8 +57,9 @@
 | Revenue targets: clearing monthly **or** annual clears the **whole year** | Prevent month/annual divergence |
 | Annual displayed target always equals sum of months when months exist | Single source of plan truth |
 | Product stock is **not** edited on Products UI — Warehouse only (create + **web edit**) | Clear ownership of inventory mutations |
-| Gram/liter products allow **exactly one** active pack | Avoid ambiguous pricing |
-| Mobile **Targets** UI, **PDF/fiscal download**, and warehouse **edit** deferred (web-first) | Focus field app on CRM/orders |
+| Gram/liter products allow **exactly one** active pack from sizes **1…1000 + custom** | Avoid ambiguous pricing |
+| Sold history is read-only from Warehouse UI — mutations only via Orders; historical gaps need backfill CLI | Clear ownership of inventory mutations |
+| Mobile **Targets**, **PDF/fiscal**, warehouse **edit**, **Stock & sales**, **Order totals**, **statistics UI**, Sold history **Open order** deferred (web-first) | Focus field app on CRM/orders |
 
 ---
 
@@ -68,7 +72,7 @@
 | No SKU backfill on list/read hot paths | Use CLI/migration scripts only (`backfillMissingSkus`) |
 | Derive analytics actuals from the window load | Do not re-fetch the same non-cancelled orders for monthly buckets |
 | Analytics progressive `include` / `granularity` | Default (omitted) remains full overview; clients should request only needed parts for first paint |
-| Analytics window cache (~45s, in-process) | Reuse order/catalog load across progressive requests; cap map size; no Redis yet |
+| Analytics window cache (~45s; Redis/Upstash when configured, else in-process) | Reuse order/catalog load across progressive requests; cap map size |
 | Order list stays lean | Slim select + `lineCount`/`installmentCount`/`paidAmount`; full lines/installments via `GET /orders/:id` |
 | Prefer SQL aggregates for summaries | Inventory value via `SUM(stock×price)`; avoid hydrating all products for stage KPIs |
 | No >10% regression on critical paths without benchmarks | Order create, analytics year load |

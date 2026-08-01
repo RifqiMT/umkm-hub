@@ -2,12 +2,14 @@
 
 import {
   FormEvent,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
 } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError, downloadOrderFiscalExport, downloadOrderInvoicePdf, saveDownloadedBlob } from '@/lib/api';
 import { dedupeById } from '@/lib/dedupe-by-id';
 import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
@@ -56,7 +58,6 @@ import type {
 } from '@/lib/types';
 import {
   formatCompactQtyParts,
-  formatDateLabel,
   formatMoney,
   formatMoneyParts,
   formatRatePercent,
@@ -76,6 +77,9 @@ import { useOrderLabelHelpers } from '@/hooks/useOrderLabelHelpers';
 
 type SortKey = 'date' | 'product' | 'status' | 'total' | 'payment';
 type SortDir = 'asc' | 'desc';
+
+const ORDER_VIEW_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function IconTrash() {
   return (
@@ -482,6 +486,16 @@ function lineFormFromSnapshot(
 }
 
 export default function OrdersPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrdersPageInner />
+    </Suspense>
+  );
+}
+
+function OrdersPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     unitLabel,
     orderStatusLabel,
@@ -773,6 +787,35 @@ export default function OrdersPage() {
     }, 280);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    const viewId = searchParams.get('view')?.trim() ?? '';
+    if (!viewId || !ORDER_VIEW_UUID_RE.test(viewId)) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const full = await api<Order>(`/orders/${viewId}`);
+        if (cancelled) return;
+        setFormOpen(false);
+        setEditingId(null);
+        setDataSyncOpen(false);
+        setViewing(full);
+        setError('');
+        // Drop the query after the sheet is open so refresh doesn't re-fetch.
+        router.replace('/orders', { scroll: false });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load order');
+        router.replace('/orders', { scroll: false });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, router]);
 
   useEffect(() => {
     void loadSummary();
@@ -1086,25 +1129,9 @@ export default function OrdersPage() {
             <div className="umkm-stage-copy">
               <h1>Orders</h1>
               <p>
-                {summary ? (
-                  <>
-                    <time dateTime={summary.earliestOrderDate ?? undefined}>
-                      {formatDateLabel(summary.earliestOrderDate)}
-                    </time>
-                    <span className="umkm-stage-dash" aria-hidden>
-                      –
-                    </span>
-                    <time dateTime={summary.latestOrderDate ?? undefined}>
-                      {formatDateLabel(summary.latestOrderDate)}
-                    </time>
-                    <span className="umkm-stage-sep" aria-hidden>
-                      ·
-                    </span>
-                    Non-cancelled volume and health
-                  </>
-                ) : (
-                  'Create orders from catalog packs, track invoices, and payments.'
-                )}
+                {summary
+                  ? 'Non-cancelled volume and health'
+                  : 'Create orders from catalog packs, track invoices, and payments.'}
               </p>
             </div>
             <div className="umkm-stage-actions">
@@ -1618,55 +1645,62 @@ export default function OrdersPage() {
           eyebrow="Order"
           title={editingId ? 'Modify order' : 'Create order'}
           description="Lock a pack, set fulfillment, then track invoice and payments."
-          actions={
-            <button
-              type="button"
-              className="umkm-btn secondary"
-              onClick={resetForm}
-            >
-              Cancel
-            </button>
-          }
         >
           <form onSubmit={onSubmit} className="umkm-order-form">
             {preview ? (
-              <div className="umkm-order-summary" aria-live="polite">
-                <div>
-                  <span>Subtotal</span>
-                  <strong>{formatMoney(preview.lineTotal)}</strong>
-                </div>
-                <div>
-                  <span>Total</span>
-                  <strong>{formatMoney(preview.totalOrderValue)}</strong>
-                </div>
-                <div>
-                  <span>Paid</span>
-                  <strong>
-                    {formatMoney(
-                      roundMoney(
-                        resolvedInstallmentRows(
-                          form.installments,
-                          preview.totalOrderValue,
-                        ).reduce((sum, row) => sum + row.amount, 0),
-                      ),
-                    )}
-                  </strong>
-                </div>
-                <div className="is-accent">
-                  <span>Remaining</span>
-                  <strong>
-                    {formatMoney(
-                      remainingFromInstallments(
-                        preview.totalOrderValue,
-                        resolvedInstallmentRows(
-                          form.installments,
-                          preview.totalOrderValue,
-                        ),
-                      ),
-                    )}
-                  </strong>
-                </div>
-              </div>
+              (() => {
+                const paidPreview = roundMoney(
+                  resolvedInstallmentRows(
+                    form.installments,
+                    preview.totalOrderValue,
+                  ).reduce((sum, row) => sum + row.amount, 0),
+                );
+                const showCollection =
+                  Boolean(editingId) ||
+                  form.installments.length > 0 ||
+                  paidPreview > 0;
+                const showSubtotal =
+                  preview.lineTotal !== preview.totalOrderValue;
+                return (
+                  <div
+                    className={`umkm-order-summary${showCollection ? '' : ' is-compact'}`}
+                    aria-live="polite"
+                  >
+                    {showSubtotal ? (
+                      <div>
+                        <span>Subtotal</span>
+                        <strong>{formatMoney(preview.lineTotal)}</strong>
+                      </div>
+                    ) : null}
+                    <div>
+                      <span>Total</span>
+                      <strong>{formatMoney(preview.totalOrderValue)}</strong>
+                    </div>
+                    {showCollection ? (
+                      <>
+                        <div>
+                          <span>Paid</span>
+                          <strong>{formatMoney(paidPreview)}</strong>
+                        </div>
+                        <div className="is-accent">
+                          <span>Remaining</span>
+                          <strong>
+                            {formatMoney(
+                              remainingFromInstallments(
+                                preview.totalOrderValue,
+                                resolvedInstallmentRows(
+                                  form.installments,
+                                  preview.totalOrderValue,
+                                ),
+                              ),
+                            )}
+                          </strong>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })()
             ) : null}
 
             <FormSection
@@ -2038,7 +2072,7 @@ export default function OrdersPage() {
 
             <FormSection
               title="Billing & collection"
-              description="Step 1: send the bill to your customer. Step 2: record each payment as it arrives — collection status updates automatically."
+              description="Send the bill to your customer first, then record each payment as it arrives. Collection status updates automatically."
             >
               <div className="umkm-grid two">
                 <div className="umkm-field">

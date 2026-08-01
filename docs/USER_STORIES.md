@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Format** | Epic → Story → Acceptance criteria (AC) |
 | **Personas** | Sari (owner), Budi (field), Dewi (ops) — see [PERSONAS.md](./PERSONAS.md) |
 
@@ -64,11 +64,15 @@
 
 ### US-2.1 Manage products
 **As** Sari, **I want** to view/add/edit/delete products with unit, a single selling pack (or pcs price), optional cost, and see profit and margin %, **so that** the catalog is ready for warehouse and orders.  
-**AC:** View is read-only; exactly one pack for gram/liter; costs optional; profit/margin % when cost set; stock not edited on Products; delete blocked if orders exist; list shows name + unit chip + soft SKU; feature stage + summary rates respect list filters.
+**AC:** Exactly one pack for gram/liter from sizes **1/5/10/25/50/100/250/500/1000/custom**; costs optional; profit/margin % when cost set; stock not edited on Products; delete blocked if orders exist; list shows name + unit chip + soft SKU; feature stage + summary rates respect list filters.
 
 ### US-2.2 Product identity
-**As** Sari, **I want** product IDs that reflect name and pack, **so that** I can recognize SKUs in lists and sheets.  
+**As** Sari, **I want** product IDs that reflect name and pack, **so that** I can recognize SKUs in lists and sheets.
 **AC:** ID format `{INITIALS}_{PACK}_{uuid}`; prefix regenerates when name or active pack size changes.
+
+### US-2.3 Product stock & sales
+**As** Sari, **I want** a per-product stock vs sales table above Products Statistics, **so that** I can see STR, ITR, SSR, AOV, and UPT without leaving the catalog.  
+**AC:** Columns: product, Stocks (total with current/sold detail), Revenue, Discount (+%), Cost, Profit, STR, ITR (sold÷avg inventory), SSR, orders, AOV (allocated net), UPT; catalog filters apply; paginated `GET /products/stock-sales`; **web-first**.
 
 ---
 
@@ -86,6 +90,10 @@
 **As** Budi, **I want** customer IDs derived from name and company type, **so that** IDs are recognizable in the field.  
 **AC:** Format `{NameSegments}{R|H|S}_{uuid}`; regenerates when name or company type changes.
 
+### US-3.4 Customer order totals
+**As** Sari, **I want** a per-customer table of order totals above Customers Statistics, **so that** I can see commercial volume without leaving CRM.  
+**AC:** Columns: customer name (+ details), company (+ details), Totals, Discount, Order total, Orders, Packs, Cancelled (+ cancel rate), AOV, UPT; money/packs from non-cancelled linked orders; cancelled counted separately; same Directory filters; paginated `GET /customers/order-totals`; **web-first**.
+
 ---
 
 ## Epic E4 — Orders
@@ -100,7 +108,7 @@
 
 ### US-4.3 Bill, invoice, installments & amount due
 **As** Dewi, **I want** to track bill delivery, invoice collection, installments, and PPN-aware amount due, **so that** I know what remains unpaid.  
-**AC:** Bill status/date; invoice collection statuses; installments sum ≤ **amountDue**; remaining/Paid % vs amountDue; unpaid invoice mirrors bill when derived; optional paymentDueDate for delayed payment; includePpn / fiscalInvoiceNumber available.
+**AC:** Bill status/date; invoice collection statuses; installments sum ≤ **amountDue**; remaining/Paid % vs amountDue; unpaid invoice mirrors bill when derived; optional paymentDueDate for delayed payment; `amountDue` from API read DTO; fiscal # auto on PDF when empty; includePpn/fiscalInvoiceNumber are API fields without dedicated order-form editors in v1.
 
 ### US-4.6 PDF & e-Faktur prep
 **As** Dewi, **I want** to download a printable PDF and e-Faktur prep files for an order, **so that** I can send documents and prepare tax filing.  
@@ -125,6 +133,10 @@
 ### US-5.2 Domain statistics
 **As** Sari, **I want** breakdown statistics on Products / Customers / Orders / Warehouse, **so that** I see mix rates beyond headline KPIs.  
 **AC:** Statistics sections respect list filters; data from `statistics` on domain `GET …/summary`; show enum/geo/stock buckets as implemented in `*-statistics.ts`.
+
+### US-5.3 Sold history
+**As** Sari, **I want** to see stock drawn by orders (date, product, qty sold, before/after, order ref), **so that** I can audit outbound inventory without leaving Warehouse.  
+**AC:** Entries appear when active orders draw stock (dual-write); empty until dual-write or `npm run backfill:warehouse-sales -w api`; web Sold history above Statistics with **Open order** → `/orders?view=<uuid>`; mobile after Restock history (list/view; Open order web-only); view-only mutations via Orders; search by product/notes/order id.
 
 ---
 
@@ -164,7 +176,7 @@
 
 ### US-8.2a Metric dictionary
 **As** any user, **I want** a Dictionary of metrics in plain English, **so that** I understand KPIs without reading engineering docs.  
-**AC:** Web `/glossary` with search + feature browse + expandable terms; mobile Profile → Dictionary; catalogs synced; stage/analytics/order/warehouse metrics covered.
+**AC:** Web `/glossary` with search + feature browse + expandable terms (~**101** entries incl. Stock & sales / Order totals / Sold history); mobile Profile → Dictionary; catalogs synced via `npm run glossary:sync`.
 
 ### US-8.2 Narrow viewport / mobile actions
 **As** Budi, **I want** reachable actions on a phone, **so that** I can save forms with the keyboard open.  
@@ -188,11 +200,11 @@
 
 | Epic | Primary FR IDs |
 |------|----------------|
-| E1 Profile | FR-P1–P14 |
-| E2 Products | FR-PR1–PR3 |
-| E3 Customers | FR-C1–C5 |
+| E1 Profile | FR-P1–P15 |
+| E2 Products | FR-PR1–PR4 |
+| E3 Customers | FR-C1–C6 |
 | E4 Orders | FR-O1–O18 |
-| E5 Warehouse | FR-W1–W6 |
+| E5 Warehouse | FR-W1–W8 |
 | E6 Targets | FR-T1–T6 |
 | E7 Analytics | FR-A1–A20 |
 | E8 UX / Dashboard | FR-UX1–UX8, FR-D1–D4 |

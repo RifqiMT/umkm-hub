@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Note** | v1 uses a **single profile per tenant**. Field staff (e.g. Budi) act under the owner’s credentials—there is no separate RBAC account. |
 
 ---
@@ -26,7 +26,7 @@
 ### Typical scenarios
 1. Morning: open Warehouse, restock 50 packs of chili paste, confirm stockAfter.
 2. Midday: update hotel customer to `CLOSING_FIRST_ORDER`, set approval 80%.
-3. Evening: review Analytics Monthly revenue, On plan / Pace on Targets; check Dictionary for UPT/APF meaning.
+3. Evening: review Stock & sales STR/ITR, Analytics Monthly revenue, On plan / Pace on Targets; check Dictionary for UPT/APF meaning.
 
 ---
 
@@ -79,11 +79,15 @@
 | Profile / account | ● | ○ | ○ |
 | Products + COGS | ● | ○ | ○ |
 | Warehouse | ● | ○ | ○ |
+| Sold history | ● | ○ | ○ |
+| Stock & sales | ● | ○ | ○ |
 | Customers CRM | ● | ● | ○ |
+| Order totals | ● | ○ | ○ |
 | Orders create/edit | ● | ● | ● |
 | Installments / invoice | ○ | ○ | ● |
 | PDF / e-Faktur prep | ○ | — | ● |
 | Profile PKP / PPN | ● | — | ● |
+| Domain statistics | ● | ○ | ○ |
 | Revenue targets | ● | ○ | ○ |
 | Analytics | ● | ● | ○ |
 | Dictionary | ● | ● | ○ |

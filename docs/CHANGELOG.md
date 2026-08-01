@@ -1,5 +1,77 @@
 # Changelog — UMKM Hub
 
+## 2026-08-01 — v1.5.251 Order form narrow-screen cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Create/Modify order no longer shows a header **Cancel** (it duplicated the sticky footer Cancel on phones/tablets). Summary hides Paid/Remaining until editing or installments exist, and hides Subtotal when it equals Total. Mobile order sheet uses the same compact summary.
+
+## 2026-08-01 — v1.5.250 Documentation suite refresh (post-1.5.249)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit vs code tip **v1.5.249**. Aligned PRODUCT/PRD/USER_STORIES/VARIABLES/METRICS/TRACEABILITY/ARCHITECTURE/GUARDRAILS/PERSONAS/DESIGN/PLAN/READMEs to shipped Stock & sales (STR/ITR/SSR + money columns), Customer Order totals (volume columns), Warehouse Sold history (dual-write, backfill, Open order web deep-link), pack sizes **1/5/10/25**, Firebase Auth + Upstash Redis, Dictionary **101** terms. Softened includePpn/fiscal # UI claims (API fields; PDF auto-number). Expanded mobile web-first gaps. Stamps → **1.5.250**.
+
+## 2026-08-01 — v1.5.249 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Demoted unused web exports (`PROFILE_NAV`, section filter/health types) and API `buildCustomerOrderTotalsCustomerWhere`; removed unused `FirebaseUser` re-export. Deleted accidental `tsc` emit beside API scripts/prisma seeds and gitignored `*.js`/`*.js.map`/`*.d.ts` there. Kept ops scripts and nested types.
+
+## 2026-08-01 — v1.5.248 Dictionary covers Stock & sales and Order totals
+**Author:** Auto (Cursor agent)  
+**Impact:** Feature Dictionary gains Products Stock & sales metrics (Stocks, Current/Sold, Revenue, Discount, Cost, Profit, STR, ITR, SSR, product orders), Customers Order totals metrics, Warehouse sold-date/order-ref, and updated AOV/UPT/product money feature tags. Section intros refreshed; mobile glossary regenerated.
+
+## 2026-08-01 — v1.5.247 ITR uses average inventory
+**Author:** Auto (Cursor agent)  
+**Impact:** Product Stock & sales **ITR** is now `sold ÷ average inventory`, with average = (beginning + ending) ÷ 2 and beginning ≈ current + sold. The prior `sold ÷ current` formula produced extreme ratios when on-hand stock was tiny.
+
+## 2026-08-01 — v1.5.246 Stock & sales money columns
+**Author:** Auto (Cursor agent)  
+**Impact:** Product Stock & sales adds **Revenue**, **Discount** (with %), **Cost**, and **Profit**. Revenue/discount use discount-allocated line shares (same as Analytics); cost is sold × catalog `costPerUnit` (null when unset); profit is revenue − cost.
+
+## 2026-08-01 — v1.5.245 Stock & sales combined Stocks column
+**Author:** Auto (Cursor agent)  
+**Impact:** Product Stock & sales table merges Current and Sold into one **Stocks** column: total (current + sold) as the primary figure, with Current and Sold on the secondary line. API fields unchanged.
+
+## 2026-08-01 — v1.5.244 Section copy polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Table, header, and section descriptions rewritten in plain professional English without em-dashes (Stock & sales, Order totals, Sold/Restock history, Analytics performance sections, Profile, Customers address help, Dictionary intros). Mobile glossary regenerated from web catalog.
+
+## 2026-08-01 — v1.5.243 Stock & sales formula audit
+**Author:** Auto (Cursor agent)  
+**Impact:** Product Stock & sales **AOV** now uses discount-allocated net line revenue (same share rule as Analytics `allocateLineRevenue`), not pre-discount `lineTotal`. Customer Order totals discount aggregation floors negative offs at 0. STR/ITR/SSR/total/current/sold unchanged; unit tests cover allocation + clamps.
+
+## 2026-08-01 — v1.5.242 Product stock column split
+**Author:** Auto (Cursor agent)  
+**Impact:** Stock & sales columns are now **Total stocks** (= current + sold), **Current stocks** (on-hand), **Sold stocks**. STR/ITR/SSR use current on-hand.
+
+## 2026-08-01 — v1.5.241 Product stock & sales table
+**Author:** Auto (Cursor agent)  
+**Impact:** Products page gains a **Stock & sales** section above Statistics (mirrors Customers Order totals). Columns: Total/Current/Sold stocks, STR, ITR, SSR, Orders, AOV, UPT. API: `GET /products/stock-sales` (catalog-filter-aware).
+
+## 2026-08-01 — v1.5.240 Customer order totals volume columns
+**Author:** Auto (Cursor agent)  
+**Impact:** Order totals table adds Orders, Packs, Cancelled (+ cancel rate), AOV, and UPT (packs ÷ orders). Cancelled counted separately; money/packs still from non-cancelled linked orders.
+
+## 2026-08-01 — v1.5.239 Customer order totals table
+**Author:** Auto (Cursor agent)  
+**Impact:** New filter-aware `GET /customers/order-totals` aggregates linked non-cancelled orders per customer (Totals / Discount / Order total). Web Customers page shows an **Order totals** section above Statistics (name + details, company + details, money columns). Mobile unchanged in v1.
+
+## 2026-08-01 — v1.5.238 Narrow feature-stage density
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed phone/tablet feature-stage dead space (copy `flex-basis` inflating height when the stage stacks). Narrow layout is now title → metrics → actions; volume stats use hero + 2-col secondary grid. Applies across Dashboard / Orders / Products / Customers / Warehouse / Targets / Analytics.
+
+## 2026-08-01 — v1.5.237 Open order from Sold history
+**Author:** Auto (Cursor agent)  
+**Impact:** Sold history “Open order” deep-links to `/orders?view=<orderUuid>` and opens that order’s view sheet. Fixed React Strict Mode race that skipped opening the sheet after navigation.
+
+## 2026-08-01 — v1.5.236 Warehouse sold history backfill
+**Author:** Auto (Cursor agent)  
+**Impact:** Idempotent CLI `npm run backfill:warehouse-sales -w api` (or `npx tsx src/warehouse/backfill-sales.ts`) reconstructs `WarehouseSale` for existing non-cancelled order lines by replaying restocks + sales per product. Dual-write still covers new/edited orders going forward.
+
+## 2026-08-01 — v1.5.235 Warehouse Sold history
+**Author:** Auto (Cursor agent)  
+**Impact:** New `WarehouseSale` ledger dual-written when orders draw/restore stock (before → sold → after + order ref). Read-only `GET /warehouse/sales` (+ `/:id`). Web Sold history section above Warehouse Statistics; Flutter Sold history after Restock history. Historical rows via backfill script (v1.5.236). Apply migration via `npm run sync` / `prisma migrate deploy`.
+
+## 2026-08-01 — v1.5.234 Profile Personal details UX polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Personal details feels clearer and more modern on web + Flutter: live identity preview (monogram, name, email, location), Verified/Unverified status chips, tighter Name / Email / Location grouping, stronger verify callout, detect/clear location actions. No API contract changes.
+
 ## 2026-07-31 — v1.5.233 Documentation suite refresh (fiscal / PDF / statistics)
 **Author:** Auto (Cursor agent)  
 **Impact:** Full re-audit vs code tip **v1.5.232**. Documented previously shipped capabilities: Profile invoicing identity (NPWP, PKP, PPN %, taxInclusive, invoicePrefix); Customer NPWP; Order `amountDue` / `includePpn` / `fiscalInvoiceNumber` / `paymentDueDate`; PDF (`GET …/invoice/pdf`) + e-Faktur prep (`…/fiscal?format=csv|xml`); installments and Paid % vs **amountDue**; domain **statistics** embedded on `GET …/summary`; warehouse `PATCH` (web). Narrowed non-goals to **full DJP filing** (not PDF prep). Updated PRODUCT, PRD, USER_STORIES, PERSONAS, VARIABLES (+ charts), METRICS, GUARDRAILS, TRACEABILITY, ARCHITECTURE, DESIGN, PLAN, READMEs. Stamps → **1.5.233**.

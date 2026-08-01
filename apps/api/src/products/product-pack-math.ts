@@ -1,21 +1,15 @@
+import {
+  fixedPackPriceTriples,
+  type PackCostFields,
+  type PackPriceFields,
+} from './pack-sizes';
+
 export type PackPricingInput = {
   unit: 'PCS' | 'GRAM' | 'LITER';
   pricePerUnit: number;
   costPerUnit: number | null;
-  price50: number | null;
-  price100: number | null;
-  price250: number | null;
-  price500: number | null;
-  price1000: number | null;
-  priceCustom: number | null;
-  cost50: number | null;
-  cost100: number | null;
-  cost250: number | null;
-  cost500: number | null;
-  cost1000: number | null;
-  costCustom: number | null;
-  customSize: number | null;
-};
+} & PackPriceFields &
+  PackCostFields;
 
 export type ActivePackMath = {
   sizeLabel: string;
@@ -65,20 +59,13 @@ export function getActivePackFromPricing(
     };
   }
 
-  const fixed: Array<[number, number | null, number | null]> = [
-    [50, product.price50, product.cost50],
-    [100, product.price100, product.cost100],
-    [250, product.price250, product.cost250],
-    [500, product.price500, product.cost500],
-    [1000, product.price1000, product.cost1000],
-  ];
-  for (const [size, price, cost] of fixed) {
+  for (const [size, price, cost] of fixedPackPriceTriples(product)) {
     if (price != null) {
       return {
         sizeLabel: `${size} ${short}`,
         size,
         price,
-        cost,
+        cost: cost ?? null,
         shortUnit: short,
       };
     }
@@ -88,7 +75,7 @@ export function getActivePackFromPricing(
       sizeLabel: `${formatMoney(product.customSize)} ${short}`,
       size: product.customSize,
       price: product.priceCustom,
-      cost: product.costCustom,
+      cost: product.costCustom ?? null,
       shortUnit: short,
     };
   }

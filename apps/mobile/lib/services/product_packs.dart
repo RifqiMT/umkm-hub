@@ -1,6 +1,8 @@
 import '../format_money.dart';
 import '../models/models.dart';
 
+const gramLiterPackSizes = [1, 5, 10, 25, 50, 100, 250, 500, 1000];
+
 class ProductPack {
   ProductPack({
     required this.key,
@@ -47,6 +49,56 @@ String _fmtSize(num value) {
   return formatCompactQty(value);
 }
 
+double? _packPrice(Product product, int size) {
+  switch (size) {
+    case 1:
+      return product.price1;
+    case 5:
+      return product.price5;
+    case 10:
+      return product.price10;
+    case 25:
+      return product.price25;
+    case 50:
+      return product.price50;
+    case 100:
+      return product.price100;
+    case 250:
+      return product.price250;
+    case 500:
+      return product.price500;
+    case 1000:
+      return product.price1000;
+    default:
+      return null;
+  }
+}
+
+double? _packCost(Product product, int size) {
+  switch (size) {
+    case 1:
+      return product.cost1;
+    case 5:
+      return product.cost5;
+    case 10:
+      return product.cost10;
+    case 25:
+      return product.cost25;
+    case 50:
+      return product.cost50;
+    case 100:
+      return product.cost100;
+    case 250:
+      return product.cost250;
+    case 500:
+      return product.cost500;
+    case 1000:
+      return product.cost1000;
+    default:
+      return null;
+  }
+}
+
 /// Active selling pack for a catalog product (pcs or single gram/liter pack).
 ActivePack? getActivePack(Product product) {
   final short = unitShort(product.unit);
@@ -60,20 +112,14 @@ ActivePack? getActivePack(Product product) {
     );
   }
 
-  final fixed = <(double, double?, double?)>[
-    (50, product.price50, product.cost50),
-    (100, product.price100, product.cost100),
-    (250, product.price250, product.cost250),
-    (500, product.price500, product.cost500),
-    (1000, product.price1000, product.cost1000),
-  ];
-  for (final (size, price, cost) in fixed) {
+  for (final size in gramLiterPackSizes) {
+    final price = _packPrice(product, size);
     if (price != null) {
       return ActivePack(
         sizeLabel: '${_fmtSize(size)} $short',
-        size: size,
+        size: size.toDouble(),
         price: price,
-        cost: cost,
+        cost: _packCost(product, size),
         shortUnit: short,
       );
     }
@@ -124,24 +170,19 @@ List<ProductPack> listProductPacks(Product product) {
 
   final short = product.unit == 'LITER' ? 'L' : 'g';
   final packs = <ProductPack>[];
-  void addFixed(String key, double size, double? price) {
+  for (final size in gramLiterPackSizes) {
+    final price = _packPrice(product, size);
     if (price != null) {
       packs.add(
         ProductPack(
-          key: key,
-          size: size,
+          key: '$size',
+          size: size.toDouble(),
           price: price,
           label: '${size.toStringAsFixed(size % 1 == 0 ? 0 : 2)}$short · $price',
         ),
       );
     }
   }
-
-  addFixed('50', 50, product.price50);
-  addFixed('100', 100, product.price100);
-  addFixed('250', 250, product.price250);
-  addFixed('500', 500, product.price500);
-  addFixed('1000', 1000, product.price1000);
 
   if (product.priceCustom != null &&
       product.customSize != null &&

@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 | **Audience** | Product team, engineering, leadership |
 | **Horizon** | 90-day targets unless noted |
 
@@ -31,6 +31,9 @@
 | Fiscal prep exports | e-Faktur prep usage | CSV/XML fiscal downloads in 30d | distinct profiles exporting | Track baseline | Tax-prep aid (not DJP filing) |
 | PKP profile setup | Invoicing identity | Profiles with `isPkp` or NPWP set | `configured / activated` | Track ↑ | Invoice quality |
 | Statistics panel opens | Domain stats adoption | Profiles opening filter-aware statistics sections | distinct profiles / 30d | Track baseline | Mix insight beyond summary |
+| Stock & sales opens | Catalog inventory insight | Profiles opening Products Stock & sales in 30d | distinct profiles | Track baseline | STR/ITR literacy |
+| Order totals opens | CRM commercial insight | Profiles opening Customers Order totals in 30d | distinct profiles | Track baseline | Linked-order value |
+| Sold history opens | Outbound stock audit | Profiles opening Warehouse Sold history in 30d | distinct profiles | Track baseline | Inventory auditability |
 
 ### Metric notes
 - **Actuals** exclude `CANCELLED` and use UTC `orderDate` (shared Targets + Analytics).
@@ -107,7 +110,9 @@ User-facing plain English: **Dictionary** (`/glossary`; mobile Profile → Dicti
 | Avg LTV | Linked revenue ÷ active customers | Budi / Sari |
 | Top/Bottom 5 | Products by revenue; customers by LTV | Sari / Budi |
 | Packs sold / repeat days | Performance tables | Sari |
-| Dictionary terms | ~80 curated glossary entries | All |
+| Dictionary terms | ~101 curated glossary entries | All |
+| STR / ITR / SSR | Stock & sales inventory ratios | Sari |
+| Customer Order totals | Linked commercial + volume columns | Sari / Dewi |
 
 ---
 

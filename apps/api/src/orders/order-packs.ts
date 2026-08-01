@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Product, ProductUnit } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  GRAM_LITER_PACK_SIZES,
+  type GramLiterPackKey,
+} from '../products/pack-sizes';
 
 function toNumber(value: Decimal | number | string): number {
   if (typeof value === 'number') return value;
@@ -8,7 +12,7 @@ function toNumber(value: Decimal | number | string): number {
 }
 
 export type ProductPackOption = {
-  key: 'PCS' | '50' | '100' | '250' | '500' | '1000' | 'CUSTOM';
+  key: 'PCS' | GramLiterPackKey;
   size: number;
   price: number;
 };
@@ -17,6 +21,10 @@ type PackSource = Pick<
   Product,
   | 'unit'
   | 'pricePerUnit'
+  | 'price1'
+  | 'price5'
+  | 'price10'
+  | 'price25'
   | 'price50'
   | 'price100'
   | 'price250'
@@ -46,14 +54,11 @@ export function listProductPacks(product: PackSource): ProductPackOption[] {
   }
 
   const packs: ProductPackOption[] = [];
-  const fixed: Array<[ProductPackOption['key'], number, number | null]> = [
-    ['50', 50, optionalPrice(product.price50)],
-    ['100', 100, optionalPrice(product.price100)],
-    ['250', 250, optionalPrice(product.price250)],
-    ['500', 500, optionalPrice(product.price500)],
-    ['1000', 1000, optionalPrice(product.price1000)],
-  ];
-  for (const [key, size, price] of fixed) {
+  for (const size of GRAM_LITER_PACK_SIZES) {
+    const key = String(size) as GramLiterPackKey;
+    const price = optionalPrice(
+      product[`price${size}` as keyof PackSource] as Decimal | null,
+    );
     if (price != null) packs.push({ key, size, price });
   }
 

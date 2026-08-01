@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.233 |
-| **Date** | 2026-07-31 |
+| **Version** | 1.5.250 |
+| **Date** | 2026-08-01 |
 
 ---
 
@@ -18,27 +18,32 @@ flowchart TB
   end
 
   subgraph API["NestJS API :3001 /api/v1"]
-    Auth[Auth JWT]
+    Auth[Auth JWT + Firebase]
     Domain[Products Customers Orders Warehouse Targets Analytics Geo]
     Invoice[Invoice PDF + e-Faktur prep]
     Stats[Domain statistics]
+    Insights[Stock-sales + Order-totals + Sold history]
+    Cache[Redis / Upstash optional]
   end
 
   DB[(PostgreSQL 16)]
-  Shared["packages/shared enums + helpers"]
+  Shared["packages/shared enums + pack sizes + helpers"]
 
   Web -->|HTTPS JSON Bearer| Auth
   Mobile -->|HTTPS JSON Bearer| Auth
   Auth --> Domain
   Domain --> Invoice
   Domain --> Stats
+  Domain --> Insights
   Domain --> DB
   Invoice --> DB
+  Insights --> DB
+  Domain -.-> Cache
   Web -.-> Shared
   API -.-> Shared
 ```
 
-**Tenancy model:** JWT `sub` = `profileId`. Every domain query is scoped to that profile.
+**Tenancy model:** JWT `sub` = `profileId` (or Firebase ID token resolved to profile). Every domain query is scoped to that profile.
 
 ---
 
@@ -70,21 +75,27 @@ Root scripts use `npm --prefix` (not a full Turborepo/pnpm workspace).
 |---------|----------------|
 | Framework | NestJS 11 modular controllers/services |
 | ORM | Prisma 6 |
-| Auth | Passport JWT; access ~15m; refresh ~7d |
+| Auth | Passport JWT (~15m access / ~7d refresh) **or** Firebase ID token when Admin SDK configured |
 | Validation | class-validator whitelist + forbid unknown |
 | Errors | Global filter → `{ statusCode, error, message, timestamp }` |
-| Throttling | `@nestjs/throttler` |
+| Throttling | `@nestjs/throttler` — Redis/Upstash storage when configured, else in-memory |
+| Cache | Optional Redis/Upstash for analytics window cache |
 | Health | `GET /api/v1/health` |
 
 ### Domain modules
-`auth`, `profiles`, `products`, `customers`, `orders` (incl. invoice PDF/fiscal), `warehouse`, `revenue-targets`, `analytics`, `geo`, `export`, `import` (same module folder), `translate`, `prisma`, `health`
+`auth` (legacy + Firebase), `profiles`, `products` (incl. stock-sales), `customers` (incl. order-totals), `orders` (incl. invoice PDF/fiscal + WarehouseSale dual-write), `warehouse` (restock + sold history), `revenue-targets`, `analytics`, `geo`, `export`, `import`, `translate`, `redis`, `prisma`, `health`
 
 ### Invoice & fiscal prep
 - `GET /orders/:id/invoice/pdf` — printable PDF (`invoice-pdf.ts`); auto-assigns `fiscalInvoiceNumber` when empty
 - `GET /orders/:id/invoice/fiscal?format=csv|xml` — e-Faktur-oriented **prep** export (`fiscal-invoice.ts`); **not** DJP submission
 - Seller identity from Profile (`businessName`, `npwp`, `isPkp`, `defaultPpnPercent`, `taxInclusive`, `invoicePrefix`)
 - Buyer NPWP from `Customer.npwp` when linked
-- **`amountDue`** = fiscal breakdown total of `totalOrderValue`; installments and Paid % use amountDue
+- **`amountDue`** = fiscal breakdown total of `totalOrderValue` (read DTO); installments and Paid % use amountDue
+
+### Domain insights (web-primary)
+- `GET /products/stock-sales` — STR / ITR / SSR + money columns (`product-stock-sales.ts`)
+- `GET /customers/order-totals` — linked commercial + volume columns (`customer-order-totals.ts`)
+- `GET /warehouse/sales` — sold ledger rows; dual-written in order stock txn; backfill CLI for history
 
 ### Domain statistics
 Filter-aware mix breakdowns embedded on `GET …/summary` responses for products, customers, orders, and warehouse (`statistics` via `*-statistics.ts`, `statistics-buckets.ts`), alongside headline summary rates.
@@ -99,14 +110,16 @@ Allowlisted `profileName` values (`DATA_EXPORT_PROFILE_NAMES`, default `rifqi_tj
 
 ### Auth extras
 - Forgot/reset password: HMAC tokens (`PasswordResetToken`), TTL 24h, cooldown 60s
+- Firebase (optional): `GET /auth/config`, `POST /auth/firebase/session`, `POST /auth/firebase/register`; Profile.`firebaseUid`; see ENV-LOCAL / DEPLOY-VERCEL
 - Translate: `POST /translate/batch` + `batch-public` (≤40×500 chars)
 
 ### Critical transactional paths
-1. **Order create/update** — validate stock, write lines/installments (sum ≤ **amountDue**), adjust `Product.stockQty`
-2. **Order cancel** — restore stock for all lines
+1. **Order create/update** — validate stock, write lines/installments (sum ≤ **amountDue**), adjust `Product.stockQty`, dual-write **WarehouseSale**
+2. **Order cancel** — restore stock for all lines; clear related WarehouseSale rows
 3. **Warehouse restock create** — increment stock + write history snapshots
 4. **Warehouse restock edit** (`PATCH /warehouse/:id`) — adjust stock by qty delta + refresh snapshots
 5. **PDF download** — may persist `fiscalInvoiceNumber` if previously empty
+6. **Sold history backfill** — idempotent CLI reconstructs WarehouseSale for pre-ledger orders
 
 ### Shared aggregation
 `loadOrderActuals` powers both **Targets** and **Analytics** so attainment never drifts.
@@ -120,23 +133,24 @@ Allowlisted `profileName` values (`DATA_EXPORT_PROFILE_NAMES`, default `rifqi_tj
 | `include` | `summary,series,products,customers` | Progressive load; omit → all |
 | `granularity` | `weekly\|monthly\|quarterly\|annual\|all` | Which series to build |
 
-Single-year annual context loads a rolling **10-year** window. In-process window cache TTL **45s** (`analytics-cache.ts`).
+Single-year annual context loads a rolling **10-year** window. Window cache: Redis/Upstash when configured, else in-process TTL **45s** (`analytics-cache.ts`).
 
 ### Auth & profile identity
 - Register requires unique username + email (case-insensitive); `POST /auth/register-availability` is anti-enumerating
-- Login accepts `login` (username or email)
-- Username and email immutable after register; email verify via one-time link
+- Login accepts `login` (username or email) **or** Firebase session exchange when enabled
+- Username and email immutable after register; email verify via one-time link (or Firebase emailVerified sync)
 - Location city/country sealed (AES-GCM); IP hashed (HMAC)
+- Optional `firebaseUid` links Profile to Firebase Auth
 
 ---
 
 ## 4. Data model (summary)
 
-Profile owns: Product, Customer, Order, WarehouseRestock, RevenueTargetPlan, EmailVerificationToken, PasswordResetToken.  
+Profile owns: Product, Customer, Order, WarehouseRestock, WarehouseSale, RevenueTargetPlan, EmailVerificationToken, PasswordResetToken.  
 Profile fiscal identity: `businessName`, `businessPhone`, `businessAddress`, `npwp`, `isPkp`, `defaultPpnPercent`, `taxInclusive`, `invoicePrefix`.  
 Human codes: `Product.productId`, `Customer.customerId`, `Order.orderId` (distinct from UUID PKs/FKs).  
 Customer may store `npwp` for B2B buyer identity.  
-Order has: OrderLine[], OrderInstallment[], optional Customer FK, bill + invoice collection fields, `paymentDueDate`, `fiscalInvoiceNumber`, `includePpn`; reads expose **`amountDue`**.  
+Order has: OrderLine[], OrderInstallment[], WarehouseSale[] (1:1 per line when stock drawn), optional Customer FK, bill + invoice collection fields, `paymentDueDate`, `fiscalInvoiceNumber`, `includePpn`; reads expose **`amountDue`**.  
 RevenueTargetPlan has: RevenueTargetMonth[12].
 
 Full field catalog: [VARIABLES.md](./VARIABLES.md). Schema: `apps/api/prisma/schema.prisma`.

@@ -124,6 +124,7 @@ model Profile {
   customers              Customer[]
   orders                 Order[]
   restocks               WarehouseRestock[]
+  sales                  WarehouseSale[]
   revenueTargetPlans     RevenueTargetPlan[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
@@ -170,6 +171,10 @@ model Product {
   /// Valuation / order base price per 1 unit (pcs, gram, liter, or qty).
   /// For non-PCS units this is derived from pack prices when saved.
   pricePerUnit Decimal     @db.Decimal(18, 4)
+  price1       Decimal?    @db.Decimal(18, 4)
+  price5       Decimal?    @db.Decimal(18, 4)
+  price10      Decimal?    @db.Decimal(18, 4)
+  price25      Decimal?    @db.Decimal(18, 4)
   price50      Decimal?    @db.Decimal(18, 4)
   price100     Decimal?    @db.Decimal(18, 4)
   price250     Decimal?    @db.Decimal(18, 4)
@@ -178,6 +183,10 @@ model Product {
   priceCustom  Decimal?    @db.Decimal(18, 4)
   /// Optional purchase/COGS rate per 1 unit. Derived from pack costs for non-PCS.
   costPerUnit  Decimal?    @db.Decimal(18, 4)
+  cost1        Decimal?    @db.Decimal(18, 4)
+  cost5        Decimal?    @db.Decimal(18, 4)
+  cost10       Decimal?    @db.Decimal(18, 4)
+  cost25       Decimal?    @db.Decimal(18, 4)
   cost50       Decimal?    @db.Decimal(18, 4)
   cost100      Decimal?    @db.Decimal(18, 4)
   cost250      Decimal?    @db.Decimal(18, 4)
@@ -193,7 +202,8 @@ model Product {
   /// Denormalized primary line (first product) for list display / legacy indexes.
   orders  Order[]
   orderLines OrderLine[]
-  restocks WarehouseRestock[]
+  restocks   WarehouseRestock[]
+  sales      WarehouseSale[]
 
   @@unique([profileId, productId])
   @@index([profileId])
@@ -298,6 +308,7 @@ model Order {
   product      Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
   lines        OrderLine[]
   installments OrderInstallment[]
+  sales        WarehouseSale[]
 
   @@unique([profileId, orderId])
   @@index([profileId])
@@ -336,6 +347,7 @@ model OrderLine {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sale    WarehouseSale?
 
   @@index([orderId])
   @@index([productId])
@@ -375,6 +387,35 @@ model WarehouseRestock {
   @@index([profileId])
   @@index([profileId, productId])
   @@index([profileId, restockDate])
+}
+
+/// Stock drawn by an order line — warehouse sold history (mirrors restock before/after).
+model WarehouseSale {
+  id               String      @id @default(uuid())
+  profileId        String
+  productId        String
+  orderId          String
+  orderLineId      String      @unique
+  qtySold          Decimal     @db.Decimal(28, 4)
+  soldDate         DateTime    @db.Date
+  notes            String      @default("")
+  unitSnapshot     ProductUnit @default(PCS)
+  packSizeSnapshot Decimal     @db.Decimal(18, 4) @default(1)
+  packCount        Decimal     @db.Decimal(18, 4) @default(1)
+  stockBefore      Decimal     @db.Decimal(28, 4)
+  stockAfter       Decimal     @db.Decimal(28, 4)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([profileId, productId])
+  @@index([profileId, soldDate])
+  @@index([orderId])
 }
 
 /// One revenue-target configuration per profile + calendar year.

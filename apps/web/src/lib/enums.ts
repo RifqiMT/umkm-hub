@@ -1,3 +1,5 @@
+import { GRAM_LITER_PACK_SIZES } from '@/lib/product-pack';
+
 export const COMPANY_TYPES = ['RESTAURANT', 'HOTEL', 'STORE'] as const;
 export const PRODUCT_UNITS = ['PCS', 'GRAM', 'LITER'] as const;
 export const PARTNERSHIP_STAGES = ['WHATSAPP', 'EMAIL', 'DIRECT_VISIT'] as const;
@@ -146,6 +148,10 @@ function unitShort(unit: string) {
 export function listProductPacks(product: {
   unit: string;
   pricePerUnit: number;
+  price1: number | null;
+  price5: number | null;
+  price10: number | null;
+  price25: number | null;
   price50: number | null;
   price100: number | null;
   price250: number | null;
@@ -167,17 +173,11 @@ export function listProductPacks(product: {
 
   const short = unitShort(product.unit);
   const packs: ProductPackOption[] = [];
-  const fixed: Array<[string, number, number | null]> = [
-    ['50', 50, product.price50],
-    ['100', 100, product.price100],
-    ['250', 250, product.price250],
-    ['500', 500, product.price500],
-    ['1000', 1000, product.price1000],
-  ];
-  for (const [key, size, price] of fixed) {
+  for (const size of GRAM_LITER_PACK_SIZES) {
+    const price = product[`price${size}` as keyof typeof product] as number | null;
     if (price != null) {
       packs.push({
-        key,
+        key: String(size),
         size,
         price,
         label: `${size}${short} · ${price}`,

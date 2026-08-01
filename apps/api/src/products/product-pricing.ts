@@ -1,26 +1,21 @@
+import {
+  fixedPackCostPairs,
+  fixedPackPricePairs,
+  fixedPackPriceTriples,
+  GRAM_LITER_PACK_SIZES,
+  type PackCostFields,
+  type PackPriceFields,
+} from './pack-sizes';
+
 export type PackPricesInput = {
   unit: string;
   pricePerUnit?: number | null;
-  price50?: number | null;
-  price100?: number | null;
-  price250?: number | null;
-  price500?: number | null;
-  price1000?: number | null;
-  priceCustom?: number | null;
-  customSize?: number | null;
-};
+} & PackPriceFields;
 
 export type PackCostsInput = {
   unit: string;
   costPerUnit?: number | null;
-  cost50?: number | null;
-  cost100?: number | null;
-  cost250?: number | null;
-  cost500?: number | null;
-  cost1000?: number | null;
-  costCustom?: number | null;
-  customSize?: number | null;
-};
+} & PackCostFields;
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 10000) / 10000;
@@ -31,13 +26,9 @@ function hasPackValue(value: number | null | undefined): value is number {
 }
 
 function fixedSellingPackCount(input: PackPricesInput): number {
-  return [
-    input.price50,
-    input.price100,
-    input.price250,
-    input.price500,
-    input.price1000,
-  ].filter(hasPackValue).length;
+  return fixedPackPricePairs(input).filter(([, price]) =>
+    hasPackValue(price),
+  ).length;
 }
 
 function hasCustomSellingPack(input: PackPricesInput): boolean {
@@ -71,13 +62,7 @@ function assertCostAlignedWithPack(
 
   const customActive = hasCustomSellingPack(input);
 
-  for (const [, price, cost] of [
-    [50, input.price50, input.cost50],
-    [100, input.price100, input.cost100],
-    [250, input.price250, input.cost250],
-    [500, input.price500, input.cost500],
-    [1000, input.price1000, input.cost1000],
-  ] as const) {
+  for (const [, price, cost] of fixedPackPriceTriples(input)) {
     if (hasPackValue(cost) && !hasPackValue(price)) {
       throw new Error(
         'Pack cost must use the same size as the selling pack.',
@@ -106,22 +91,14 @@ export function resolvePricePerUnit(input: PackPricesInput): number {
     return roundMoney(input.priceCustom! / input.customSize!);
   }
 
-  const packs: Array<[number, number | null | undefined]> = [
-    [50, input.price50],
-    [100, input.price100],
-    [250, input.price250],
-    [500, input.price500],
-    [1000, input.price1000],
-  ];
-
-  for (const [size, price] of packs) {
+  for (const [size, price] of fixedPackPricePairs(input)) {
     if (hasPackValue(price)) {
       return roundMoney(price / size);
     }
   }
 
   throw new Error(
-    'For non-pcs units, provide a single pack price (50/100/250/500/1000) or custom size + price',
+    `For non-pcs units, provide a single pack price (${GRAM_LITER_PACK_SIZES.join('/')}) or custom size + price`,
   );
 }
 
@@ -150,15 +127,7 @@ export function resolveCostPerUnit(
     return roundMoney(input.costCustom / input.customSize);
   }
 
-  const packs: Array<[number, number | null | undefined]> = [
-    [50, input.cost50],
-    [100, input.cost100],
-    [250, input.cost250],
-    [500, input.cost500],
-    [1000, input.cost1000],
-  ];
-
-  for (const [size, cost] of packs) {
+  for (const [size, cost] of fixedPackCostPairs(input)) {
     if (hasPackValue(cost)) {
       return roundMoney(cost / size);
     }

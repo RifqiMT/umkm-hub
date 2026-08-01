@@ -1,6 +1,6 @@
 import { profileSectionDomId, type ProfileSectionId } from '@/app/(app)/profile/profile-sections';
 
-export type ProfileHealthItem = {
+type ProfileHealthItem = {
   id: string;
   label: string;
   done: boolean;

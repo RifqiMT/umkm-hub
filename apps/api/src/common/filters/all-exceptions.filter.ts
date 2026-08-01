@@ -81,8 +81,12 @@ function isSchemaDrift(exception: unknown): boolean {
   const msg = exception.message ?? '';
 
   if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-    // Column/table missing, invalid enum value in DB, etc.
-    if (exception.code === 'P2022' || exception.code === 'P2023') {
+    // Table/column missing, invalid enum value in DB, etc.
+    if (
+      exception.code === 'P2021' ||
+      exception.code === 'P2022' ||
+      exception.code === 'P2023'
+    ) {
       return true;
     }
   }
@@ -93,6 +97,7 @@ function isSchemaDrift(exception: unknown): boolean {
 
   if (exception instanceof Prisma.PrismaClientUnknownRequestError) {
     return (
+      /table .* does not exist/i.test(msg) ||
       /column .* does not exist/i.test(msg) ||
       /type .* does not exist/i.test(msg) ||
       /invalid input value for enum/i.test(msg)

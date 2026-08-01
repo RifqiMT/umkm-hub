@@ -21,7 +21,7 @@ export type ProfileNavItem = {
   icon: ProfileNavIcon;
 };
 
-export const PROFILE_NAV: ProfileNavItem[] = [
+const PROFILE_NAV: ProfileNavItem[] = [
   { id: 'overview', label: 'Overview', hint: 'Identity & workspace', icon: 'overview' },
   { id: 'personal', label: 'Personal', hint: 'Contact & location', icon: 'personal' },
   { id: 'invoicing', label: 'Invoicing', hint: 'Tax & PDF profile', icon: 'invoicing' },

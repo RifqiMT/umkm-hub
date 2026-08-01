@@ -87,35 +87,42 @@ class _ProductsScreenState extends State<ProductsScreen> {
     String packSize = '100';
 
     if (existing != null && existing.unit != 'PCS') {
-      if (existing.price50 != null) {
-        packSize = '50';
-        packPrice.text = existing.price50!.toString();
-        if (existing.cost50 != null) packCost.text = existing.cost50!.toString();
-      } else if (existing.price100 != null) {
-        packSize = '100';
-        packPrice.text = existing.price100!.toString();
-        if (existing.cost100 != null) {
-          packCost.text = existing.cost100!.toString();
+      const packSizes = [1, 5, 10, 25, 50, 100, 250, 500, 1000];
+      var matched = false;
+      for (final size in packSizes) {
+        final price = switch (size) {
+          1 => existing.price1,
+          5 => existing.price5,
+          10 => existing.price10,
+          25 => existing.price25,
+          50 => existing.price50,
+          100 => existing.price100,
+          250 => existing.price250,
+          500 => existing.price500,
+          1000 => existing.price1000,
+          _ => null,
+        };
+        if (price != null) {
+          packSize = '$size';
+          packPrice.text = price.toString();
+          final cost = switch (size) {
+            1 => existing.cost1,
+            5 => existing.cost5,
+            10 => existing.cost10,
+            25 => existing.cost25,
+            50 => existing.cost50,
+            100 => existing.cost100,
+            250 => existing.cost250,
+            500 => existing.cost500,
+            1000 => existing.cost1000,
+            _ => null,
+          };
+          if (cost != null) packCost.text = cost.toString();
+          matched = true;
+          break;
         }
-      } else if (existing.price250 != null) {
-        packSize = '250';
-        packPrice.text = existing.price250!.toString();
-        if (existing.cost250 != null) {
-          packCost.text = existing.cost250!.toString();
-        }
-      } else if (existing.price500 != null) {
-        packSize = '500';
-        packPrice.text = existing.price500!.toString();
-        if (existing.cost500 != null) {
-          packCost.text = existing.cost500!.toString();
-        }
-      } else if (existing.price1000 != null) {
-        packSize = '1000';
-        packPrice.text = existing.price1000!.toString();
-        if (existing.cost1000 != null) {
-          packCost.text = existing.cost1000!.toString();
-        }
-      } else if (existing.priceCustom != null) {
+      }
+      if (!matched && existing.priceCustom != null) {
         packSize = 'CUSTOM';
         packPrice.text = existing.priceCustom!.toString();
         if (existing.customSize != null) {
@@ -220,6 +227,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       onChanged: (v) =>
                           setLocal(() => packSize = v ?? packSize),
                       options: const [
+                        ChoiceOption(value: '1', label: '1'),
+                        ChoiceOption(value: '5', label: '5'),
+                        ChoiceOption(value: '10', label: '10'),
+                        ChoiceOption(value: '25', label: '25'),
                         ChoiceOption(value: '50', label: '50'),
                         ChoiceOption(value: '100', label: '100'),
                         ChoiceOption(value: '250', label: '250'),
@@ -291,6 +302,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body['costPerUnit'] = parseOpt(costCtrl);
     } else {
       // Clear every pack slot so only one remains (API enforces single pack).
+      body['price1'] = null;
+      body['price5'] = null;
+      body['price10'] = null;
+      body['price25'] = null;
       body['price50'] = null;
       body['price100'] = null;
       body['price250'] = null;
@@ -298,6 +313,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body['price1000'] = null;
       body['priceCustom'] = null;
       body['customSize'] = null;
+      body['cost1'] = null;
+      body['cost5'] = null;
+      body['cost10'] = null;
+      body['cost25'] = null;
       body['cost50'] = null;
       body['cost100'] = null;
       body['cost250'] = null;

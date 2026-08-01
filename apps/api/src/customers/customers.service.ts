@@ -7,6 +7,14 @@ import { CustomerQueryDto, CustomerSummaryQueryDto } from './dto/customer-query.
 import { buildCustomerSku } from './customer-sku';
 import { buildCustomerSummary } from './customer-summary';
 import { buildCustomerStatistics } from './customer-statistics';
+import {
+  customerOrderTotalsCountSql,
+  customerOrderTotalsPageSql,
+} from './customer-order-totals-sql';
+import {
+  serializeCustomerOrderTotals,
+  type CustomerOrderTotalsSeed,
+} from './customer-order-totals';
 
 /** Lean list row — long text loads on GET /customers/:id. */
 const customerListSelect = {
@@ -336,6 +344,44 @@ export class CustomersService {
           count: row._count,
         })),
       }),
+    };
+  }
+
+  /**
+   * Per-customer commercial totals from linked non-cancelled orders.
+   * Filter-aware with Directory; only customers that have ≥1 linked order.
+   */
+  async findOrderTotals(profileId: string, query: CustomerQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter = {
+      profileId,
+      search: query.search,
+      status: query.status,
+      companyType: query.companyType,
+      relationshipLevel: query.relationshipLevel,
+      partnershipStage: query.partnershipStage,
+    };
+    const offset = (page - 1) * limit;
+
+    const [countRows, pageRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ total: number }>>(
+        customerOrderTotalsCountSql(filter),
+      ),
+      this.prisma.$queryRaw<CustomerOrderTotalsSeed[]>(
+        customerOrderTotalsPageSql(filter, limit, offset),
+      ),
+    ]);
+
+    const total = Number(countRows[0]?.total ?? 0);
+    return {
+      items: pageRows.map((row) => serializeCustomerOrderTotals(row)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     };
   }
 

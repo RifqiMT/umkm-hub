@@ -32,6 +32,7 @@ class WarehouseScreen extends StatefulWidget {
 
 class _WarehouseScreenState extends State<WarehouseScreen> {
   List<WarehouseRestock> items = [];
+  List<WarehouseSale> sales = [];
   List<Product> products = [];
   String? error;
   bool loading = true;
@@ -44,7 +45,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   }
 
   Future<void> _load() async {
-    final hasData = items.isNotEmpty || products.isNotEmpty;
+    final hasData =
+        items.isNotEmpty || sales.isNotEmpty || products.isNotEmpty;
     setState(() {
       // Keep previous lists visible while refreshing.
       loading = !hasData;
@@ -54,12 +56,14 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
       final api = context.read<ApiService>();
       final results = await Future.wait([
         api.listWarehouseRestocks(),
+        api.listWarehouseSales(),
         api.listProducts(),
       ]);
       if (!mounted) return;
       setState(() {
         items = results[0] as List<WarehouseRestock>;
-        products = results[1] as List<Product>;
+        sales = results[1] as List<WarehouseSale>;
+        products = results[2] as List<Product>;
       });
     } catch (e) {
       if (!mounted) return;
@@ -526,6 +530,64 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     );
   }
 
+  Future<void> _openViewSale(WarehouseSale sale) async {
+    final product = _productById(products, sale.productId);
+    final pack = product != null ? getActivePack(product) : null;
+    final u = (sale.unitSnapshot ?? product?.unit ?? '').toLowerCase();
+    final packsSold = formatPacksOnHand(sale.qtySold, pack);
+    final packsBefore = formatPacksOnHand(sale.stockBefore, pack);
+    final packsAfter = formatPacksOnHand(sale.stockAfter, pack);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(sale.productName ?? sale.productId),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DetailRow(label: 'Sold date', value: sale.soldDate),
+                DetailRow(
+                  label: 'Order',
+                  value: sale.orderRef?.isNotEmpty == true
+                      ? sale.orderRef!
+                      : sale.orderId,
+                ),
+                DetailRow(
+                  label: 'Pack',
+                  value: pack != null ? pack.sizeLabel : '—',
+                ),
+                DetailRow(
+                  label: 'Qty sold',
+                  value: '−${formatCompactQty(sale.qtySold)} $u'
+                      '${packsSold != null ? ' · $packsSold' : ''}',
+                ),
+                DetailRow(
+                  label: 'Before → after',
+                  value:
+                      '${formatCompactQty(sale.stockBefore)} → ${formatCompactQty(sale.stockAfter)}'
+                      '${packsBefore != null || packsAfter != null ? ' (${packsBefore ?? '—'} → ${packsAfter ?? '—'})' : ''}',
+                ),
+                DetailRow(
+                  label: 'Notes',
+                  value: sale.notes.isEmpty ? '—' : sale.notes,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDataSyncSection() {
     return FeatureDataSyncSection(
       open: _dataSyncOpen,
@@ -557,7 +619,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
           children: [
             const PageIntro(
               subtitle:
-                  'Stock by pack, inventory value, and restock history.',
+                  'Stock by pack, inventory value, restock and sold history.',
             ),
             _buildDataSyncSection(),
             const SectionLabel(
@@ -720,6 +782,62 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     ),
                   ],
                   onTap: () => _openViewRestock(r),
+                );
+              }),
+            const SectionLabel(
+              'Sold history',
+              subtitle:
+                  'Review stock drawn by orders, including quantity before and after each sale.',
+            ),
+            if (sales.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No sales recorded yet.'),
+              )
+            else
+              ...sales.map((s) {
+                final product = _productById(products, s.productId);
+                final pack = product != null ? getActivePack(product) : null;
+                final packsSold = formatPacksOnHand(s.qtySold, pack);
+                final packsBefore = formatPacksOnHand(s.stockBefore, pack);
+                final packsAfter = formatPacksOnHand(s.stockAfter, pack);
+                final u = (s.unitSnapshot ?? product?.unit ?? '').toLowerCase();
+                return EntityCard(
+                  title: s.productName ?? s.productId,
+                  chips: [
+                    StatusChip(
+                      label: '−${formatCompactQty(s.qtySold)} $u',
+                      tone: StatusTone.danger,
+                    ),
+                    if (pack != null)
+                      StatusChip(
+                        label: 'Pack ${pack.sizeLabel}',
+                        tone: StatusTone.neutral,
+                      ),
+                  ],
+                  details: [
+                    if (s.soldDate.isNotEmpty) s.soldDate,
+                    if (packsSold != null) 'Sold $packsSold',
+                    if (s.orderRef != null && s.orderRef!.isNotEmpty)
+                      s.orderRef!,
+                    else if (s.notes.isNotEmpty)
+                      s.notes,
+                  ],
+                  metrics: [
+                    (
+                      'Before',
+                      packsBefore != null
+                          ? '${formatCompactQty(s.stockBefore)} · $packsBefore'
+                          : formatCompactQty(s.stockBefore),
+                    ),
+                    (
+                      'After',
+                      packsAfter != null
+                          ? '${formatCompactQty(s.stockAfter)} · $packsAfter'
+                          : formatCompactQty(s.stockAfter),
+                    ),
+                  ],
+                  onTap: () => _openViewSale(s),
                 );
               }),
           ],

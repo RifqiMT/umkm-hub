@@ -1,0 +1,10 @@
+-- Add smaller gram/liter pack slots (1, 5, 10, 25).
+ALTER TABLE "Product"
+ADD COLUMN "price1" DECIMAL(18,4),
+ADD COLUMN "price5" DECIMAL(18,4),
+ADD COLUMN "price10" DECIMAL(18,4),
+ADD COLUMN "price25" DECIMAL(18,4),
+ADD COLUMN "cost1" DECIMAL(18,4),
+ADD COLUMN "cost5" DECIMAL(18,4),
+ADD COLUMN "cost10" DECIMAL(18,4),
+ADD COLUMN "cost25" DECIMAL(18,4);

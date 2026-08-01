@@ -6,7 +6,6 @@ MIGRATE_LOG="$(mktemp)"
 trap 'rm -f "$MIGRATE_LOG"' EXIT
 
 resolve_failed_migrations() {
-  # Prisma P3009: "migrate found failed migrations in the target database"
   if ! grep -q "P3009" "$MIGRATE_LOG"; then
     return 1
   fi
@@ -32,6 +31,7 @@ resolve_failed_migrations() {
 }
 
 run_migrate_deploy() {
+  : >"$MIGRATE_LOG"
   if npx prisma migrate deploy 2> "$MIGRATE_LOG"; then
     return 0
   fi
@@ -40,14 +40,26 @@ run_migrate_deploy() {
 }
 
 echo "==> Applying database migrations..."
-if ! run_migrate_deploy; then
-  if resolve_failed_migrations; then
-    echo "==> Retrying migrations after recovery..."
-    run_migrate_deploy
-  else
+ATTEMPT=1
+MAX_ATTEMPTS=5
+
+while (( ATTEMPT <= MAX_ATTEMPTS )); do
+  if run_migrate_deploy; then
+    break
+  fi
+
+  if (( ATTEMPT == MAX_ATTEMPTS )); then
+    echo "==> Migration failed after ${MAX_ATTEMPTS} attempts."
     exit 1
   fi
-fi
+
+  if ! resolve_failed_migrations; then
+    exit 1
+  fi
+
+  ATTEMPT=$((ATTEMPT + 1))
+  echo "==> Retrying migrations (attempt ${ATTEMPT}/${MAX_ATTEMPTS})..."
+done
 
 echo "==> Starting API..."
 exec npm run start:prod

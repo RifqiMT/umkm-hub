@@ -104,6 +104,7 @@ function VerifyEmailInner() {
   const legacyToken = searchParams.get('token')?.trim() ?? '';
   const oobCode = searchParams.get('oobCode')?.trim() ?? '';
   const mode = searchParams.get('mode')?.trim() ?? '';
+  const verifiedRedirect = searchParams.get('verified') === '1';
   const firebaseMode =
     firebaseEnabled && (mode === 'verifyEmail' || Boolean(oobCode && !legacyToken));
   const token = firebaseMode ? oobCode : legacyToken;
@@ -115,7 +116,29 @@ function VerifyEmailInner() {
   }, []);
 
   useEffect(() => {
+    if (verifiedRedirect && firebaseEnabled) {
+      setState({
+        status: 'ok',
+        message: tr(
+          'Email verified successfully. You can sign in now.',
+        ),
+      });
+      return;
+    }
+
     if (!token) {
+      if (firebaseEnabled) {
+        // Firebase hosted page (firebaseapp.com) verifies first, then redirects
+        // to /verify-email without oobCode — treat as success, not an error.
+        setState({
+          status: 'ok',
+          message: tr(
+            'Your email should be verified. Sign in to continue using UMKM Hub.',
+          ),
+        });
+        return;
+      }
+
       setState({
         status: 'error',
         message: tr('This verification link is missing a token.'),
@@ -148,7 +171,7 @@ function VerifyEmailInner() {
     return () => {
       alive = false;
     };
-  }, [token, firebaseMode, tr]);
+  }, [token, firebaseMode, verifiedRedirect, firebaseEnabled, tr]);
 
   return (
     <main className="umkm-auth">

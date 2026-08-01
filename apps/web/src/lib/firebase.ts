@@ -60,7 +60,8 @@ function getAppOrigin(): string {
 
 function emailActionSettings(path: string) {
   return {
-    url: `${getAppOrigin()}${path}`,
+    // After Firebase's hosted handler, users land here with ?verified=1 (no oobCode).
+    url: `${getAppOrigin()}${path}?verified=1`,
     handleCodeInApp: true,
   };
 }

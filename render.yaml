@@ -1,0 +1,57 @@
+# Render Blueprint — UMKM Hub API + PostgreSQL (FREE tier)
+# https://render.com/docs/blueprint-spec
+#
+# Free tier notes (Render docs):
+# - Web service: spins down after ~15 min idle; first request may take 30–60s (cold start)
+# - Postgres free: deleted after 30 days — upgrade before then for production data retention
+# - Redis: use Upstash free tier (set UPSTASH_* env vars manually after deploy)
+#
+# After deploy:
+# 1. Environment → set FIREBASE_SERVICE_ACCOUNT_JSON (Firebase service account JSON)
+# 2. Environment → set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+# 3. Vercel NEXT_PUBLIC_API_URL → https://umkm-hub-api.onrender.com/api/v1
+
+databases:
+  - name: umkm-hub-db
+    databaseName: umkm_hub
+    user: umkm
+    plan: free # Render free Postgres (30-day limit — see note above)
+
+services:
+  - type: web
+    name: umkm-hub-api
+    runtime: docker
+    plan: free # Render free web service (may sleep when idle)
+    rootDir: .
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: FIREBASE_PROJECT_ID
+        value: umkm-hub-2b955
+      - key: DATABASE_URL
+        fromDatabase:
+          name: umkm-hub-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        value: https://umkm-hub-web.vercel.app,http://localhost:3000
+      - key: APP_PUBLIC_URL
+        value: https://umkm-hub-web.vercel.app
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

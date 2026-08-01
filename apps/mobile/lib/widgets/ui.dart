@@ -108,6 +108,29 @@ class ErrorBanner extends StatelessWidget {
   }
 }
 
+class SuccessBanner extends StatelessWidget {
+  const SuccessBanner({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5EE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB8DEC8)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(color: UmkmColors.brandDeep),
+      ),
+    );
+  }
+}
+
 class SoftSurface extends StatelessWidget {
   const SoftSurface({super.key, required this.child});
 

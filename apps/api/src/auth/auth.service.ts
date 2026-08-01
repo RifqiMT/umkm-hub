@@ -75,13 +75,18 @@ export class AuthService {
       });
 
       this.logger.log(`Profile registered: ${profile.id}`);
-      return this.issueTokens(profile.id, profile.profileName);
+      return this.issueTokensForProfile(profile.id, profile.profileName);
     } catch (err) {
       if (isPrismaUniqueViolation(err)) {
         throw new ConflictException(REGISTRATION_CONFLICT_MESSAGE);
       }
       throw err;
     }
+  }
+
+  /** Issue access + refresh JWT pair for an existing profile. */
+  async issueTokensForProfile(profileId: string, profileName: string) {
+    return this.issueTokens(profileId, profileName);
   }
 
   private parseRegisterIdentity(dto: { profileName: string; email: string }) {
@@ -140,6 +145,12 @@ export class AuthService {
 
     if (!profile) {
       throw new UnauthorizedException(INVALID_LOGIN);
+    }
+
+    if (!profile.passwordHash) {
+      throw new UnauthorizedException(
+        'This account uses Firebase sign-in. Use the web app or Firebase login.',
+      );
     }
 
     const valid = await bcrypt.compare(dto.password, profile.passwordHash);

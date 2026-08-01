@@ -6,6 +6,7 @@ import { api, ApiError, downloadDataExport, uploadDataImport } from '@/lib/api';
 import { confirmDelete } from '@/lib/confirm';
 import { useTr } from '@/components/Tr';
 import { clearSession } from '@/lib/auth';
+import { firebaseSignOut, isFirebaseConfigured } from '@/lib/firebase';
 import { getUiLanguageCode, resetUiLanguage, setUiLanguageCode } from '@/lib/ui-language';
 import { useTranslationStatus } from '@/hooks/useTranslationStatus';
 import { ProfileInvoicingSection } from '@/app/(app)/profile/ProfileInvoicingSection';
@@ -428,7 +429,10 @@ export default function ProfilePage() {
     return { ...s, label: s.label ? tr(s.label) : '' };
   }, [password, tr]);
 
-  function logout() {
+  async function logout() {
+    if (isFirebaseConfigured()) {
+      await firebaseSignOut();
+    }
     clearSession();
     router.replace('/login');
   }

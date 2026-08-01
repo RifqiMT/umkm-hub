@@ -42,7 +42,8 @@ Multi-tenant **CRM + inventory + order workspace** for Indonesian MSMEs (UMKM). 
 |-------|------------|
 | API | NestJS 11 + TypeScript + Prisma 6 |
 | Database | PostgreSQL 16 |
-| Auth | JWT + bcrypt 12; email verify; password reset |
+| Auth | Firebase Auth (production) + JWT/bcrypt fallback (local dev); email verify; password reset |
+| Cache / limits | Upstash Redis (production) — distributed throttling + analytics cache |
 | Web | Next.js 15 + React 19 + Tailwind CSS 4 + Recharts |
 | Mobile | Flutter (Provider, fl_chart, Manrope) |
 | Shared | `@umkm-hub/shared` |
@@ -97,6 +98,8 @@ cd apps/mobile && flutter pub get && flutter run --dart-define=API_BASE_URL=http
 | `npm run db:up` / `db:down` / `db:migrate` / `db:seed` | Postgres / Prisma |
 | `npm run api:dev` / `web:dev` | Dev servers |
 | `npm run api:test` / `web:build` | Tests / build |
+| `scripts/deploy-vercel.sh` | Deploy web to Vercel |
+| `scripts/print-production-env.sh` | Print Vercel + API env template |
 
 ---
 
@@ -113,6 +116,10 @@ cd apps/web && npm run build
 ## Documentation
 
 Index: [docs/README.md](./docs/README.md) — PRODUCT, PRD, PERSONAS, USER_STORIES, VARIABLES, METRICS, DESIGN, TRACEABILITY, GUARDRAILS, ARCHITECTURE, CHANGELOG.
+
+**Production (Vercel + Firebase + Redis):** [docs/DEPLOY-VERCEL.md](./docs/DEPLOY-VERCEL.md) · [docs/ENV-UMKM-HUB-PRODUCTION.md](./docs/ENV-UMKM-HUB-PRODUCTION.md) (project `umkm-hub-2b955`)
+
+**Plain English setup (no tech background needed):** [docs/SETUP-GUIDE-PLAIN-ENGLISH.md](./docs/SETUP-GUIDE-PLAIN-ENGLISH.md) · Live web: https://umkm-hub-web.vercel.app
 
 ---
 

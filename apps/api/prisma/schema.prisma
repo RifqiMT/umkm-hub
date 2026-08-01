@@ -89,7 +89,10 @@ enum LocationSource {
 model Profile {
   id                String          @id @default(uuid())
   profileName       String          @unique
-  passwordHash      String
+  /// Null for Firebase-only accounts (no local bcrypt password).
+  passwordHash      String?
+  /// Firebase Auth UID — set when the profile is linked to Firebase.
+  firebaseUid       String?         @unique
   firstName         String?
   lastName          String?
   /// Required unique identity email (stored lowercased); 1:1 with profileName.

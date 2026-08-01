@@ -9,6 +9,11 @@ export function getAccessToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/** Bearer token for API calls — JWT from local session (synced from Firebase on sign-in). */
+export function getAuthBearerToken(): string | null {
+  return getAccessToken();
+}
+
 export function getRefreshToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(REFRESH_KEY);

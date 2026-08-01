@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
 import { UI_LANGUAGE_BOOTSTRAP_SCRIPT } from '@/lib/ui-language';
 import { TranslationProvider } from '@/lib/translation';
+import { FirebaseAuthProvider } from '@/components/FirebaseAuthProvider';
 import './globals.css';
 
 const sans = Manrope({
@@ -35,7 +36,9 @@ export default function RootLayout({
         />
       </head>
       <body className={`${sans.variable} antialiased`}>
-        <TranslationProvider>{children}</TranslationProvider>
+        <TranslationProvider>
+          <FirebaseAuthProvider>{children}</FirebaseAuthProvider>
+        </TranslationProvider>
       </body>
     </html>
   );

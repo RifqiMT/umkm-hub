@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import '../models/models.dart';
+import 'firebase_auth_service.dart';
 
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
@@ -41,7 +42,53 @@ class ApiService {
   }
 
   Future<void> clearSession() async {
+    if (FirebaseAuthService.isConfigured) {
+      await FirebaseAuthService.instance.signOut();
+    }
     await _storage.deleteAll();
+  }
+
+  Future<String?> _resolveBearerToken() async {
+    if (FirebaseAuthService.isConfigured) {
+      return FirebaseAuthService.instance.getIdToken();
+    }
+    return _storage.read(key: _accessKey);
+  }
+
+  Future<AuthSession> firebaseSessionFromToken(String idToken) async {
+    return _auth('/auth/firebase/session', body: {'idToken': idToken});
+  }
+
+  Future<AuthSession> firebaseLogin(String email, String password) async {
+    await FirebaseAuthService.instance.signIn(email, password);
+    final idToken = await FirebaseAuthService.instance.getIdToken();
+    if (idToken == null) {
+      throw ApiException('Login failed');
+    }
+    return firebaseSessionFromToken(idToken);
+  }
+
+  Future<AuthSession> firebaseRegister(
+    String profileName,
+    String email,
+    String password,
+  ) async {
+    await FirebaseAuthService.instance.register(email, password);
+    final idToken = await FirebaseAuthService.instance.getIdToken();
+    if (idToken == null) {
+      throw ApiException('Registration failed');
+    }
+    return _auth(
+      '/auth/firebase/register',
+      body: {
+        'idToken': idToken,
+        'profileName': profileName.trim(),
+      },
+    );
+  }
+
+  Future<void> firebaseForgotPassword(String email) async {
+    await FirebaseAuthService.instance.sendPasswordResetEmail(email);
   }
 
   Future<AuthSession> register(
@@ -126,12 +173,12 @@ class ApiService {
       }
     }
 
-    var token = await accessToken;
+    var token = await _resolveBearerToken();
     var res = await send(token);
     if (res.statusCode == 401 && auth) {
       final refreshed = await _refresh();
       if (refreshed) {
-        token = await accessToken;
+        token = await _resolveBearerToken();
         res = await send(token);
       }
     }
@@ -139,6 +186,13 @@ class ApiService {
   }
 
   Future<bool> _refresh() async {
+    if (FirebaseAuthService.isConfigured) {
+      final token =
+          await FirebaseAuthService.instance.getIdToken(forceRefresh: true);
+      if (token != null) return true;
+      await clearSession();
+      return false;
+    }
     final refresh = await _storage.read(key: _refreshKey);
     if (refresh == null) return false;
     try {

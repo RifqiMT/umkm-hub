@@ -1,9 +1,10 @@
 import {
   clearSession,
-  getAccessToken,
+  getAuthBearerToken,
   getRefreshToken,
   setSession,
 } from './auth';
+import { getFirebaseIdToken, isFirebaseConfigured } from './firebase';
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
@@ -26,7 +27,21 @@ type RequestOptions = {
   >;
 };
 
+async function resolveBearerToken(): Promise<string | null> {
+  if (isFirebaseConfigured()) {
+    const firebaseToken = await getFirebaseIdToken();
+    if (firebaseToken) return firebaseToken;
+  }
+  return getAuthBearerToken();
+}
+
 async function refreshAccessToken(): Promise<boolean> {
+  if (isFirebaseConfigured()) {
+    const token = await getFirebaseIdToken();
+    if (token) return true;
+    clearSession();
+    return false;
+  }
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
   try {
@@ -71,7 +86,7 @@ export async function api<T>(
     'Content-Type': 'application/json',
   };
   if (auth) {
-    const token = getAccessToken();
+    const token = await resolveBearerToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
@@ -84,7 +99,7 @@ export async function api<T>(
   if (res.status === 401 && auth) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      const token = getAccessToken();
+      const token = await resolveBearerToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       res = await fetch(url.toString(), {
         method,
@@ -141,7 +156,7 @@ async function downloadAuthenticatedFile(
   }
 
   const headers: Record<string, string> = {};
-  const token = getAccessToken();
+  const token = await resolveBearerToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res = await fetch(url.toString(), { method: 'GET', headers });
@@ -149,7 +164,7 @@ async function downloadAuthenticatedFile(
   if (res.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      const next = getAccessToken();
+      const next = await resolveBearerToken();
       if (next) headers.Authorization = `Bearer ${next}`;
       res = await fetch(url.toString(), { method: 'GET', headers });
     } else {
@@ -252,7 +267,7 @@ export async function uploadDataImport(
   form.append('file', file);
 
   const headers: Record<string, string> = {};
-  const token = getAccessToken();
+  const token = await resolveBearerToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res = await fetch(url.toString(), { method: 'POST', headers, body: form });
@@ -260,7 +275,7 @@ export async function uploadDataImport(
   if (res.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      const next = getAccessToken();
+      const next = await resolveBearerToken();
       if (next) headers.Authorization = `Bearer ${next}`;
       res = await fetch(url.toString(), { method: 'POST', headers, body: form });
     } else {
@@ -297,7 +312,7 @@ export async function uploadFeatureImport(
   form.append('file', file);
 
   const headers: Record<string, string> = {};
-  const token = getAccessToken();
+  const token = await resolveBearerToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let res = await fetch(url.toString(), { method: 'POST', headers, body: form });
@@ -305,7 +320,7 @@ export async function uploadFeatureImport(
   if (res.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      const next = getAccessToken();
+      const next = await resolveBearerToken();
       if (next) headers.Authorization = `Bearer ${next}`;
       res = await fetch(url.toString(), { method: 'POST', headers, body: form });
     } else {

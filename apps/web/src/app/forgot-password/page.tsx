@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { firebaseForgotPassword, isFirebaseConfigured } from '@/lib/firebase';
 import { useTr } from '@/components/Tr';
 
 export default function ForgotPasswordPage() {
   const tr = useTr();
+  const firebaseEnabled = isFirebaseConfigured();
   const [login, setLogin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,19 +22,33 @@ export default function ForgotPasswordPage() {
     setError('');
     setLoading(true);
     try {
-      const data = await api<{
-        sent: boolean;
-        message: string;
-        devResetUrl?: string | null;
-      }>('/auth/forgot-password', {
-        method: 'POST',
-        auth: false,
-        body: { login: login.trim() },
-      });
-      setSuccess({
-        message: data.message,
-        devResetUrl: data.devResetUrl,
-      });
+      if (firebaseEnabled) {
+        const email = login.trim().toLowerCase();
+        if (!email.includes('@')) {
+          setError(tr('Enter the email address on your account.'));
+          return;
+        }
+        await firebaseForgotPassword(email);
+        setSuccess({
+          message: tr(
+            'If an account exists for that email, a reset link has been sent.',
+          ),
+        });
+      } else {
+        const data = await api<{
+          sent: boolean;
+          message: string;
+          devResetUrl?: string | null;
+        }>('/auth/forgot-password', {
+          method: 'POST',
+          auth: false,
+          body: { login: login.trim() },
+        });
+        setSuccess({
+          message: data.message,
+          devResetUrl: data.devResetUrl,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -54,9 +70,13 @@ export default function ForgotPasswordPage() {
         <div className="umkm-panel umkm-auth-card">
           <h1 className="umkm-title">{tr('Forgot password')}</h1>
           <p className="umkm-sub">
-            {tr(
-              'Enter your username or email. If an account exists, we will email a reset link to the address on file.',
-            )}
+            {firebaseEnabled
+              ? tr(
+                  'Enter your email. If an account exists, Firebase will send a reset link.',
+                )
+              : tr(
+                  'Enter your username or email. If an account exists, we will email a reset link to the address on file.',
+                )}
           </p>
           {error ? <div className="umkm-error">{error}</div> : null}
           {success ? (
@@ -79,16 +99,21 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={onSubmit}>
               <div className="umkm-field">
-                <label htmlFor="login">{tr('Username or email')}</label>
+                <label htmlFor="login">
+                  {firebaseEnabled ? tr('Email') : tr('Username or email')}
+                </label>
                 <input
                   id="login"
+                  type={firebaseEnabled ? 'email' : 'text'}
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
                   required
                   minLength={3}
                   maxLength={254}
                   autoComplete="username"
-                  placeholder="username or you@example.com"
+                  placeholder={
+                    firebaseEnabled ? 'you@example.com' : 'username or you@example.com'
+                  }
                 />
               </div>
               <button className="umkm-btn" type="submit" disabled={loading}>

@@ -4,12 +4,21 @@ import Link from 'next/link';
 import { FormEvent, Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
+import {
+  firebaseConfirmReset,
+  isFirebaseConfigured,
+} from '@/lib/firebase';
 import { useTr } from '@/components/Tr';
 
 function ResetPasswordInner() {
   const tr = useTr();
+  const firebaseEnabled = isFirebaseConfigured();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token')?.trim() ?? '';
+  const legacyToken = searchParams.get('token')?.trim() ?? '';
+  const oobCode = searchParams.get('oobCode')?.trim() ?? '';
+  const mode = searchParams.get('mode')?.trim() ?? '';
+  const firebaseReset = firebaseEnabled && mode === 'resetPassword' && oobCode;
+  const token = firebaseReset ? oobCode : legacyToken;
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -30,15 +39,22 @@ function ResetPasswordInner() {
     }
     setLoading(true);
     try {
-      const data = await api<{ reset: boolean; message: string }>(
-        '/auth/reset-password',
-        {
-          method: 'POST',
-          auth: false,
-          body: { token, password },
-        },
-      );
-      setSuccess(data.message);
+      if (firebaseReset) {
+        await firebaseConfirmReset(oobCode, password);
+        setSuccess(
+          tr('Password updated. Sign in with your new password.'),
+        );
+      } else {
+        const data = await api<{ reset: boolean; message: string }>(
+          '/auth/reset-password',
+          {
+            method: 'POST',
+            auth: false,
+            body: { token, password },
+          },
+        );
+        setSuccess(data.message);
+      }
     } catch (err) {
       setError(
         err instanceof ApiError

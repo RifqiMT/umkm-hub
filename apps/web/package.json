@@ -11,6 +11,7 @@
     "test": "tsx --test src/lib/glossary/glossary.test.ts src/lib/analytics-export.test.ts src/lib/translate-cache.test.ts src/lib/translate-skip.test.ts src/lib/format-localized-number.test.ts"
   },
   "dependencies": {
+    "firebase": "^12.17.0",
     "html-to-image": "^1.11.13",
     "next": "15.5.21",
     "react": "19.1.0",

@@ -5,6 +5,11 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth';
+import {
+  firebaseVerifyEmail,
+  getFirebaseIdToken,
+  isFirebaseConfigured,
+} from '@/lib/firebase';
 import { useTr } from '@/components/Tr';
 
 type VerifyState =
@@ -39,34 +44,54 @@ function writeCached(token: string, value: VerifyOk) {
   }
 }
 
-function verifyEmailOnce(token: string): Promise<VerifyOk> {
+function verifyEmailOnce(token: string, firebaseMode: boolean): Promise<VerifyOk> {
   const cached = readCached(token);
   if (cached) return Promise.resolve(cached);
 
   const existing = verifyInflight.get(token);
   if (existing) return existing;
 
-  const promise = api<{
-    verified: boolean;
-    email?: string;
-    message: string;
-  }>('/auth/verify-email', {
-    method: 'POST',
-    auth: false,
-    body: { token },
-  })
-    .then((result) => {
+  const promise = (async () => {
+    if (firebaseMode) {
+      await firebaseVerifyEmail(token);
+      const idToken = await getFirebaseIdToken();
+      if (idToken) {
+        try {
+          await api('/auth/firebase/session', {
+            method: 'POST',
+            auth: false,
+            body: { idToken },
+          });
+        } catch {
+          /* profile sync optional on verify page */
+        }
+      }
       const ok: VerifyOk = {
-        message: result.message || 'Email and account verified successfully.',
-        email: result.email,
+        message: 'Email verified successfully. You can sign in now.',
       };
       writeCached(token, ok);
       return ok;
-    })
-    .catch((err) => {
-      verifyInflight.delete(token);
-      throw err;
+    }
+
+    const result = await api<{
+      verified: boolean;
+      email?: string;
+      message: string;
+    }>('/auth/verify-email', {
+      method: 'POST',
+      auth: false,
+      body: { token },
     });
+    const ok: VerifyOk = {
+      message: result.message || 'Email and account verified successfully.',
+      email: result.email,
+    };
+    writeCached(token, ok);
+    return ok;
+  })().catch((err) => {
+    verifyInflight.delete(token);
+    throw err;
+  });
 
   verifyInflight.set(token, promise);
   return promise;
@@ -74,8 +99,14 @@ function verifyEmailOnce(token: string): Promise<VerifyOk> {
 
 function VerifyEmailInner() {
   const tr = useTr();
+  const firebaseEnabled = isFirebaseConfigured();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token')?.trim() ?? '';
+  const legacyToken = searchParams.get('token')?.trim() ?? '';
+  const oobCode = searchParams.get('oobCode')?.trim() ?? '';
+  const mode = searchParams.get('mode')?.trim() ?? '';
+  const firebaseMode =
+    firebaseEnabled && (mode === 'verifyEmail' || Boolean(oobCode && !legacyToken));
+  const token = firebaseMode ? oobCode : legacyToken;
   const [state, setState] = useState<VerifyState>({ status: 'pending' });
   const [signedIn, setSignedIn] = useState(false);
 
@@ -95,7 +126,7 @@ function VerifyEmailInner() {
     let alive = true;
     async function run() {
       try {
-        const result = await verifyEmailOnce(token);
+        const result = await verifyEmailOnce(token, firebaseMode);
         if (!alive) return;
         setState({
           status: 'ok',
@@ -117,7 +148,7 @@ function VerifyEmailInner() {
     return () => {
       alive = false;
     };
-  }, [token]);
+  }, [token, firebaseMode, tr]);
 
   return (
     <main className="umkm-auth">

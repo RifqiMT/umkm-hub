@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
+import 'services/firebase_auth_service.dart';
 import 'services/session_controller.dart';
 import 'services/translate_service.dart';
 import 'services/ui_language_service.dart';
@@ -12,8 +13,9 @@ import 'widgets/auto_translate_text.dart';
 import 'widgets/translation_progress_overlay.dart';
 import 'widgets/ui.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseAuthService.initialize();
   runApp(const UmkmHubApp());
 }
 

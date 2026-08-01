@@ -68,10 +68,12 @@ import {
 } from './analytics-query';
 import {
   analyticsWindowCacheKey,
+  ANALYTICS_WINDOW_CACHE_TTL_MS,
   readCacheEntry,
   writeCacheEntry,
   type AnalyticsWindowCacheEntry,
 } from './analytics-cache';
+import { RedisService } from '../redis/redis.service';
 import { roundMoney } from '../revenue-targets/revenue-target-math';
 import {
   attachMixSharesToPoints,
@@ -153,7 +155,10 @@ export class AnalyticsService {
     AnalyticsWindowCacheEntry<AnalyticsSharedWindow>
   >();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async getOverview(
     profileId: string,
@@ -943,10 +948,10 @@ export class AnalyticsService {
     years: number[],
   ): Promise<AnalyticsSharedWindow> {
     const key = analyticsWindowCacheKey(profileId, years);
-    const hit = readCacheEntry(this.windowCache, key);
-    if (hit) {
+    const cached = await this.readWindowCache(key);
+    if (cached) {
       this.logger.debug(`Analytics window cache hit for ${key}`);
-      return hit;
+      return cached;
     }
 
     const [plans, products, customers, windowOrders, mixOrders] =
@@ -981,8 +986,41 @@ export class AnalyticsService {
       windowOrders,
       mixOrders,
     };
-    writeCacheEntry(this.windowCache, key, value);
+    await this.writeWindowCache(key, value);
     return value;
+  }
+
+  private async readWindowCache(
+    key: string,
+  ): Promise<AnalyticsSharedWindow | null> {
+    if (this.redis.enabled) {
+      const raw = await this.redis.get(`analytics:window:${key}`);
+      if (raw) {
+        try {
+          return JSON.parse(raw) as AnalyticsSharedWindow;
+        } catch {
+          /* corrupt entry — treat as miss */
+        }
+      }
+      return null;
+    }
+    return readCacheEntry(this.windowCache, key);
+  }
+
+  private async writeWindowCache(
+    key: string,
+    value: AnalyticsSharedWindow,
+  ): Promise<void> {
+    if (this.redis.enabled) {
+      const ttlSeconds = Math.ceil(ANALYTICS_WINDOW_CACHE_TTL_MS / 1000);
+      await this.redis.set(
+        `analytics:window:${key}`,
+        JSON.stringify(value),
+        ttlSeconds,
+      );
+      return;
+    }
+    writeCacheEntry(this.windowCache, key, value);
   }
 
   /**

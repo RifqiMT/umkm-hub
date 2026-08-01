@@ -3,6 +3,8 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordResetService } from './password-reset.service';
+import { FirebaseAuthService } from './firebase-auth.service';
+import { FirebaseAdminService } from './firebase-admin.service';
 import {
   ForgotPasswordDto,
   LoginDto,
@@ -12,6 +14,10 @@ import {
   ResetPasswordDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
+import {
+  FirebaseIdTokenDto,
+  FirebaseRegisterDto,
+} from './dto/firebase-auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -19,7 +25,31 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly emailVerification: EmailVerificationService,
     private readonly passwordReset: PasswordResetService,
+    private readonly firebaseAuth: FirebaseAuthService,
+    private readonly firebaseAdmin: FirebaseAdminService,
   ) {}
+
+  /** Whether Firebase Auth is active (web/mobile should prefer Firebase flows). */
+  @Post('config')
+  @HttpCode(HttpStatus.OK)
+  authConfig() {
+    return {
+      firebaseEnabled: this.firebaseAdmin.enabled,
+    };
+  }
+
+  @Post('firebase/session')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  firebaseSession(@Body() dto: FirebaseIdTokenDto) {
+    return this.firebaseAuth.exchangeSession(dto.idToken);
+  }
+
+  @Post('firebase/register')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  firebaseRegister(@Body() dto: FirebaseRegisterDto) {
+    return this.firebaseAuth.registerProfile(dto.idToken, dto.profileName);
+  }
 
   @Post('register-availability')
   @HttpCode(HttpStatus.OK)

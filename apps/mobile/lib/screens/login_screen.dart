@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config.dart';
 import '../services/api_service.dart';
 import '../services/session_controller.dart';
 import '../theme/umkm_theme.dart';
 import '../widgets/ui.dart';
+import 'forgot_password_screen.dart';
 
 final _usernameRe = RegExp(r'^[a-zA-Z0-9._-]+$');
 final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
@@ -154,6 +156,12 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } else {
+      if (AppConfig.firebaseConfigured &&
+          !nameCtrl.text.trim().contains('@')) {
+        session.setError('Sign in with your email address.');
+        if (mounted) setState(() => busy = false);
+        return;
+      }
       await session.login(nameCtrl.text.trim(), passCtrl.text);
     }
     if (mounted) setState(() => busy = false);
@@ -162,6 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
+    final firebase = AppConfig.firebaseConfigured;
     final nameHint = registerMode ? _usernameHint(nameCtrl.text) : null;
     final emailHint = registerMode ? _emailHint(emailCtrl.text) : null;
     final taken = registerMode && availability == _Availability.taken;
@@ -228,10 +237,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: InputDecoration(
                                 labelText: registerMode
                                     ? 'Username'
-                                    : 'Username or email',
+                                    : firebase
+                                        ? 'Email'
+                                        : 'Username or email',
                                 hintText: registerMode
                                     ? 'Must be unique'
-                                    : 'username or you@example.com',
+                                    : firebase
+                                        ? 'you@example.com'
+                                        : 'username or you@example.com',
                                 helperText: registerMode
                                     ? _identityHelper(
                                         nameHint,
@@ -286,7 +299,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                 labelText: 'Password',
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            if (!registerMode) ...[
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            const ForgotPasswordScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Forgot password?'),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(

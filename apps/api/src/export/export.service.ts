@@ -163,7 +163,7 @@ export class ExportService {
       locationCity: string | null;
       locationCountry: string | null;
       locationSource: string | null;
-      passwordHash: string;
+      passwordHash: string | null;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -178,10 +178,14 @@ export class ExportService {
       hasStoredLocationPart(row.locationCountry);
 
     const openedHash =
-      openExportPasswordHash(row.passwordHash, secret) ?? row.passwordHash;
+      openExportPasswordHash(row.passwordHash ?? '', secret) ??
+      row.passwordHash ??
+      '';
     const passwordHash = plaintextPasswordExport
       ? openedHash
-      : sealExportPasswordHash(openedHash, secret);
+      : openedHash
+        ? sealExportPasswordHash(openedHash, secret)
+        : null;
     const password = plaintextPasswordExport
       ? resolveSandboxExportPassword(row.profileName, sandboxPasswords)
       : null;

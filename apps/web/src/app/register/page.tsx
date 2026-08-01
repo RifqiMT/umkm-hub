@@ -5,6 +5,11 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { setSession } from '@/lib/auth';
+import {
+  firebaseRegister,
+  getFirebaseIdToken,
+  isFirebaseConfigured,
+} from '@/lib/firebase';
 import { checkRegistrationAvailability } from '@/lib/registration-availability';
 import { useTr } from '@/components/Tr';
 
@@ -61,6 +66,7 @@ function isRegisterConflict(err: ApiError): boolean {
 export default function RegisterPage() {
   const router = useRouter();
   const tr = useTr();
+  const firebaseEnabled = isFirebaseConfigured();
   const alertRef = useRef<HTMLDivElement>(null);
   const checkSeq = useRef(0);
   const [profileName, setProfileName] = useState('');
@@ -149,20 +155,41 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const data = await api<{
-        accessToken: string;
-        refreshToken: string;
-        profile: { id: string; profileName: string };
-      }>('/auth/register', {
-        method: 'POST',
-        auth: false,
-        body: {
-          profileName: profileName.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-        },
-      });
-      setSession(data);
+      if (firebaseEnabled) {
+        await firebaseRegister(email.trim().toLowerCase(), password);
+        const idToken = await getFirebaseIdToken();
+        if (!idToken) {
+          throw new Error('Registration failed');
+        }
+        const data = await api<{
+          accessToken: string;
+          refreshToken: string;
+          profile: { id: string; profileName: string };
+        }>('/auth/firebase/register', {
+          method: 'POST',
+          auth: false,
+          body: {
+            idToken,
+            profileName: profileName.trim(),
+          },
+        });
+        setSession(data);
+      } else {
+        const data = await api<{
+          accessToken: string;
+          refreshToken: string;
+          profile: { id: string; profileName: string };
+        }>('/auth/register', {
+          method: 'POST',
+          auth: false,
+          body: {
+            profileName: profileName.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+          },
+        });
+        setSession(data);
+      }
       router.replace('/dashboard');
     } catch (err) {
       if (err instanceof ApiError && isRegisterConflict(err)) {

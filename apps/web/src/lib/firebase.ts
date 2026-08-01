@@ -47,6 +47,24 @@ export function getFirebaseAuth(): Auth {
   return auth;
 }
 
+const DEFAULT_APP_ORIGIN = 'https://umkm-hub-web.vercel.app';
+
+function getAppOrigin(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || DEFAULT_APP_ORIGIN
+  );
+}
+
+function emailActionSettings(path: string) {
+  return {
+    url: `${getAppOrigin()}${path}`,
+    handleCodeInApp: true,
+  };
+}
+
 export async function firebaseSignIn(email: string, password: string) {
   const result = await signInWithEmailAndPassword(
     getFirebaseAuth(),
@@ -62,12 +80,27 @@ export async function firebaseRegister(email: string, password: string) {
     email.trim().toLowerCase(),
     password,
   );
-  await sendEmailVerification(result.user);
+  await sendEmailVerification(
+    result.user,
+    emailActionSettings('/verify-email'),
+  );
   return result.user;
 }
 
+export async function firebaseResendVerification() {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) {
+    throw new Error('Sign in again to resend verification email.');
+  }
+  await sendEmailVerification(user, emailActionSettings('/verify-email'));
+}
+
 export async function firebaseForgotPassword(email: string) {
-  await sendPasswordResetEmail(getFirebaseAuth(), email.trim().toLowerCase());
+  await sendPasswordResetEmail(
+    getFirebaseAuth(),
+    email.trim().toLowerCase(),
+    emailActionSettings('/reset-password'),
+  );
 }
 
 export async function firebaseSignOut() {

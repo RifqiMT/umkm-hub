@@ -6,7 +6,7 @@ import { api, ApiError, downloadDataExport, uploadDataImport } from '@/lib/api';
 import { confirmDelete } from '@/lib/confirm';
 import { useTr } from '@/components/Tr';
 import { clearSession } from '@/lib/auth';
-import { firebaseSignOut, isFirebaseConfigured } from '@/lib/firebase';
+import { firebaseResendVerification, firebaseSignOut, isFirebaseConfigured } from '@/lib/firebase';
 import { getUiLanguageCode, resetUiLanguage, setUiLanguageCode } from '@/lib/ui-language';
 import { useTranslationStatus } from '@/hooks/useTranslationStatus';
 import { ProfileInvoicingSection } from '@/app/(app)/profile/ProfileInvoicingSection';
@@ -187,6 +187,14 @@ export default function ProfilePage() {
     }
     setSendingVerify(true);
     try {
+      if (isFirebaseConfigured()) {
+        await firebaseResendVerification();
+        setMessage(
+          'Verification email sent via Firebase. Check your inbox and spam folder.',
+        );
+        return;
+      }
+
       const result = await api<{
         sent: boolean;
         alreadyVerified: boolean;

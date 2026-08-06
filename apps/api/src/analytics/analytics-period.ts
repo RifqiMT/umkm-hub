@@ -53,16 +53,6 @@ export function parseAnalyticsTimeline(
   return { kind: 'years', years: uniqueSortedYears(years) };
 }
 
-/** @deprecated Prefer parseAnalyticsTimeline — kept for older call sites/tests. */
-export function parseAnalyticsYear(
-  raw: string | undefined,
-  nowYear = new Date().getUTCFullYear(),
-): number | null {
-  const timeline = parseAnalyticsTimeline(raw, undefined, nowYear);
-  if (timeline.kind === 'all') return null;
-  return timeline.years[0] ?? nowYear;
-}
-
 /** Years to load for order window + annual series context. */
 export function resolveAnalyticsLoadYears(
   timeline: AnalyticsTimeline,
@@ -87,12 +77,6 @@ export function resolveAnalyticsLoadYears(
   const min = focus[0]!;
   const withPrior = uniqueSortedYears([min - 1, ...focus]);
   return withPrior.filter((y) => y >= APP_YEAR_MIN - 5 && y <= APP_YEAR_MAX + 5);
-}
-
-/** @deprecated Prefer resolveAnalyticsLoadYears */
-export function resolveAnalyticsYears(year: number | null): number[] {
-  if (year == null) return resolveAnalyticsLoadYears({ kind: 'all' });
-  return resolveAnalyticsLoadYears({ kind: 'years', years: [year] });
 }
 
 export function isYearInTimeline(

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../filter_catalog.dart';
 import '../format_money.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -39,10 +42,59 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
   bool loading = true;
   bool _dataSyncOpen = false;
 
+  final _inventorySearchCtrl = TextEditingController();
+  final _historySearchCtrl = TextEditingController();
+  Timer? _inventorySearchDebounce;
+  Timer? _historySearchDebounce;
+  String _inventorySearch = '';
+  String _historySearch = '';
+  List<String> _unitFilters = [];
+  List<String> _costSetFilters = [];
+  List<String> _packReadyFilters = [];
+  List<String> _stockStatusFilters = [];
+
+  int get _inventoryFilterCount =>
+      (_unitFilters.isNotEmpty ? 1 : 0) +
+      (_costSetFilters.isNotEmpty ? 1 : 0) +
+      (_packReadyFilters.isNotEmpty ? 1 : 0) +
+      (_stockStatusFilters.isNotEmpty ? 1 : 0);
+
+  bool get _inventoryFiltersActive =>
+      _inventorySearch.trim().isNotEmpty || _inventoryFilterCount > 0;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _inventorySearchDebounce?.cancel();
+    _historySearchDebounce?.cancel();
+    _inventorySearchCtrl.dispose();
+    _historySearchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onInventorySearchChanged(String value) {
+    setState(() {});
+    _inventorySearchDebounce?.cancel();
+    _inventorySearchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _inventorySearch = value.trim());
+      _load();
+    });
+  }
+
+  void _onHistorySearchChanged(String value) {
+    setState(() {});
+    _historySearchDebounce?.cancel();
+    _historySearchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _historySearch = value.trim());
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -56,9 +108,19 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     try {
       final api = context.read<ApiService>();
       final results = await Future.wait([
-        api.listWarehouseRestocks(),
-        api.listWarehouseSales(),
-        api.listProducts(),
+        api.listWarehouseRestocks(
+          search: _historySearch.isEmpty ? null : _historySearch,
+        ),
+        api.listWarehouseSales(
+          search: _historySearch.isEmpty ? null : _historySearch,
+        ),
+        api.listProducts(
+          search: _inventorySearch.isEmpty ? null : _inventorySearch,
+          unit: _unitFilters,
+          costSet: _costSetFilters,
+          packReady: _packReadyFilters,
+          stockStatus: _stockStatusFilters,
+        ),
       ]);
       if (!mounted) return;
       setState(() {
@@ -72,6 +134,97 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  Widget _buildInventoryFilters() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterSearchField(
+          controller: _inventorySearchCtrl,
+          onChanged: _onInventorySearchChanged,
+          hintText: 'Search inventory…',
+          label: 'Inventory search',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            UmkmSpace.md,
+            0,
+            UmkmSpace.md,
+            UmkmSpace.sm,
+          ),
+          child: ExpandableFilters(
+            title: 'Inventory filters',
+            activeCount: _inventoryFilterCount,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MultiSelectChipGroup(
+                  label: 'Unit',
+                  selected: _unitFilters,
+                  options: [
+                    for (final o in productUnitOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _unitFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Stock',
+                  selected: _stockStatusFilters,
+                  options: [
+                    for (final o in stockStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _stockStatusFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Cost set',
+                  selected: _costSetFilters,
+                  options: [
+                    for (final o in costSetOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _costSetFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Pack ready',
+                  selected: _packReadyFilters,
+                  options: [
+                    for (final o in packReadyOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _packReadyFilters = next);
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHistoryFilters() {
+    return FilterSearchField(
+      controller: _historySearchCtrl,
+      onChanged: _onHistorySearchChanged,
+      hintText: 'Search restock & sold history…',
+      label: 'History search',
+    );
   }
 
   double get totalPotentialRevenue =>
@@ -586,6 +739,7 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
               subtitle:
                   'Stock by pack, inventory value, restock and sold history.',
             ),
+            _buildInventoryFilters(),
             _buildDataSyncSection(),
             const SectionLabel(
               'Inventory',
@@ -646,9 +800,13 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
             ),
             const SizedBox(height: UmkmSpace.xxs),
             if (products.isEmpty)
-              const EmptyHint(
-                title: 'No inventory yet',
-                message: 'Create products first, then restock here.',
+              EmptyHint(
+                title: _inventoryFiltersActive
+                    ? 'No matches'
+                    : 'No inventory yet',
+                message: _inventoryFiltersActive
+                    ? 'Try clearing inventory filters or search.'
+                    : 'Create products first, then restock here.',
               )
             else
               ...products.map((p) {
@@ -702,14 +860,19 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                   ],
                 );
               }),
+            _buildHistoryFilters(),
             const SectionLabel(
               'Restock history',
               subtitle: 'Every stock addition with before and after quantities.',
             ),
             if (items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No restocks yet.'),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _historySearch.isEmpty
+                      ? 'No restocks yet.'
+                      : 'No restock matches.',
+                ),
               )
             else
               ...items.map((r) {
@@ -760,9 +923,13 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                   'Review stock drawn by orders, including quantity before and after each sale.',
             ),
             if (sales.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No sales recorded yet.'),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _historySearch.isEmpty
+                      ? 'No sales recorded yet.'
+                      : 'No sold-history matches.',
+                ),
               )
             else
               ...sales.map((s) {
@@ -790,7 +957,8 @@ class _WarehouseScreenState extends State<WarehouseScreen> {
                     if (packsSold != null) 'Sold $packsSold',
                     if (s.orderRef != null && s.orderRef!.isNotEmpty)
                       s.orderRef!,
-                    else if (s.notes.isNotEmpty)
+                    if ((s.orderRef == null || s.orderRef!.isEmpty) &&
+                        s.notes.isNotEmpty)
                       s.notes,
                   ],
                   metrics: [

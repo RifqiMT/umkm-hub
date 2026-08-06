@@ -719,14 +719,7 @@ Future<T?> showAppFormSheet<T>({
                     const SizedBox(height: UmkmSpace.sm),
                     body(context, setLocal),
                     const SizedBox(height: UmkmSpace.lg),
-                    Row(
-                      children: [
-                        for (var i = 0; i < actionWidgets.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 10),
-                          Expanded(child: actionWidgets[i]),
-                        ],
-                      ],
-                    ),
+                    ..._sheetActionColumn(actionWidgets),
                   ],
                 ),
               ),
@@ -736,6 +729,17 @@ Future<T?> showAppFormSheet<T>({
       );
     },
   );
+}
+
+/// Full-width stacked sheet actions (matches web form/view footers on narrow).
+List<Widget> _sheetActionColumn(List<Widget> actionWidgets) {
+  if (actionWidgets.isEmpty) return const [];
+  return [
+    for (var i = 0; i < actionWidgets.length; i++) ...[
+      if (i > 0) const SizedBox(height: 10),
+      SizedBox(width: double.infinity, child: actionWidgets[i]),
+    ],
+  ];
 }
 
 /// Scrollable view sheet for entity details.
@@ -799,30 +803,7 @@ Future<T?> showAppViewSheet<T>({
               const SizedBox(height: UmkmSpace.sm),
               body,
               const SizedBox(height: UmkmSpace.lg),
-              if (actionWidgets.length == 1)
-                SizedBox(
-                  width: double.infinity,
-                  child: actionWidgets.first,
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.end,
-                  children: actionWidgets
-                      .map(
-                        (w) => ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth: MediaQuery.sizeOf(ctx).width < 380
-                                ? (MediaQuery.sizeOf(ctx).width - 48) / 2
-                                : 108,
-                            minHeight: UmkmSpace.touchMin,
-                          ),
-                          child: w,
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
+              ..._sheetActionColumn(actionWidgets),
             ],
           ),
         ),
@@ -996,6 +977,338 @@ class ChoiceOption<T> {
   final bool enabled;
 }
 
+/// Search field used above ExpandableFilters on list features.
+class FilterSearchField extends StatelessWidget {
+  const FilterSearchField({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+    this.hintText = 'Search…',
+    this.label = 'Search',
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String hintText;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        UmkmSpace.md,
+        UmkmSpace.xs,
+        UmkmSpace.md,
+        UmkmSpace.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Tr(
+            label,
+            style: UmkmType.label(size: 11, color: UmkmColors.muted),
+          ),
+          const SizedBox(height: UmkmSpace.xxs + 2),
+          TextField(
+            controller: controller,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: hintText,
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: controller.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear',
+                      onPressed: () {
+                        controller.clear();
+                        onChanged('');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Multi-select chip group for comma-joined API list filters.
+class MultiSelectChipGroup extends StatelessWidget {
+  const MultiSelectChipGroup({
+    super.key,
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<ChoiceOption<String>> options;
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  void _toggle(String value) {
+    final next = List<String>.from(selected);
+    if (next.contains(value)) {
+      next.remove(value);
+    } else {
+      next.add(value);
+    }
+    onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Tr(
+          label,
+          style: UmkmType.label(size: 11, color: UmkmColors.muted),
+        ),
+        const SizedBox(height: UmkmSpace.xs),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F6F4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: UmkmColors.line.withOpacity(0.85)),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 520;
+              final chipWidth =
+                  narrow ? (constraints.maxWidth - 6) / 2 : null;
+              return Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final opt in options)
+                    if (chipWidth == null)
+                      _ChoiceChipButton(
+                        label: opt.label,
+                        selected: selected.contains(opt.value),
+                        enabled: opt.enabled,
+                        onTap: opt.enabled ? () => _toggle(opt.value) : null,
+                      )
+                    else
+                      SizedBox(
+                        width: chipWidth,
+                        child: _ChoiceChipButton(
+                          label: opt.label,
+                          selected: selected.contains(opt.value),
+                          enabled: opt.enabled,
+                          expand: true,
+                          onTap: opt.enabled ? () => _toggle(opt.value) : null,
+                        ),
+                      ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// From / To date pair for order date filters.
+class DateRangeFilterField extends StatelessWidget {
+  const DateRangeFilterField({
+    super.key,
+    required this.label,
+    required this.from,
+    required this.to,
+    required this.onPickFrom,
+    required this.onPickTo,
+    required this.onClear,
+  });
+
+  final String label;
+  final String? from;
+  final String? to;
+  final VoidCallback onPickFrom;
+  final VoidCallback onPickTo;
+  final VoidCallback onClear;
+
+  bool get active =>
+      (from != null && from!.isNotEmpty) || (to != null && to!.isNotEmpty);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Tr(
+                label,
+                style: UmkmType.label(size: 11, color: UmkmColors.muted),
+              ),
+            ),
+            if (active)
+              TextButton(
+                onPressed: onClear,
+                child: const Text('Clear'),
+              ),
+          ],
+        ),
+        const SizedBox(height: UmkmSpace.xxs),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onPickFrom,
+                child: Text(
+                  from == null || from!.isEmpty ? 'From' : from!,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const SizedBox(width: UmkmSpace.xs),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onPickTo,
+                child: Text(
+                  to == null || to!.isEmpty ? 'To' : to!,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Native dropdown for form enum fields — refined chrome matching web selects.
+class OptionDropdown<T> extends StatelessWidget {
+  const OptionDropdown({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.allowEmpty = false,
+    this.emptyLabel = 'None',
+    this.emptyValue,
+    this.labelText,
+    this.enabled = true,
+  });
+
+  final T? value;
+  final List<ChoiceOption<T>> options;
+  final ValueChanged<T?> onChanged;
+  final bool allowEmpty;
+  final String emptyLabel;
+  final T? emptyValue;
+  final String? labelText;
+  final bool enabled;
+
+  bool get _isPlaceholder =>
+      value == null || (allowEmpty && (value == emptyValue));
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <DropdownMenuItem<T?>>[
+      if (allowEmpty)
+        DropdownMenuItem<T?>(
+          value: emptyValue,
+          child: Text(
+            emptyLabel,
+            style: UmkmType.body(
+              size: 15,
+              weight: FontWeight.w500,
+              color: UmkmColors.muted,
+            ),
+          ),
+        ),
+      for (final opt in options)
+        DropdownMenuItem<T?>(
+          value: opt.value,
+          enabled: opt.enabled,
+          child: Text(
+            opt.label,
+            style: UmkmType.body(
+              size: 15,
+              weight: FontWeight.w600,
+              color: UmkmColors.ink,
+            ),
+          ),
+        ),
+    ];
+
+    T? resolved = value;
+    final values = items.map((i) => i.value).toSet();
+    if (!values.contains(resolved)) {
+      resolved =
+          allowEmpty ? emptyValue : (options.isEmpty ? null : options.first.value);
+    }
+
+    final radius = BorderRadius.circular(12);
+
+    return DropdownButtonFormField<T?>(
+      value: resolved,
+      items: items,
+      icon: Icon(
+        Icons.keyboard_arrow_down_rounded,
+        color: enabled ? UmkmColors.brand : UmkmColors.muted,
+        size: 22,
+      ),
+      iconSize: 22,
+      dropdownColor: Colors.white,
+      borderRadius: radius,
+      style: UmkmType.body(
+        size: 15,
+        weight: _isPlaceholder ? FontWeight.w500 : FontWeight.w600,
+        color: _isPlaceholder ? UmkmColors.muted : UmkmColors.ink,
+      ),
+      onChanged: enabled
+          ? (v) {
+              if (!allowEmpty && v == null) return;
+              onChanged(v);
+            }
+          : null,
+      decoration: InputDecoration(
+        labelText: labelText,
+        filled: true,
+        fillColor: const Color(0xFFF8FCF9),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(
+            color: UmkmColors.line.withValues(alpha: 0.9),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(
+            color: UmkmColors.line.withValues(alpha: 0.9),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: const BorderSide(color: UmkmColors.brand, width: 1.5),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(
+            color: UmkmColors.line.withValues(alpha: 0.55),
+          ),
+        ),
+      ),
+      isExpanded: true,
+    );
+  }
+}
+
 /// Segmented chip group for short enum / filter choices.
 class ChoiceChipGroup<T> extends StatelessWidget {
   const ChoiceChipGroup({
@@ -1025,30 +1338,49 @@ class ChoiceChipGroup<T> extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: UmkmColors.line.withOpacity(0.85)),
       ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: [
-          if (allowEmpty)
-            _ChoiceChipButton(
-              label: emptyLabel,
-              selected: value == emptyValue || value == null,
-              onTap: () => onChanged(emptyValue),
-            ),
-          for (final opt in options)
-            _ChoiceChipButton(
-              label: opt.label,
-              selected: value == opt.value,
-              enabled: opt.enabled,
-              onTap: opt.enabled ? () => onChanged(opt.value) : null,
-            ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 520;
+          final chipWidth = narrow
+              ? (constraints.maxWidth - 6) / 2
+              : null;
+          Widget chip(_ChoiceChipButton child) {
+            if (chipWidth == null) return child;
+            return SizedBox(width: chipWidth, child: child);
+          }
+
+          return Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (allowEmpty)
+                chip(
+                  _ChoiceChipButton(
+                    label: emptyLabel,
+                    selected: value == emptyValue || value == null,
+                    expand: chipWidth != null,
+                    onTap: () => onChanged(emptyValue),
+                  ),
+                ),
+              for (final opt in options)
+                chip(
+                  _ChoiceChipButton(
+                    label: opt.label,
+                    selected: value == opt.value,
+                    enabled: opt.enabled,
+                    expand: chipWidth != null,
+                    onTap: opt.enabled ? () => onChanged(opt.value) : null,
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// Collapsible filter chrome — collapsed by default on phones/tablets.
+/// Collapsible filter chrome — collapsed by default; expand via the toggle.
 class ExpandableFilters extends StatefulWidget {
   const ExpandableFilters({
     super.key,
@@ -1172,12 +1504,14 @@ class _ChoiceChipButton extends StatelessWidget {
     required this.selected,
     this.enabled = true,
     this.onTap,
+    this.expand = false,
   });
 
   final String label;
   final bool selected;
   final bool enabled;
   final VoidCallback? onTap;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -1189,7 +1523,12 @@ class _ChoiceChipButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          width: expand ? double.infinity : null,
+          alignment: expand ? Alignment.center : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: expand ? 8 : 12,
+            vertical: expand ? 10 : 9,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
@@ -1209,9 +1548,13 @@ class _ChoiceChipButton extends StatelessWidget {
           ),
           child: Tr(
             label,
+            textAlign: expand ? TextAlign.center : TextAlign.start,
+            maxLines: expand ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
+              height: 1.2,
               color: !enabled
                   ? UmkmColors.muted.withOpacity(0.5)
                   : selected

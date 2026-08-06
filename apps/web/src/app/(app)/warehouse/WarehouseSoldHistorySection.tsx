@@ -83,6 +83,7 @@ export function WarehouseSoldHistoryView({
           ? `Stock drawn by order ${row.orderRef}.`
           : 'Stock drawn when this order line was fulfilled.'
       }
+      actionsPlacement="foot"
       actions={
         <>
           {row.order?.id || row.orderId ? (

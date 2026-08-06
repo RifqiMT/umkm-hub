@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../filter_catalog.dart';
 import '../models/models.dart';
 import '../format_id.dart';
 import '../format_money.dart';
@@ -185,12 +188,74 @@ class _OrdersScreenState extends State<OrdersScreen> {
   int totalOrders = 0;
   int totalPages = 1;
 
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  String _search = '';
+  List<String> _statusFilters = [];
+  List<String> _paymentFilters = [];
+  List<String> _billFilters = [];
+  List<String> _invoiceFilters = [];
+  String? _orderDateFrom;
+  String? _orderDateTo;
+  String? _shipmentDateFrom;
+  String? _shipmentDateTo;
+  String? _invoiceDateFrom;
+  String? _invoiceDateTo;
+
   bool get hasMore => page < totalPages;
+
+  bool get _filtersActive =>
+      _search.trim().isNotEmpty ||
+      _statusFilters.isNotEmpty ||
+      _paymentFilters.isNotEmpty ||
+      _billFilters.isNotEmpty ||
+      _invoiceFilters.isNotEmpty ||
+      (_orderDateFrom?.isNotEmpty ?? false) ||
+      (_orderDateTo?.isNotEmpty ?? false) ||
+      (_shipmentDateFrom?.isNotEmpty ?? false) ||
+      (_shipmentDateTo?.isNotEmpty ?? false) ||
+      (_invoiceDateFrom?.isNotEmpty ?? false) ||
+      (_invoiceDateTo?.isNotEmpty ?? false);
+
+  int get _filterActiveCount =>
+      (_statusFilters.isNotEmpty ? 1 : 0) +
+      (_paymentFilters.isNotEmpty ? 1 : 0) +
+      (_billFilters.isNotEmpty ? 1 : 0) +
+      (_invoiceFilters.isNotEmpty ? 1 : 0) +
+      ((_orderDateFrom?.isNotEmpty ?? false) ||
+              (_orderDateTo?.isNotEmpty ?? false)
+          ? 1
+          : 0) +
+      ((_shipmentDateFrom?.isNotEmpty ?? false) ||
+              (_shipmentDateTo?.isNotEmpty ?? false)
+          ? 1
+          : 0) +
+      ((_invoiceDateFrom?.isNotEmpty ?? false) ||
+              (_invoiceDateTo?.isNotEmpty ?? false)
+          ? 1
+          : 0);
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _search = value.trim());
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -202,9 +267,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
     try {
       final api = context.read<ApiService>();
       final results = await Future.wait([
-        api.listOrders(page: 1),
+        api.listOrders(
+          page: 1,
+          search: _search.isEmpty ? null : _search,
+          status: _statusFilters,
+          paymentStatus: _paymentFilters,
+          billStatus: _billFilters,
+          invoiceStatus: _invoiceFilters,
+          orderDateFrom: _orderDateFrom,
+          orderDateTo: _orderDateTo,
+          shipmentDateFrom: _shipmentDateFrom,
+          shipmentDateTo: _shipmentDateTo,
+          invoiceDateFrom: _invoiceDateFrom,
+          invoiceDateTo: _invoiceDateTo,
+        ),
         api.listProducts(),
-        api.getOrderSummary(),
+        api.getOrderSummary(
+          search: _search.isEmpty ? null : _search,
+          status: _statusFilters,
+          paymentStatus: _paymentFilters,
+          billStatus: _billFilters,
+          invoiceStatus: _invoiceFilters,
+          orderDateFrom: _orderDateFrom,
+          orderDateTo: _orderDateTo,
+          shipmentDateFrom: _shipmentDateFrom,
+          shipmentDateTo: _shipmentDateTo,
+          invoiceDateFrom: _invoiceDateFrom,
+          invoiceDateTo: _invoiceDateTo,
+        ),
       ]);
       final orders = results[0] as PaginatedOrders;
       items = orders.items;
@@ -225,7 +315,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
     setState(() => loadingMore = true);
     try {
       final api = context.read<ApiService>();
-      final next = await api.listOrders(page: page + 1);
+      final next = await api.listOrders(
+        page: page + 1,
+        search: _search.isEmpty ? null : _search,
+        status: _statusFilters,
+        paymentStatus: _paymentFilters,
+        billStatus: _billFilters,
+        invoiceStatus: _invoiceFilters,
+        orderDateFrom: _orderDateFrom,
+        orderDateTo: _orderDateTo,
+        shipmentDateFrom: _shipmentDateFrom,
+        shipmentDateTo: _shipmentDateTo,
+        invoiceDateFrom: _invoiceDateFrom,
+        invoiceDateTo: _invoiceDateTo,
+      );
       if (!mounted) return;
       setState(() {
         items = [...items, ...next.items];
@@ -242,6 +345,191 @@ class _OrdersScreenState extends State<OrdersScreen> {
     } finally {
       if (mounted) setState(() => loadingMore = false);
     }
+  }
+
+  Future<void> _pickFilterDate({
+    required String? initial,
+    required void Function(String) onPicked,
+  }) async {
+    final parts = (initial ?? '').split('-');
+    final initialDate = parts.length == 3
+        ? DateTime(
+            int.tryParse(parts[0]) ?? DateTime.now().year,
+            int.tryParse(parts[1]) ?? DateTime.now().month,
+            int.tryParse(parts[2]) ?? DateTime.now().day,
+          )
+        : DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: AppTimeline.firstDate,
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    final m = picked.month.toString().padLeft(2, '0');
+    final d = picked.day.toString().padLeft(2, '0');
+    onPicked('${picked.year}-$m-$d');
+  }
+
+  Widget _buildFilters() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterSearchField(
+          controller: _searchCtrl,
+          onChanged: _onSearchChanged,
+          hintText: 'Product, status, payment, date…',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            UmkmSpace.md,
+            0,
+            UmkmSpace.md,
+            UmkmSpace.sm,
+          ),
+          child: ExpandableFilters(
+            activeCount: _filterActiveCount,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MultiSelectChipGroup(
+                  label: 'Status',
+                  selected: _statusFilters,
+                  options: [
+                    for (final o in orderStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _statusFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Payment',
+                  selected: _paymentFilters,
+                  options: [
+                    for (final o in paymentStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _paymentFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Customer bill',
+                  selected: _billFilters,
+                  options: [
+                    for (final o in billStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _billFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Collection',
+                  selected: _invoiceFilters,
+                  options: [
+                    for (final o in invoiceStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _invoiceFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                DateRangeFilterField(
+                  label: 'Order date',
+                  from: _orderDateFrom,
+                  to: _orderDateTo,
+                  onPickFrom: () => _pickFilterDate(
+                    initial: _orderDateFrom,
+                    onPicked: (v) {
+                      setState(() => _orderDateFrom = v);
+                      _load();
+                    },
+                  ),
+                  onPickTo: () => _pickFilterDate(
+                    initial: _orderDateTo,
+                    onPicked: (v) {
+                      setState(() => _orderDateTo = v);
+                      _load();
+                    },
+                  ),
+                  onClear: () {
+                    setState(() {
+                      _orderDateFrom = null;
+                      _orderDateTo = null;
+                    });
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                DateRangeFilterField(
+                  label: 'Shipment date',
+                  from: _shipmentDateFrom,
+                  to: _shipmentDateTo,
+                  onPickFrom: () => _pickFilterDate(
+                    initial: _shipmentDateFrom,
+                    onPicked: (v) {
+                      setState(() => _shipmentDateFrom = v);
+                      _load();
+                    },
+                  ),
+                  onPickTo: () => _pickFilterDate(
+                    initial: _shipmentDateTo,
+                    onPicked: (v) {
+                      setState(() => _shipmentDateTo = v);
+                      _load();
+                    },
+                  ),
+                  onClear: () {
+                    setState(() {
+                      _shipmentDateFrom = null;
+                      _shipmentDateTo = null;
+                    });
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                DateRangeFilterField(
+                  label: 'Invoice date',
+                  from: _invoiceDateFrom,
+                  to: _invoiceDateTo,
+                  onPickFrom: () => _pickFilterDate(
+                    initial: _invoiceDateFrom,
+                    onPicked: (v) {
+                      setState(() => _invoiceDateFrom = v);
+                      _load();
+                    },
+                  ),
+                  onPickTo: () => _pickFilterDate(
+                    initial: _invoiceDateTo,
+                    onPicked: (v) {
+                      setState(() => _invoiceDateTo = v);
+                      _load();
+                    },
+                  ),
+                  onClear: () {
+                    setState(() {
+                      _invoiceDateFrom = null;
+                      _invoiceDateTo = null;
+                    });
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _pickDate({
@@ -448,8 +736,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     String? customerId = fullExisting?.customerId;
     String status = fullExisting?.status ?? 'PENDING';
     String discountType = fullExisting?.discountType ?? 'PERCENTAGE';
+    final discountSeed = fullExisting?.discountValue ?? 0;
     final discountCtrl = TextEditingController(
-      text: (fullExisting?.discountValue ?? 0).toString(),
+      text: discountSeed == 0 ? '' : discountSeed.toString(),
     );
     String payment = fullExisting?.paymentStatus ?? 'CASH';
     String billStatus = fullExisting?.billStatus ?? 'CREATED';
@@ -1034,19 +1323,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Status',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: UmkmColors.muted,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
+                  OptionDropdown<String>(
+                    labelText: 'Status',
                     value: status,
                     onChanged: (v) => setLocal(() => status = v ?? status),
                     options: const [
@@ -1065,16 +1343,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Discount type',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: UmkmColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
+                  OptionDropdown<String>(
+                    labelText: 'Discount type',
                     value: discountType,
                     onChanged: (v) =>
                         setLocal(() => discountType = v ?? discountType),
@@ -1095,16 +1365,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     onChanged: (_) => setLocal(() {}),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Payment mode',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: UmkmColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
+                  OptionDropdown<String>(
+                    labelText: 'Payment mode',
                     value: payment,
                     onChanged: (v) => setLocal(() {
                       payment = v ?? payment;
@@ -1154,16 +1416,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Bill status',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: UmkmColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
+                  OptionDropdown<String>(
+                    labelText: 'Bill status',
                     value: billStatus,
                     onChanged: (v) =>
                         setLocal(() => billStatus = v ?? billStatus),
@@ -2290,12 +2544,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) {
+    if (error != null && items.isEmpty && !loading) {
       return Column(
         children: [
           ErrorBanner(message: error!),
           TextButton(onPressed: _load, child: const Text('Retry')),
+          _buildFilters(),
         ],
       );
     }
@@ -2309,17 +2563,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   const PageIntro(
                     subtitle: 'Pack-based orders with locked product prices.',
                   ),
+                  _buildFilters(),
                   _buildDataSyncSection(),
-                  _buildSummarySection(),
-                  const SectionLabel(
-                    'Fulfillment',
-                    subtitle: 'Orders with locked pack prices.',
-                  ),
-                  const SizedBox(height: 8),
-                  const EmptyHint(
-                    title: 'No orders yet',
-                    message: 'Tap + to create your first order.',
-                  ),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    _buildSummarySection(),
+                    const SectionLabel(
+                      'Fulfillment',
+                      subtitle: 'Orders with locked pack prices.',
+                    ),
+                    const SizedBox(height: 8),
+                    EmptyHint(
+                      title: _filtersActive ? 'No matches' : 'No orders yet',
+                      message: _filtersActive
+                          ? 'Try clearing filters or search.'
+                          : 'Tap + to create your first order.',
+                    ),
+                  ],
                 ],
               )
             : ListView.builder(
@@ -2334,6 +2598,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           subtitle:
                               'Pack-based orders with locked product prices.',
                         ),
+                        _buildFilters(),
                         _buildDataSyncSection(),
                         _buildSummarySection(),
                         SectionLabel(

@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Sources of truth** | `apps/web/src/app/globals.css`; `apps/mobile/lib/theme/umkm_theme.dart` |
 
 ---
@@ -90,6 +90,10 @@ Media queries use these pixel values (CSS custom props are not valid in `@media`
 
 `StatusTone.brand | neutral | danger` on `StatusChip` — never use raw `Colors.red`.
 
+### 2.4b Mobile list filters
+
+Products, Customers, Orders, and Warehouse use `ExpandableFilters` + search/chip (and Orders date ranges) matching web API filters. Analytics keeps period/timeline controls.
+
 ### 2.5 Page atmosphere
 
 Body background uses layered radial gradients (teal + soft warm) over `--bg` → `--bg-deep`. Do not replace with flat white.
@@ -148,7 +152,8 @@ Rules:
 | `PageHeader` | Title + support + primary actions |
 | Buttons | Filled brand / secondary outline / danger / `.umkm-actions` row |
 | Fields | White fill, teal focus ring |
-| `OptionChips` | Short enum selection |
+| `OptionSelect` / `OptionDropdown` | Form enum selection (company type, status, payment, unit, pack size, etc.) — soft surface, brand chevron, muted placeholder |
+| `OptionChips` / `ChoiceChipGroup` | View/mode toggles, Amount/%, multi-select filter chips — **not** primary form enums |
 | `ViewSheet` | Read-only entity details |
 | `ConfirmProvider` | In-app destructive confirms |
 | `EntityId` / `.umkm-entity-id.is-soft` | Soft SKU / order ID pills |
@@ -184,7 +189,7 @@ Rules:
 | `SectionLabel` | Manrope section headings |
 | `FormSection` | Form topic blocks |
 | `EmptyHint` / `ErrorBanner` | Empty & error states |
-| `ChoiceChipGroup` | Enum chips |
+| `ChoiceChipGroup` / `MultiSelectChipGroup` | Mode toggles and multi-select filters (not form enums) |
 | `PageIntro` | Subtitle under AppBar; optional compact pulse metrics (SKUs / contacts) |
 | Dictionary (`GlossaryScreen`) | Horizontal feature chips with counts, expandable term tiles (preview → meaning/formula) |
 | Profile (`ProfileScreen`) | Identity header, personal-details preview card + grouped Name/Email/Location, workspace snapshot tiles, credentials + confirm password, Analytics/Dictionary shortcuts, tips, danger zone |
@@ -200,7 +205,7 @@ Rules:
 - Orders date filters: compact from/to dropdowns (`.umkm-date-range-filter`) for order / shipment / invoice dates; multi-select for status and payment (Cash / Consignment / Delayed)
 - List filters: multi-select dropdown (`.umkm-multi-filter`) for status/unit — empty selection = all; checkbox panel; not chip strips
 - ≤900px: filter / period / timeline panels open as **bottom sheets** (`.is-sheet` + `.umkm-filter-sheet-backdrop`) with Done chrome; desktop keeps anchored popovers
-- ≤1100px + mobile: filter rows use **collapsible disclosure** (web `CollapsibleFilters` / Flutter `ExpandableFilters`) — **collapsed by default**; summary shows active count badge; desktop (>1100) keeps filters always expanded
+- ≤1100px + mobile + desktop: filter rows use **collapsible disclosure** (web `CollapsibleFilters` / Flutter `ExpandableFilters`) — **collapsed by default** on every viewport; summary toggle always visible with active-count badge when filters apply
 - Products catalog also filters **Cost set** and **Pack ready** (same readiness rules as Products stage rates)
 - Warehouse inventory also filters **In stock** / **Out of stock** (same rules as Warehouse stage rates)
 - **Products:** name + unit chip + soft SKU; details in View only
@@ -208,7 +213,7 @@ Rules:
 - **Stock & sales** (Products, web): dense insight table above Statistics — Stocks primary with current/sold subline; money + STR/ITR/SSR; same catalog filter context; **View** opens product performance in exclusive focus mode (stage/filters/siblings hidden)
 - **Order totals** (Customers, web): **Revenue** column (gross primary + Gross·Net subline) + volume columns above Statistics; same Directory filters; **View** opens order performance in exclusive focus mode
 - **Sold history** (Warehouse): ledger table above Statistics; **View** exclusive focus mode; **Open order** navigates to Orders view sheet (`?view=`)
-- **Narrow/mobile chrome:** feature View heads, form footers, and table headers scroll with content; shell brand bar + bottom nav stay fixed; ≤1100 catalog/insight **cards**
+- **Narrow/mobile chrome:** feature View heads, form footers, and table headers scroll with content; shell brand bar + bottom nav stay fixed; ≤1100 catalog/insight **cards**; View and Form sheet actions sit at the **foot** (full-width stack on narrow), never mixed top/bottom
 - **Exclusive View:** any feature View (catalog, directory, inventory, restock, performance, sold) must hide FeatureStage + list chrome; render the sheet at page level, not inside a sibling section
 - **Domain statistics:** filter-aware mix sections below feature stage (Products / Customers / Orders / Warehouse) — complementary to summary rate meters, not a second dashboard
 - **Profile invoicing:** dedicated fiscal identity block (NPWP, PKP, PPN %, taxInclusive, invoice prefix) — calm form density, same tokens as personal details
@@ -253,6 +258,8 @@ Respect `prefers-reduced-motion`. Motion creates hierarchy—not noise.
 ## 7. Accessibility
 
 - Visible labels on all inputs  
+- Form enum fields use native dropdowns (`OptionSelect` / `OptionDropdown`) with soft surface, custom chevron, and muted placeholder; chip rows remain for view/mode toggles and multi-select filters  
+- Numeric fields start blank (not seeded with `0`); web `NumberDraft` helpers coerce empty → 0 only on submit/math  
 - Confirm dialogs for delete/clear  
 - Color not the sole status signal (text labels for enums)  
 - Touch targets ≥44px on mobile / narrow web  

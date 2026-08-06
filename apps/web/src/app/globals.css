@@ -719,6 +719,8 @@ textarea {
 .umkm-panel-body {
   padding: var(--section-body-pad-y) var(--section-body-pad-x)
     calc(var(--section-body-pad-y) + 0.15rem);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .umkm-panel.quiet .umkm-panel-body {
@@ -751,6 +753,27 @@ textarea {
   margin-top: 0.35rem;
 }
 
+/* View sheet / panel foot actions — same rhythm as form .umkm-actions */
+.umkm-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.95rem var(--section-body-pad-x)
+    calc(var(--section-body-pad-y) + 0.15rem);
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background:
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--surface-2) 55%, #fff) 0%,
+      transparent 100%
+    );
+}
+
+.umkm-content-section.has-foot-actions > .umkm-panel-body {
+  padding-bottom: calc(var(--section-body-pad-y) - 0.15rem);
+}
+
 .umkm-form-panel {
   margin-bottom: 1.35rem;
   animation: rise 300ms var(--ease);
@@ -778,6 +801,9 @@ textarea {
     );
   box-shadow: var(--shadow-soft);
   animation: rise 280ms var(--ease) both;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .umkm-form-section:nth-of-type(2) {
@@ -1023,6 +1049,8 @@ textarea {
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 0.95rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .umkm-field label {
@@ -1036,28 +1064,137 @@ textarea {
 .umkm-field input,
 .umkm-field select,
 .umkm-field textarea {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.7rem 0.8rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: calc(var(--radius-sm) + 0.1rem);
+  padding: 0.7rem 0.85rem;
   background: #fff;
   color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-soft);
   transition:
     border-color 160ms var(--ease),
-    box-shadow 160ms var(--ease);
+    box-shadow 160ms var(--ease),
+    background 160ms var(--ease),
+    color 160ms var(--ease);
+}
+
+/* Native selects — hide OS chrome; custom chevron via wrapper or background */
+.umkm-field > select,
+.umkm-select-control select,
+.umkm-order-product-select select,
+select.umkm-list-pager-size-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  min-height: 2.75rem;
+  padding-right: 2.55rem;
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--surface) 96%, #fff);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 98%, #fff) 0%,
+    color-mix(in srgb, var(--surface-2) 55%, #fff) 100%
+  );
+}
+
+.umkm-field > select,
+.umkm-order-product-select select,
+select.umkm-list-pager-size-select {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6.2 8 10l4-3.8' stroke='%230b6b58' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface) 98%, #fff) 0%,
+      color-mix(in srgb, var(--surface-2) 55%, #fff) 100%
+    );
+  background-repeat: no-repeat, no-repeat;
+  background-position:
+    right 0.85rem center,
+    0 0;
+  background-size:
+    14px 14px,
+    100% 100%;
+}
+
+.umkm-select-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.umkm-select-control select {
+  width: 100%;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 98%, #fff) 0%,
+    color-mix(in srgb, var(--surface-2) 55%, #fff) 100%
+  );
+}
+
+.umkm-select-control.is-placeholder select {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.umkm-select-chevron {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  pointer-events: none;
+  transition:
+    color 160ms var(--ease),
+    transform 160ms var(--ease);
+}
+
+.umkm-select-control:focus-within .umkm-select-chevron {
+  color: var(--brand-deep);
+}
+
+.umkm-select-control.is-disabled .umkm-select-chevron {
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+/* Native date/time controls often carry a large intrinsic width on mobile */
+.umkm-field input[type='date'],
+.umkm-field input[type='datetime-local'],
+.umkm-field input[type='time'],
+.umkm-field input[type='month'],
+.umkm-field input[type='week'] {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .umkm-field input:hover,
 .umkm-field select:hover,
-.umkm-field textarea:hover {
-  border-color: var(--line-strong);
+.umkm-field textarea:hover,
+.umkm-select-control:hover:not(.is-disabled) select {
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
 }
 
 .umkm-field input:focus,
 .umkm-field select:focus,
-.umkm-field textarea:focus {
+.umkm-field textarea:focus,
+.umkm-select-control select:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 3px var(--brand-glow);
+  background-color: #fff;
 }
 
 .umkm-field input:disabled,
@@ -1065,8 +1202,10 @@ textarea {
 .umkm-field textarea:disabled,
 .umkm-field input[readonly] {
   background: var(--surface-2);
+  background-image: none;
   color: var(--muted);
   cursor: default;
+  box-shadow: none;
 }
 
 /* ——— Searchable combobox (country, etc.) ——— */
@@ -1201,6 +1340,8 @@ textarea {
 .umkm-grid {
   display: grid;
   gap: 0.85rem 1rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .umkm-grid.two {
@@ -2674,7 +2815,7 @@ textarea {
   width: 100%;
 }
 
-/* Collapsible filter chrome — collapsed by default ≤1100px */
+/* Collapsible filter chrome — collapsed by default; expand via summary toggle */
 .umkm-filters-disclosure {
   display: flex;
   flex-direction: column;
@@ -2687,7 +2828,7 @@ textarea {
 }
 
 .umkm-filters-disclosure-summary {
-  display: none;
+  display: flex;
   list-style: none;
   align-items: center;
   gap: 0.55rem;
@@ -2767,6 +2908,18 @@ textarea {
   transform: rotate(180deg);
 }
 
+.umkm-filters-disclosure:not([open]) > .umkm-catalog-filters,
+.umkm-filters-disclosure:not([open]) > .umkm-glossary-features,
+.umkm-filters-disclosure:not([open]) > .umkm-analytics-lens-filter-body {
+  display: none;
+}
+
+.umkm-filters-disclosure[open] > .umkm-catalog-filters,
+.umkm-filters-disclosure[open] > .umkm-glossary-features,
+.umkm-filters-disclosure[open] > .umkm-analytics-lens-filter-body {
+  animation: rise 200ms var(--ease) both;
+}
+
 @media (max-width: 1100px) {
   .umkm-filters-disclosure {
     width: 100%;
@@ -2774,26 +2927,7 @@ textarea {
   }
 
   .umkm-filters-disclosure-summary {
-    display: flex;
     width: 100%;
-  }
-
-  .umkm-filters-disclosure:not([open]) > .umkm-catalog-filters,
-  .umkm-filters-disclosure:not([open]) > .umkm-glossary-features,
-  .umkm-filters-disclosure:not([open]) > .umkm-analytics-lens-filter-body {
-    display: none;
-  }
-
-  .umkm-filters-disclosure[open] > .umkm-catalog-filters,
-  .umkm-filters-disclosure[open] > .umkm-glossary-features,
-  .umkm-filters-disclosure[open] > .umkm-analytics-lens-filter-body {
-    animation: rise 200ms var(--ease) both;
-  }
-}
-
-@media (min-width: 1101px) {
-  .umkm-filters-disclosure-summary {
-    display: none;
   }
 }
 
@@ -3255,6 +3389,9 @@ textarea {
   border-radius: calc(var(--radius-sm) + 2px);
   background: color-mix(in srgb, var(--surface-2) 88%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .umkm-choice-group.is-sm {
@@ -3282,6 +3419,9 @@ textarea {
     border-color 160ms var(--ease),
     box-shadow 160ms var(--ease),
     transform 160ms var(--ease);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .umkm-choice-group.is-sm .umkm-choice-chip,
@@ -3329,6 +3469,42 @@ textarea {
   pointer-events: none;
 }
 
+@media (max-width: 1100px) {
+  .umkm-choice-group,
+  .umkm-pack-sizes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .umkm-choice-group .umkm-choice-chip,
+  .umkm-pack-sizes .umkm-pack-size-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--touch-min);
+    text-align: center;
+    white-space: normal;
+    hyphens: auto;
+    padding-inline: 0.55rem;
+  }
+
+  .umkm-choice-group.is-sm {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .umkm-choice-group.is-sm .umkm-choice-chip {
+    width: auto;
+    min-width: 0;
+    flex: 0 1 auto;
+    min-height: 2.35rem;
+  }
+}
+
 @media (max-width: 600px) {
   .umkm-choice-group,
   .umkm-pack-sizes {
@@ -3337,15 +3513,12 @@ textarea {
 
   .umkm-choice-group .umkm-choice-chip,
   .umkm-pack-sizes .umkm-pack-size-chip {
-    flex: 1 1 auto;
-    min-width: calc(50% - 0.35rem);
-    text-align: center;
-    justify-content: center;
+    font-size: 0.78rem;
+    padding: 0.45rem 0.5rem;
   }
 
-  .umkm-choice-group.is-sm .umkm-choice-chip {
-    min-width: 0;
-    flex: 0 1 auto;
+  .umkm-form-section {
+    padding: 0.95rem 0.9rem 1rem;
   }
 }
 
@@ -7911,6 +8084,8 @@ textarea {
     padding: 1rem 0.95rem calc(1.35rem + var(--safe-bottom));
     padding-left: max(0.95rem, var(--safe-left));
     padding-right: max(0.95rem, var(--safe-right));
+    overflow-x: clip;
+    max-width: 100%;
   }
 
   .umkm-title {
@@ -7990,6 +8165,23 @@ textarea {
   .umkm-actions .umkm-btn {
     flex: 1 1 auto;
     min-height: 2.65rem;
+    justify-content: center;
+  }
+
+  /* View + form primary actions: full-width stack at the foot */
+  .umkm-panel-foot,
+  .umkm-form-panel .umkm-actions,
+  .umkm-view-sheet .umkm-panel-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .umkm-panel-foot .umkm-btn,
+  .umkm-view-sheet .umkm-panel-foot .umkm-btn {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: var(--touch-min, 2.75rem);
     justify-content: center;
   }
 
@@ -15914,15 +16106,17 @@ html.umkm-translated.umkm-translating {
 }
 
 @media (max-width: 900px) {
-  .umkm-view-sheet .umkm-panel-actions {
+  .umkm-view-sheet .umkm-panel-foot {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
     gap: 0.45rem;
     width: 100%;
   }
 
-  .umkm-view-sheet .umkm-panel-actions .umkm-btn {
+  .umkm-view-sheet .umkm-panel-foot .umkm-btn {
     flex: 1 1 auto;
+    width: 100%;
     min-height: var(--touch-min);
   }
 

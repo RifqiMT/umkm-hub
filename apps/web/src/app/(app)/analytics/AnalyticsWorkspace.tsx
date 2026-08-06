@@ -377,7 +377,7 @@ const AnalyticsLensControlsContext =
   createContext<AnalyticsLensControls | null>(null);
 
 /** Raw (unformatted) CSV payloads keyed by ChartPanel `panelKey`. */
-export type AnalyticsCsvExport = {
+type AnalyticsCsvExport = {
   columns: Array<{ key: string; label: string }>;
   rows: Array<Record<string, unknown>>;
 };

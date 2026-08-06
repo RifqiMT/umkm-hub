@@ -241,52 +241,182 @@ class ApiService {
     return data as Map<String, dynamic>;
   }
 
-  Future<List<Product>> listProducts() async {
-    final data = await request('GET', '/products', query: {'limit': '100'});
+  /// Encodes list filters as comma-joined query values (matches web API client).
+  static Map<String, String> encodeQuery(Map<String, Object?> raw) {
+    final out = <String, String>{};
+    raw.forEach((key, value) {
+      if (value == null) return;
+      if (value is String) {
+        if (value.isEmpty) return;
+        out[key] = value;
+      } else if (value is Iterable) {
+        final parts = value
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        if (parts.isEmpty) return;
+        out[key] = parts.join(',');
+      } else {
+        out[key] = value.toString();
+      }
+    });
+    return out;
+  }
+
+  Future<List<Product>> listProducts({
+    String? search,
+    List<String> unit = const [],
+    List<String> costSet = const [],
+    List<String> packReady = const [],
+    List<String> stockStatus = const [],
+    int limit = 100,
+  }) async {
+    final data = await request(
+      'GET',
+      '/products',
+      query: encodeQuery({
+        'limit': '$limit',
+        'search': search,
+        'unit': unit,
+        'costSet': costSet,
+        'packReady': packReady,
+        'stockStatus': stockStatus,
+      }),
+    );
     final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
     return items
         .map((e) => Product.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<Customer>> listCustomers() async {
-    final data = await request('GET', '/customers', query: {'limit': '100'});
+  Future<List<Customer>> listCustomers({
+    String? search,
+    List<String> status = const [],
+    List<String> companyType = const [],
+    List<String> relationshipLevel = const [],
+    List<String> partnershipStage = const [],
+    int limit = 100,
+  }) async {
+    final data = await request(
+      'GET',
+      '/customers',
+      query: encodeQuery({
+        'limit': '$limit',
+        'search': search,
+        'status': status,
+        'companyType': companyType,
+        'relationshipLevel': relationshipLevel,
+        'partnershipStage': partnershipStage,
+      }),
+    );
     final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
     return items
         .map((e) => Customer.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<PaginatedOrders> listOrders({int page = 1, int limit = 50}) async {
+  Future<PaginatedOrders> listOrders({
+    int page = 1,
+    int limit = 50,
+    String? search,
+    List<String> status = const [],
+    List<String> paymentStatus = const [],
+    List<String> billStatus = const [],
+    List<String> invoiceStatus = const [],
+    String? orderDateFrom,
+    String? orderDateTo,
+    String? shipmentDateFrom,
+    String? shipmentDateTo,
+    String? invoiceDateFrom,
+    String? invoiceDateTo,
+  }) async {
     final data = await request(
       'GET',
       '/orders',
-      query: {
+      query: encodeQuery({
         'page': '$page',
         'limit': '$limit',
         'sort': 'date',
         'dir': 'desc',
-      },
+        'search': search,
+        'status': status,
+        'paymentStatus': paymentStatus,
+        'billStatus': billStatus,
+        'invoiceStatus': invoiceStatus,
+        'orderDateFrom': orderDateFrom,
+        'orderDateTo': orderDateTo,
+        'shipmentDateFrom': shipmentDateFrom,
+        'shipmentDateTo': shipmentDateTo,
+        'invoiceDateFrom': invoiceDateFrom,
+        'invoiceDateTo': invoiceDateTo,
+      }),
     );
     return PaginatedOrders.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<OrderSummary> getOrderSummary() async {
-    final data = await request('GET', '/orders/summary');
+  Future<OrderSummary> getOrderSummary({
+    String? search,
+    List<String> status = const [],
+    List<String> paymentStatus = const [],
+    List<String> billStatus = const [],
+    List<String> invoiceStatus = const [],
+    String? orderDateFrom,
+    String? orderDateTo,
+    String? shipmentDateFrom,
+    String? shipmentDateTo,
+    String? invoiceDateFrom,
+    String? invoiceDateTo,
+  }) async {
+    final data = await request(
+      'GET',
+      '/orders/summary',
+      query: encodeQuery({
+        'search': search,
+        'status': status,
+        'paymentStatus': paymentStatus,
+        'billStatus': billStatus,
+        'invoiceStatus': invoiceStatus,
+        'orderDateFrom': orderDateFrom,
+        'orderDateTo': orderDateTo,
+        'shipmentDateFrom': shipmentDateFrom,
+        'shipmentDateTo': shipmentDateTo,
+        'invoiceDateFrom': invoiceDateFrom,
+        'invoiceDateTo': invoiceDateTo,
+      }),
+    );
     return OrderSummary.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<List<WarehouseRestock>> listWarehouseRestocks() async {
-    final data = await request('GET', '/warehouse', query: {'limit': '100'});
+  Future<List<WarehouseRestock>> listWarehouseRestocks({
+    String? search,
+    int limit = 100,
+  }) async {
+    final data = await request(
+      'GET',
+      '/warehouse',
+      query: encodeQuery({
+        'limit': '$limit',
+        'search': search,
+      }),
+    );
     final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
     return items
         .map((e) => WarehouseRestock.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<WarehouseSale>> listWarehouseSales() async {
-    final data =
-        await request('GET', '/warehouse/sales', query: {'limit': '100'});
+  Future<List<WarehouseSale>> listWarehouseSales({
+    String? search,
+    int limit = 100,
+  }) async {
+    final data = await request(
+      'GET',
+      '/warehouse/sales',
+      query: encodeQuery({
+        'limit': '$limit',
+        'search': search,
+      }),
+    );
     final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
     return items
         .map((e) => WarehouseSale.fromJson(e as Map<String, dynamic>))

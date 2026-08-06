@@ -13,7 +13,7 @@ import {
   ViewTagRow,
 } from '@/components/ViewSheet';
 import { CountryCombobox } from '@/components/CountryCombobox';
-import { OptionChips } from '@/components/OptionChips';
+import { OptionSelect } from '@/components/OptionSelect';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
 import {
@@ -43,6 +43,12 @@ import type {
 } from '@/lib/types';
 import { formatRatePercent } from '@/lib/format-money';
 import { useCustomerLabelHelpers } from '@/hooks/useCustomerLabelHelpers';
+import {
+  numberDraftToNumber,
+  numberInputValue,
+  parseNumberDraft,
+  type NumberDraft,
+} from '@/lib/number-draft';
 
 type SortKey = 'name' | 'company' | 'city' | 'status' | 'relationship' | 'approval';
 type SortDir = 'asc' | 'desc';
@@ -69,7 +75,7 @@ const emptyForm = {
   promiseOnTimeDelivery: false,
   promisePackagingBox: false,
   relationshipLevel: '',
-  approvalPercentage: 0,
+  approvalPercentage: '' as NumberDraft,
   remarks: '',
 };
 
@@ -138,7 +144,7 @@ function buildCustomerPayload(form: typeof emptyForm) {
     promiseOnTimeDelivery: form.promiseOnTimeDelivery,
     promisePackagingBox: form.promisePackagingBox,
     relationshipLevel: form.relationshipLevel || undefined,
-    approvalPercentage: form.approvalPercentage,
+    approvalPercentage: numberDraftToNumber(form.approvalPercentage, 0),
     remarks: form.remarks || undefined,
   };
 }
@@ -421,7 +427,8 @@ export default function CustomersPage() {
       promiseOnTimeDelivery: c.promiseOnTimeDelivery,
       promisePackagingBox: c.promisePackagingBox,
       relationshipLevel: c.relationshipLevel ?? '',
-      approvalPercentage: c.approvalPercentage,
+      approvalPercentage:
+        c.approvalPercentage === 0 ? '' : c.approvalPercentage,
       remarks: c.remarks ?? '',
     });
   }
@@ -684,6 +691,7 @@ export default function CustomersPage() {
               ? `${viewing.title} · ${viewing.companyName}`
               : viewing.companyName
           }
+          actionsPlacement="foot"
           actions={
             <>
               <button
@@ -863,7 +871,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="umkm-field">
                   <FieldLabel>Company type *</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Company type"
                     value={
                       form.companyType as (typeof COMPANY_TYPES)[number]
@@ -875,6 +883,7 @@ export default function CustomersPage() {
                       value: t,
                       label: labels.companyType[t],
                     }))}
+                    required
                   />
                 </div>
                 <div className="umkm-field">
@@ -1005,7 +1014,7 @@ export default function CustomersPage() {
               <div className="umkm-grid two">
                 <div className="umkm-field">
                   <FieldLabel>Partnership stage</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Partnership stage"
                     allowEmpty
                     emptyLabel="None"
@@ -1024,7 +1033,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="umkm-field">
                   <FieldLabel>Status</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Customer status"
                     allowEmpty
                     emptyLabel="None"
@@ -1041,7 +1050,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="umkm-field">
                   <FieldLabel>Relationship level</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Relationship level"
                     allowEmpty
                     emptyLabel="None"
@@ -1064,11 +1073,11 @@ export default function CustomersPage() {
                     type="number"
                     min={0}
                     max={100}
-                    value={form.approvalPercentage}
+                    value={numberInputValue(form.approvalPercentage)}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        approvalPercentage: Number(e.target.value),
+                        approvalPercentage: parseNumberDraft(e.target.value),
                       })
                     }
                   />

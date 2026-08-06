@@ -18,7 +18,7 @@ import {
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
 import { ViewBlock, ViewChip, ViewIdentity, ViewSheetBody } from '@/components/ViewSheet';
-import { OptionChips } from '@/components/OptionChips';
+import { OptionSelect } from '@/components/OptionSelect';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
 import {
@@ -28,6 +28,12 @@ import {
 import { FeatureStage } from '@/components/FeatureStage';
 import { PRODUCT_UNITS, todayDateInput } from '@/lib/enums';
 import { useLabels } from '@/hooks/useLabels';
+import {
+  numberDraftToNumber,
+  numberInputValue,
+  parseNumberDraft,
+  type NumberDraft,
+} from '@/lib/number-draft';
 import {
   formatPacksOnHand,
   getActivePack,
@@ -260,8 +266,8 @@ function EconStrip({
 
 type RestockForm = {
   productId: string;
-  qtyAdded: number;
-  packsAdded: number;
+  qtyAdded: NumberDraft;
+  packsAdded: NumberDraft;
   restockDate: string;
   notes: string;
   entryMode: RestockEntryMode;
@@ -635,7 +641,7 @@ export default function WarehousePage() {
     setLoading(true);
     try {
       const body = {
-        qtyAdded: form.qtyAdded,
+        qtyAdded: numberDraftToNumber(form.qtyAdded, 0),
         restockDate: form.restockDate,
         notes: form.notes.trim() || undefined,
       };
@@ -846,6 +852,7 @@ export default function WarehousePage() {
               ? viewingProduct.details
               : 'Stock on hand and inventory value for this product.'
           }
+          actionsPlacement="foot"
           actions={
             <>
               <button
@@ -1006,6 +1013,7 @@ export default function WarehousePage() {
               ? viewingRestock.notes
               : 'Stock movement for this restock event.'
           }
+          actionsPlacement="foot"
           actions={
             <>
               {(() => {
@@ -1171,11 +1179,11 @@ export default function WarehousePage() {
                 form.entryMode === 'PACK' && !packModeAvailable
                   ? 'QTY'
                   : form.entryMode;
-              const qty = Number(form.qtyAdded) || 0;
+              const qty = numberDraftToNumber(form.qtyAdded, 0);
               const packsAdded =
                 pack != null
                   ? entryMode === 'PACK'
-                    ? form.packsAdded
+                    ? numberDraftToNumber(form.packsAdded, 0)
                     : (packsOnHand(qty, pack) ?? 0)
                   : 0;
               const stockAfter = editingRestock
@@ -1202,7 +1210,8 @@ export default function WarehousePage() {
                 const mode =
                   nextMode === 'PACK' && !nextPack ? 'QTY' : nextMode;
                 if (mode === 'PACK' && nextPack) {
-                  const packs = form.packsAdded > 0 ? form.packsAdded : 1;
+                  const packsDraft = numberDraftToNumber(form.packsAdded, 0);
+                  const packs = packsDraft > 0 ? packsDraft : 1;
                   setForm({
                     ...form,
                     productId,
@@ -1212,7 +1221,8 @@ export default function WarehousePage() {
                   });
                   return;
                 }
-                const nextQty = form.qtyAdded > 0 ? form.qtyAdded : 1;
+                const qtyDraft = numberDraftToNumber(form.qtyAdded, 0);
+                const nextQty = qtyDraft > 0 ? qtyDraft : 1;
                 setForm({
                   ...form,
                   productId,
@@ -1227,10 +1237,14 @@ export default function WarehousePage() {
               function setEntryMode(mode: RestockEntryMode) {
                 if (mode === 'PACK' && !pack) return;
                 if (mode === 'PACK' && pack) {
+                  const packsDraft = numberDraftToNumber(form.packsAdded, 0);
                   const packs =
-                    form.packsAdded > 0
-                      ? form.packsAdded
-                      : (packsOnHand(form.qtyAdded, pack) ?? 1);
+                    packsDraft > 0
+                      ? packsDraft
+                      : (packsOnHand(
+                          numberDraftToNumber(form.qtyAdded, 0),
+                          pack,
+                        ) ?? 1);
                   setForm({
                     ...form,
                     entryMode: 'PACK',
@@ -1243,7 +1257,10 @@ export default function WarehousePage() {
                   ...form,
                   entryMode: 'QTY',
                   packsAdded: pack
-                    ? (packsOnHand(form.qtyAdded, pack) ?? 0)
+                    ? (packsOnHand(
+                        numberDraftToNumber(form.qtyAdded, 0),
+                        pack,
+                      ) ?? 0)
                     : 0,
                 });
               }
@@ -1303,7 +1320,7 @@ export default function WarehousePage() {
                         style={{ gridColumn: '1 / -1' }}
                       >
                         <FieldLabel>Entry mode</FieldLabel>
-                        <OptionChips
+                        <OptionSelect
                           aria-label="Restock entry mode"
                           value={entryMode}
                           onChange={(mode) => {
@@ -1334,15 +1351,18 @@ export default function WarehousePage() {
                               type="number"
                               min={0.0001}
                               step="0.0001"
-                              value={form.packsAdded}
+                              value={numberInputValue(form.packsAdded)}
                               onChange={(e) => {
-                                const packs = Number(e.target.value);
-                                if (Number.isNaN(packs) || packs < 0) return;
+                                const packs = parseNumberDraft(e.target.value);
+                                const packsNum = numberDraftToNumber(packs, 0);
                                 setForm({
                                   ...form,
                                   entryMode: 'PACK',
                                   packsAdded: packs,
-                                  qtyAdded: qtyFromPackCount(packs, pack.size),
+                                  qtyAdded:
+                                    packs === ''
+                                      ? ''
+                                      : qtyFromPackCount(packsNum, pack.size),
                                 });
                               }}
                               required
@@ -1353,7 +1373,7 @@ export default function WarehousePage() {
                               Qty added ({unitShort(selected?.unit)})
                             </FieldLabel>
                             <input
-                              value={`${formatCompactQty(qty)} ${unitShort(selected?.unit)} (= ${formatCompactQty(form.packsAdded)} × ${pack.sizeLabel})`}
+                              value={`${formatCompactQty(qty)} ${unitShort(selected?.unit)} (= ${formatCompactQty(numberDraftToNumber(form.packsAdded, 0))} × ${pack.sizeLabel})`}
                               readOnly
                               disabled
                             />
@@ -1372,15 +1392,23 @@ export default function WarehousePage() {
                               type="number"
                               min={0.0001}
                               step="0.0001"
-                              value={form.qtyAdded}
+                              value={numberInputValue(form.qtyAdded)}
                               onChange={(e) => {
-                                const nextQty = Number(e.target.value);
+                                const nextQty = parseNumberDraft(
+                                  e.target.value,
+                                );
+                                const nextQtyNum = numberDraftToNumber(
+                                  nextQty,
+                                  0,
+                                );
                                 setForm({
                                   ...form,
                                   entryMode: 'QTY',
                                   qtyAdded: nextQty,
                                   packsAdded: pack
-                                    ? (packsOnHand(nextQty, pack) ?? 0)
+                                    ? nextQty === ''
+                                      ? ''
+                                      : (packsOnHand(nextQtyNum, pack) ?? 0)
                                     : 0,
                                 });
                               }}

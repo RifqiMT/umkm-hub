@@ -12,7 +12,7 @@ import {
 } from '@/app/(app)/products/ProductStockSalesSection';
 import { ListPager } from '@/components/ListPager';
 import type { ListPageSize } from '@/lib/list-page-size';
-import { OptionChips } from '@/components/OptionChips';
+import { OptionSelect } from '@/components/OptionSelect';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
 import {
@@ -53,6 +53,12 @@ import {
   PACK_READY_FILTER_OPTIONS,
   STOCK_STATUS_FILTER_OPTIONS,
 } from '@/lib/product-readiness';
+import {
+  numberDraftToNumber,
+  numberInputValue,
+  parseNumberDraft,
+  type NumberDraft,
+} from '@/lib/number-draft';
 
 type PackField = `price${GramLiterPackSize}`;
 type CostField = `cost${GramLiterPackSize}`;
@@ -62,7 +68,7 @@ type SortDir = 'asc' | 'desc';
 const emptyForm = {
   name: '',
   unit: 'PCS' as (typeof PRODUCT_UNITS)[number],
-  pricePerUnit: 0,
+  pricePerUnit: '' as NumberDraft,
   ...emptyPackFormFields(),
   priceCustom: '' as number | '',
   costPerUnit: '' as number | '',
@@ -386,7 +392,7 @@ export default function ProductsPage() {
       return {
         sizeLabel: '1 pcs',
         size: 1,
-        price: Number(form.pricePerUnit) || 0,
+        price: numberDraftToNumber(form.pricePerUnit, 0),
         cost: form.costPerUnit === '' ? null : Number(form.costPerUnit),
         shortUnit: 'pcs',
       };
@@ -680,7 +686,8 @@ export default function ProductsPage() {
     setForm({
       name: product.name,
       unit: product.unit,
-      pricePerUnit: product.pricePerUnit,
+      pricePerUnit:
+        product.pricePerUnit === 0 ? '' : product.pricePerUnit,
       costPerUnit: product.costPerUnit ?? '',
       details: product.details,
       ...packFields,
@@ -786,7 +793,7 @@ export default function ProductsPage() {
           ? {
               name: form.name,
               unit: form.unit,
-              pricePerUnit: form.pricePerUnit,
+              pricePerUnit: numberDraftToNumber(form.pricePerUnit, 0),
               costPerUnit: toOptionalNumber(form.costPerUnit),
               details: form.details,
             }
@@ -1004,6 +1011,7 @@ export default function ProductsPage() {
               ? viewing.details
               : 'Catalog pricing and warehouse stock snapshot.'
           }
+          actionsPlacement="foot"
           actions={
             <>
               <button
@@ -1098,7 +1106,7 @@ export default function ProductsPage() {
             </div>
             <div className="umkm-field">
               <FieldLabel>Unit</FieldLabel>
-              <OptionChips
+              <OptionSelect
                 aria-label="Product unit"
                 value={form.unit}
                 onChange={(unit) => {
@@ -1137,9 +1145,12 @@ export default function ProductsPage() {
                       type="number"
                       min={0}
                       step="0.0001"
-                      value={form.pricePerUnit}
+                      value={numberInputValue(form.pricePerUnit)}
                       onChange={(e) =>
-                        setForm({ ...form, pricePerUnit: Number(e.target.value) })
+                        setForm({
+                          ...form,
+                          pricePerUnit: parseNumberDraft(e.target.value),
+                        })
                       }
                       required
                     />
@@ -1171,22 +1182,24 @@ export default function ProductsPage() {
               description="Pick a size, then enter sell and optional cost. Preview updates as you type."
             >
               <div className="umkm-pack-composer">
-                <OptionChips
-                  aria-label="Pack size"
-                  value={packSize}
-                  onChange={(size) => {
-                    if (!size) return;
-                    changePackSize(size);
-                  }}
-                  options={[
-                    ...GRAM_LITER_PACK_SIZES.map((size) => ({
-                      value: String(size) as PackSizeOption,
-                      label: `${size} ${unitShort(form.unit)}`,
-                    })),
-                    { value: 'CUSTOM' as PackSizeOption, label: 'Custom' },
-                  ]}
-                />
-
+                <div className="umkm-field" style={{ marginBottom: 0 }}>
+                  <FieldLabel>Pack size</FieldLabel>
+                  <OptionSelect
+                    aria-label="Pack size"
+                    value={packSize}
+                    onChange={(size) => {
+                      if (!size) return;
+                      changePackSize(size);
+                    }}
+                    options={[
+                      ...GRAM_LITER_PACK_SIZES.map((size) => ({
+                        value: String(size) as PackSizeOption,
+                        label: `${size} ${unitShort(form.unit)}`,
+                      })),
+                      { value: 'CUSTOM' as PackSizeOption, label: 'Custom' },
+                    ]}
+                  />
+                </div>
                 {packSize === 'CUSTOM' ? (
                   <div className="umkm-field umkm-pack-custom-size">
                     <FieldLabel htmlFor="custom-size">

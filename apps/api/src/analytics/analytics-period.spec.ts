@@ -1,8 +1,6 @@
 import {
   parseAnalyticsTimeline,
-  parseAnalyticsYear,
   resolveAnalyticsLoadYears,
-  resolveAnalyticsYears,
   APP_YEAR_MIN,
   APP_YEAR_MAX,
   ANNUAL_WINDOW,
@@ -42,12 +40,6 @@ describe('analytics-period timeline scope', () => {
     });
   });
 
-  it('parseAnalyticsYear remains compatible', () => {
-    expect(parseAnalyticsYear(undefined, 2026)).toBe(2026);
-    expect(parseAnalyticsYear('all', 2026)).toBeNull();
-    expect(parseAnalyticsYear('2024', 2026)).toBe(2024);
-  });
-
   it('resolveAnalyticsLoadYears returns full range for all', () => {
     const years = resolveAnalyticsLoadYears({ kind: 'all' });
     expect(years[0]).toBe(APP_YEAR_MIN);
@@ -70,11 +62,6 @@ describe('analytics-period timeline scope', () => {
       years: [2024, 2026],
     });
     expect(years).toEqual([2023, 2024, 2026]);
-  });
-
-  it('resolveAnalyticsYears delegates to load years', () => {
-    expect(resolveAnalyticsYears(null)[0]).toBe(APP_YEAR_MIN);
-    expect(resolveAnalyticsYears(2026)).toHaveLength(ANNUAL_WINDOW);
   });
 
   it('isYearInTimeline checks membership', () => {

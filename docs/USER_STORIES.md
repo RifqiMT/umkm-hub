@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Format** | Epic → Story → Acceptance criteria (AC) |
 | **Personas** | Sari (owner), Budi (field), Dewi (ops) — see [PERSONAS.md](./PERSONAS.md) |
 
@@ -120,7 +120,7 @@
 
 ### US-4.5 Order list & filters
 **As** Dewi, **I want** a scannable, filterable order list, **so that** I find orders quickly.  
-**AC:** Date + soft order ID; paginated; filters for status/payment/order/shipment/invoice dates; summary rates match filters.
+**AC:** Date + soft order ID; paginated; filters for status/payment/order/shipment/invoice dates on **web and mobile**; summary rates match filters; filters collapsed by default.
 
 ---
 
@@ -180,7 +180,7 @@
 
 ### US-8.2 Narrow viewport / mobile actions
 **As** Budi, **I want** reachable actions on a phone, **so that** I can save forms with the keyboard open.  
-**AC:** Touch targets ≥44px; catalog/insight cards ≤1100; tablet NavigationRail; on narrow, feature View/form chrome scrolls with content (shell nav stays fixed); sticky/bottom actions where desktop density allows; responsive chrome (rail / bottom tabs / filter sheets).
+**AC:** Touch targets ≥44px; catalog/insight cards ≤1100; tablet NavigationRail; on narrow, feature View/form chrome scrolls with content (shell nav stays fixed); **View/Form sheet actions always at the foot** (full-width stack on narrow); responsive chrome (rail / bottom tabs / filter sheets).
 
 ### US-8.3 Compact money
 **As** Dewi, **I want** large amounts shortened consistently, **so that** tables stay readable.  
@@ -193,6 +193,14 @@
 ### US-8.5 UI language
 **As** any user, **I want** to switch the UI language, **so that** I can operate the app in a language I read well.  
 **AC:** Language control in shell/Profile; auth pages use public translate batch; product names and human entity IDs stay source language; batch ≤40×500 chars; graceful degrade if translate fails.
+
+### US-8.6 List filters (web + mobile)
+**As** Budi, **I want** the same search and multi-select filters on mobile as on web, **so that** I can narrow catalogs in the field.  
+**AC:** Products/Customers/Orders/Warehouse expose search + multi-select (Orders also date ranges); filters **collapsed by default on all viewports**; Filters toggle always visible with active-count badge; web `CollapsibleFilters` / Flutter `ExpandableFilters`.
+
+### US-8.7 Form inputs (drafts + dropdowns)
+**As** Dewi, **I want** blank numeric fields and dropdown enums on create/edit, **so that** forms are easier to fill without leading zeros or chip sprawl.  
+**AC:** Numeric fields use empty drafts (`NumberDraft` / blank controllers)—coerce to 0 only on submit/math; form enums use `OptionSelect` / `OptionDropdown`; chips remain for view/mode toggles, Amount/%, and multi-select filters.
 
 ---
 
@@ -207,6 +215,6 @@
 | E5 Warehouse | FR-W1–W8 |
 | E6 Targets | FR-T1–T6 |
 | E7 Analytics | FR-A1–A20 |
-| E8 UX / Dashboard | FR-UX1–UX8, FR-D1–D4 |
+| E8 UX / Dashboard | FR-UX1–UX10, FR-D1–D4 |
 
 Full FR text: [PRD.md](./PRD.md). Traceability: [TRACEABILITY.md](./TRACEABILITY.md).

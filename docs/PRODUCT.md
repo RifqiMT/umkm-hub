@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.264 |
-| **Docs stamp** | 1.5.265 |
+| **Code tip aligned** | v1.5.273 |
+| **Docs stamp** | 1.5.274 |
 
 ---
 
@@ -118,8 +118,8 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 
 | Client | Role | Notes |
 |--------|------|-------|
-| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal; warehouse edit; Stock & sales / Order totals / Sold history with performance Views + focus mode; tablet cards ≤1100; statistics; invoicing |
-| **Mobile** | Field CRM/orders | Profile invoicing; Sold history; Analytics/Dictionary; tablet NavigationRail; **web-first:** Targets, PDF/fiscal, restock edit, Stock & sales, Order totals, statistics UI, Open order |
+| **Web** | Primary ops | Targets; Analytics CSV/PNG; PDF/fiscal; warehouse edit; Stock & sales / Order totals / Sold history with performance Views + focus mode; tablet cards ≤1100; filters collapsed by default; form dropdowns + empty numeric drafts; statistics; invoicing |
+| **Mobile** | Field CRM/orders | Profile invoicing; Sold history; Analytics/Dictionary; tablet NavigationRail; **list filters parity** with web (search + multi-select; Orders date ranges); form dropdowns + empty drafts; **web-first:** Targets, PDF/fiscal, restock edit, Stock & sales, Order totals, statistics UI, Open order |
 | **API** | System of record | `/api/v1` incl. Firebase session/register, invoice PDF/fiscal, stock-sales, order-totals, warehouse sales, Redis-backed throttle/cache when configured |
 
 ---

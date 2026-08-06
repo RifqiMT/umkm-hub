@@ -1,9 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useTr, useFormatNumber } from '@/components/Tr';
-
-const NARROW_MQ = '(max-width: 1100px)';
 
 type CollapsibleFiltersProps = {
   children: ReactNode;
@@ -18,8 +16,8 @@ type CollapsibleFiltersProps = {
 };
 
 /**
- * Filter chrome that stays always-open on desktop (>1100px) and collapses
- * by default on tablet / phone / narrow viewports.
+ * Filter chrome collapsed by default on all viewports.
+ * Users expand via the summary toggle; active count shows when closed.
  */
 export function CollapsibleFilters({
   children,
@@ -31,32 +29,7 @@ export function CollapsibleFilters({
 }: CollapsibleFiltersProps) {
   const tr = useTr();
   const { formatInteger } = useFormatNumber();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const panelId = useId();
-
-  useEffect(() => {
-    const el = detailsRef.current;
-    if (!el) return;
-
-    const mq = window.matchMedia(NARROW_MQ);
-
-    function sync() {
-      if (!el) return;
-      if (!mq.matches) {
-        // Desktop: keep filters visible; mark so we can collapse again on narrow.
-        el.open = true;
-        el.dataset.desktopOpen = '1';
-      } else if (el.dataset.desktopOpen === '1') {
-        // Entering narrow from desktop — return to collapsed default.
-        el.open = false;
-        delete el.dataset.desktopOpen;
-      }
-    }
-
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
 
   const rootClass = [
     'umkm-filters-disclosure',
@@ -67,7 +40,7 @@ export function CollapsibleFilters({
     .join(' ');
 
   return (
-    <details ref={detailsRef} className={rootClass}>
+    <details className={rootClass}>
       <summary
         className="umkm-filters-disclosure-summary"
         aria-controls={panelId}

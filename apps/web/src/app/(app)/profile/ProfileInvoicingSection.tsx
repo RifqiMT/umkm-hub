@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ContentSection, FieldLabel, FormSection } from '@/components/PageHeader';
 import { ProfileFormActions } from '@/app/(app)/profile/ProfileFormActions';
 import {
@@ -9,6 +9,10 @@ import {
   previewInvoiceNumber,
 } from '@/lib/order-billing';
 import { formatMoney } from '@/lib/format-money';
+import {
+  numberDraftToNumber,
+  parseNumberDraft,
+} from '@/lib/number-draft';
 
 type InvoicingFormValues = {
   businessName: string;
@@ -69,6 +73,13 @@ export function ProfileInvoicingSection({
     taxInclusive,
     invoicePrefix,
   } = values;
+
+  const [ppnDraft, setPpnDraft] = useState(() =>
+    defaultPpnPercent === 0 ? '' : String(defaultPpnPercent),
+  );
+  useEffect(() => {
+    setPpnDraft(defaultPpnPercent === 0 ? '' : String(defaultPpnPercent));
+  }, [defaultPpnPercent]);
 
   const displayName =
     businessName.trim() || loginName?.replace(/_/g, ' ') || 'Your business';
@@ -271,13 +282,17 @@ export function ProfileInvoicingSection({
                           min={0}
                           max={100}
                           step={0.01}
-                          value={defaultPpnPercent}
-                          onChange={(e) =>
+                          value={ppnDraft}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setPpnDraft(raw);
                             onChange({
-                              defaultPpnPercent:
-                                Number(e.target.value) || 0,
-                            })
-                          }
+                              defaultPpnPercent: numberDraftToNumber(
+                                parseNumberDraft(raw),
+                                0,
+                              ),
+                            });
+                          }}
                           disabled={booting}
                         />
                         <span className="umkm-invoice-ppn-suffix">%</span>

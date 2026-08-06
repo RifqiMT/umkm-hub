@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../filter_catalog.dart';
 import '../format_money.dart';
 import '../models/models.dart';
 import '../format_id.dart';
@@ -53,10 +56,48 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool loading = true;
   bool _dataSyncOpen = false;
 
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  String _search = '';
+  List<String> _unitFilters = [];
+  List<String> _costSetFilters = [];
+  List<String> _packReadyFilters = [];
+  List<String> _stockStatusFilters = [];
+
+  bool get _filtersActive =>
+      _search.trim().isNotEmpty ||
+      _unitFilters.isNotEmpty ||
+      _costSetFilters.isNotEmpty ||
+      _packReadyFilters.isNotEmpty ||
+      _stockStatusFilters.isNotEmpty;
+
+  int get _filterActiveCount =>
+      (_unitFilters.isNotEmpty ? 1 : 0) +
+      (_costSetFilters.isNotEmpty ? 1 : 0) +
+      (_packReadyFilters.isNotEmpty ? 1 : 0) +
+      (_stockStatusFilters.isNotEmpty ? 1 : 0);
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {}); // refresh clear icon
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _search = value.trim());
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -65,7 +106,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
       error = null;
     });
     try {
-      items = await context.read<ApiService>().listProducts();
+      items = await context.read<ApiService>().listProducts(
+            search: _search.isEmpty ? null : _search,
+            unit: _unitFilters,
+            costSet: _costSetFilters,
+            packReady: _packReadyFilters,
+            stockStatus: _stockStatusFilters,
+          );
     } catch (e) {
       error = e.toString();
     } finally {
@@ -73,10 +120,93 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  Widget _buildFilters() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterSearchField(
+          controller: _searchCtrl,
+          onChanged: _onSearchChanged,
+          hintText: 'Search by product name…',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            UmkmSpace.md,
+            0,
+            UmkmSpace.md,
+            UmkmSpace.sm,
+          ),
+          child: ExpandableFilters(
+            activeCount: _filterActiveCount,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MultiSelectChipGroup(
+                  label: 'Unit',
+                  selected: _unitFilters,
+                  options: [
+                    for (final o in productUnitOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _unitFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Cost set',
+                  selected: _costSetFilters,
+                  options: [
+                    for (final o in costSetOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _costSetFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Pack ready',
+                  selected: _packReadyFilters,
+                  options: [
+                    for (final o in packReadyOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _packReadyFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Stock',
+                  selected: _stockStatusFilters,
+                  options: [
+                    for (final o in stockStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _stockStatusFilters = next);
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _openForm({Product? existing}) async {
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final priceCtrl =
-        TextEditingController(text: (existing?.pricePerUnit ?? 0).toString());
+    final priceCtrl = TextEditingController(
+      text: existing == null || (existing.pricePerUnit == 0)
+          ? ''
+          : existing.pricePerUnit.toString(),
+    );
     final costCtrl =
         TextEditingController(text: existing?.costPerUnit?.toString() ?? '');
     final detailsCtrl = TextEditingController(text: existing?.details ?? '');
@@ -157,19 +287,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     decoration: const InputDecoration(labelText: 'Name'),
                   ),
                   const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Unit',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: UmkmColors.muted,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ChoiceChipGroup<String>(
+                  OptionDropdown<String>(
+                    labelText: 'Unit',
                     value: unit,
                     onChanged: (v) => setLocal(() => unit = v ?? unit),
                     options: const [
@@ -213,16 +332,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Pack size',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: UmkmColors.muted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    ChoiceChipGroup<String>(
+                    OptionDropdown<String>(
+                      labelText: 'Pack size',
                       value: packSize,
                       onChanged: (v) =>
                           setLocal(() => packSize = v ?? packSize),
@@ -439,12 +550,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) {
+    if (error != null && items.isEmpty && !loading) {
       return Column(
         children: [
           ErrorBanner(message: error!),
           TextButton(onPressed: _load, child: const Text('Retry')),
+          _buildFilters(),
         ],
       );
     }
@@ -458,20 +569,30 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   PageIntro(
                     subtitle:
                         'Catalog items and pricing. Stock lives in Warehouse.',
-                    metrics: const [
-                      ('SKUs', '0'),
+                    metrics: [
+                      ('SKUs', loading ? '…' : '0'),
                     ],
                   ),
+                  _buildFilters(),
                   _buildDataSyncSection(),
-                  const SectionLabel(
-                    'Catalog',
-                    subtitle: 'Products in this workspace.',
-                  ),
-                  SizedBox(height: 8),
-                  EmptyHint(
-                    title: 'No products yet',
-                    message: 'Tap + to add your first product.',
-                  ),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    const SectionLabel(
+                      'Catalog',
+                      subtitle: 'Products in this workspace.',
+                    ),
+                    const SizedBox(height: 8),
+                    EmptyHint(
+                      title: _filtersActive ? 'No matches' : 'No products yet',
+                      message: _filtersActive
+                          ? 'Try clearing filters or search.'
+                          : 'Tap + to add your first product.',
+                    ),
+                  ],
                 ],
               )
             : ListView.builder(
@@ -491,6 +612,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             ('In stock', '$stocked'),
                           ],
                         ),
+                        _buildFilters(),
                         _buildDataSyncSection(),
                         const SectionLabel(
                           'Catalog',

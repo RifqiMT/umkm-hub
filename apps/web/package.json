@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/glossary/glossary.test.ts src/lib/analytics-export.test.ts src/lib/translate-cache.test.ts src/lib/translate-skip.test.ts src/lib/format-localized-number.test.ts"
+    "test": "tsx --test src/lib/glossary/glossary.test.ts src/lib/analytics-export.test.ts src/lib/translate-cache.test.ts src/lib/translate-skip.test.ts src/lib/format-localized-number.test.ts src/lib/number-draft.test.ts"
   },
   "dependencies": {
     "firebase": "^12.17.0",

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../filter_catalog.dart';
 import '../models/models.dart';
 import '../format_id.dart';
 import '../services/api_service.dart';
@@ -45,10 +46,48 @@ class _CustomersScreenState extends State<CustomersScreen> {
   bool loading = true;
   bool _dataSyncOpen = false;
 
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  String _search = '';
+  List<String> _statusFilters = [];
+  List<String> _companyTypeFilters = [];
+  List<String> _relationshipFilters = [];
+  List<String> _partnershipFilters = [];
+
+  bool get _filtersActive =>
+      _search.trim().isNotEmpty ||
+      _statusFilters.isNotEmpty ||
+      _companyTypeFilters.isNotEmpty ||
+      _relationshipFilters.isNotEmpty ||
+      _partnershipFilters.isNotEmpty;
+
+  int get _filterActiveCount =>
+      (_statusFilters.isNotEmpty ? 1 : 0) +
+      (_companyTypeFilters.isNotEmpty ? 1 : 0) +
+      (_relationshipFilters.isNotEmpty ? 1 : 0) +
+      (_partnershipFilters.isNotEmpty ? 1 : 0);
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _search = value.trim());
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -57,12 +96,98 @@ class _CustomersScreenState extends State<CustomersScreen> {
       error = null;
     });
     try {
-      items = await context.read<ApiService>().listCustomers();
+      items = await context.read<ApiService>().listCustomers(
+            search: _search.isEmpty ? null : _search,
+            status: _statusFilters,
+            companyType: _companyTypeFilters,
+            relationshipLevel: _relationshipFilters,
+            partnershipStage: _partnershipFilters,
+          );
     } catch (e) {
       error = e.toString();
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  Widget _buildFilters() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterSearchField(
+          controller: _searchCtrl,
+          onChanged: _onSearchChanged,
+          hintText: 'Name, company, city, email…',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            UmkmSpace.md,
+            0,
+            UmkmSpace.md,
+            UmkmSpace.sm,
+          ),
+          child: ExpandableFilters(
+            activeCount: _filterActiveCount,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MultiSelectChipGroup(
+                  label: 'Status',
+                  selected: _statusFilters,
+                  options: [
+                    for (final o in customerStatusOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _statusFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Company type',
+                  selected: _companyTypeFilters,
+                  options: [
+                    for (final o in companyTypeOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _companyTypeFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Relationship',
+                  selected: _relationshipFilters,
+                  options: [
+                    for (final o in relationshipLevelOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _relationshipFilters = next);
+                    _load();
+                  },
+                ),
+                const SizedBox(height: UmkmSpace.sm),
+                MultiSelectChipGroup(
+                  label: 'Partnership stage',
+                  selected: _partnershipFilters,
+                  options: [
+                    for (final o in partnershipStageOptions)
+                      ChoiceOption(value: o.value, label: o.label),
+                  ],
+                  onChanged: (next) {
+                    setState(() => _partnershipFilters = next);
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _openForm({Customer? existing}) async {
@@ -92,8 +217,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
     bool onTime = existing?.promiseOnTimeDelivery ?? false;
     bool packing = existing?.promisePackagingBox ?? false;
 
-    final approvalCtrl =
-        TextEditingController(text: approval.toString());
+    final approvalCtrl = TextEditingController(
+      text: approval == 0 ? '' : approval.toString(),
+    );
 
     final saved = await showAppFormSheet<bool>(
       context: context,
@@ -121,19 +247,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   decoration: const InputDecoration(labelText: 'Company *'),
                 ),
                 const SizedBox(height: 8),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Company type *',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: UmkmColors.muted,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ChoiceChipGroup<String>(
+                OptionDropdown<String>(
+                  labelText: 'Company type *',
                   value: companyType,
                   onChanged: (v) =>
                       setLocal(() => companyType = v ?? companyType),
@@ -185,16 +300,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Partnership stage',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: UmkmColors.muted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ChoiceChipGroup<String>(
+                OptionDropdown<String>(
+                  labelText: 'Partnership stage',
                   value: partnership,
                   allowEmpty: true,
                   emptyLabel: 'None',
@@ -206,16 +313,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Status',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: UmkmColors.muted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ChoiceChipGroup<String>(
+                OptionDropdown<String>(
+                  labelText: 'Status',
                   value: status,
                   allowEmpty: true,
                   emptyLabel: 'None',
@@ -231,16 +330,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Relationship',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: UmkmColors.muted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ChoiceChipGroup<String>(
+                OptionDropdown<String>(
+                  labelText: 'Relationship',
                   value: relationship,
                   allowEmpty: true,
                   emptyLabel: 'None',
@@ -552,12 +643,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) {
+    if (error != null && items.isEmpty && !loading) {
       return Column(
         children: [
           ErrorBanner(message: error!),
           TextButton(onPressed: _load, child: const Text('Retry')),
+          _buildFilters(),
         ],
       );
     }
@@ -568,22 +659,32 @@ class _CustomersScreenState extends State<CustomersScreen> {
         child: items.isEmpty
             ? ListView(
                 children: [
-                  const PageIntro(
+                  PageIntro(
                     subtitle: 'CRM contacts and partnership pipeline.',
                     metrics: [
-                      ('Contacts', '0'),
+                      ('Contacts', loading ? '…' : '0'),
                     ],
                   ),
+                  _buildFilters(),
                   _buildDataSyncSection(),
-                  const SectionLabel(
-                    'Directory',
-                    subtitle: 'Companies and contacts in your pipeline.',
-                  ),
-                  SizedBox(height: 8),
-                  EmptyHint(
-                    title: 'No customers yet',
-                    message: 'Tap + to add your first customer.',
-                  ),
+                  if (loading)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    const SectionLabel(
+                      'Directory',
+                      subtitle: 'Companies and contacts in your pipeline.',
+                    ),
+                    const SizedBox(height: 8),
+                    EmptyHint(
+                      title: _filtersActive ? 'No matches' : 'No customers yet',
+                      message: _filtersActive
+                          ? 'Try clearing filters or search.'
+                          : 'Tap + to add your first customer.',
+                    ),
+                  ],
                 ],
               )
             : ListView.builder(
@@ -608,6 +709,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             ('Reachable', '$withContact'),
                           ],
                         ),
+                        _buildFilters(),
                         _buildDataSyncSection(),
                         const SectionLabel(
                           'Directory',

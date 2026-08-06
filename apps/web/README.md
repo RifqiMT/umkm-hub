@@ -2,9 +2,9 @@
 
 Next.js 15 ops UI — catalog (**Stock & sales** + product performance View), CRM (**Order totals** + order performance View), orders (PDF / e-Faktur prep), warehouse (edit + **Sold history** + Open order), targets, analytics, domain statistics, dictionary (~102 terms), dashboard, export/import, language, profile invoicing, Firebase auth (production).
 
-Responsive: tablet/phone catalog **cards** (≤1100); exclusive View **focus mode**; non-sticky feature chrome on narrow; shell brand bar + bottom nav stay fixed.
+Responsive: tablet/phone catalog **cards** (≤1100); exclusive View **focus mode**; non-sticky feature chrome on narrow; shell brand bar + bottom nav stay fixed. Filters **collapsed by default**; form enums use `OptionSelect`; numeric fields use empty drafts (`NumberDraft`); sheet actions at the foot.
 
-Docs **v1.5.265**.
+Docs **v1.5.274**.
 
 ## Local run
 

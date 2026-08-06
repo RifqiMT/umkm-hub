@@ -14,7 +14,7 @@ import { api, ApiError, downloadOrderFiscalExport, downloadOrderInvoicePdf, save
 import { dedupeById } from '@/lib/dedupe-by-id';
 import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
 import { OrderStatisticsSection } from '@/app/(app)/orders/OrderStatisticsSection';
-import { OptionChips } from '@/components/OptionChips';
+import { OptionSelect } from '@/components/OptionSelect';
 import { MultiSelectFilter } from '@/components/MultiSelectFilter';
 import { CollapsibleFilters } from '@/components/CollapsibleFilters';
 import {
@@ -26,6 +26,12 @@ import {
   type DateRangeValue,
 } from '@/components/DateRangeFilter';
 import { EMPTY_DATE_RANGE, isDateRangeActive } from '@/lib/date-range-filter';
+import {
+  numberDraftToNumber,
+  numberInputValue,
+  parseNumberDraft,
+  type NumberDraft,
+} from '@/lib/number-draft';
 import { type ListPageSize } from '@/lib/list-page-size';
 import {
   ViewBlock,
@@ -208,8 +214,8 @@ function remainingFromInstallments(
 type InstallmentEntryMode = 'AMOUNT' | 'PERCENTAGE';
 
 type InstallmentFormRow = {
-  amount: number;
-  percentValue: number;
+  amount: NumberDraft;
+  percentValue: NumberDraft;
   entryMode: InstallmentEntryMode;
   installmentDate: string;
 };
@@ -222,8 +228,8 @@ function emptyInstallmentRow(minDate?: string): InstallmentFormRow {
       : minDate
     : today;
   return {
-    amount: 0,
-    percentValue: 0,
+    amount: '',
+    percentValue: '',
     entryMode: 'AMOUNT',
     installmentDate,
   };
@@ -255,9 +261,11 @@ function assertFormInstallmentsChronological(rows: InstallmentFormRow[]) {
 
 function resolveInstallmentAmount(row: InstallmentFormRow, total: number) {
   if (row.entryMode === 'PERCENTAGE') {
-    return roundMoney(((Number(row.percentValue) || 0) * total) / 100);
+    return roundMoney(
+      (numberDraftToNumber(row.percentValue, 0) * total) / 100,
+    );
   }
-  return roundMoney(Number(row.amount) || 0);
+  return roundMoney(numberDraftToNumber(row.amount, 0));
 }
 
 function resolvedInstallmentRows(
@@ -377,7 +385,7 @@ type OrderLineForm = {
   productId: string;
   packKey: string;
   packSize: number;
-  packCount: number;
+  packCount: NumberDraft;
 };
 
 type OrderForm = {
@@ -387,7 +395,7 @@ type OrderForm = {
   shipmentDate: string;
   status: string;
   discountType: 'PERCENTAGE' | 'AMOUNT';
-  discountValue: number;
+  discountValue: NumberDraft;
   paymentStatus: string;
   billStatus: string;
   billDate: string;
@@ -428,7 +436,7 @@ function emptyForm(product?: Product): OrderForm {
     shipmentDate: '',
     status: 'PENDING',
     discountType: 'PERCENTAGE',
-    discountValue: 0,
+    discountValue: '',
     paymentStatus: 'CASH',
     billStatus: 'CREATED',
     billDate: today,
@@ -555,7 +563,8 @@ function OrdersPageInner() {
       const pack = resolvePackForLine(product, line);
       const packPrice = pack?.price ?? 0;
       const packSize = pack?.size ?? line.packSize;
-      const stockQty = packSize * line.packCount;
+      const packCount = numberDraftToNumber(line.packCount, 0);
+      const stockQty = packSize * packCount;
       const unitPrice = packSize > 0 ? packPrice / packSize : 0;
       return {
         key: line.key,
@@ -564,7 +573,7 @@ function OrdersPageInner() {
         pack,
         packPrice,
         packSize,
-        packCount: line.packCount,
+        packCount,
         stockQty,
         unitPrice,
         lineSubtotal: roundMoney(unitPrice * stockQty),
@@ -657,7 +666,7 @@ function OrdersPageInner() {
         productQty: line.stockQty,
       })),
       discountType: form.discountType,
-      discountValue: form.discountValue,
+      discountValue: numberDraftToNumber(form.discountValue, 0),
     });
   }, [
     allLinesReady,
@@ -912,7 +921,8 @@ function OrdersPageInner() {
         shipmentDate: full.shipmentDate?.slice(0, 10) ?? '',
         status: full.status ?? 'PENDING',
         discountType: full.discountType as 'PERCENTAGE' | 'AMOUNT',
-        discountValue: full.discountValue,
+        discountValue:
+          full.discountValue === 0 ? '' : full.discountValue,
         paymentStatus: full.paymentStatus,
         invoiceDate:
           full.invoiceDate?.slice(0, 10) ??
@@ -926,8 +936,8 @@ function OrdersPageInner() {
         paymentDueDate: full.paymentDueDate?.slice(0, 10) ?? '',
         installments: cascadeInstallmentDates(
           (full.installments ?? []).map((row) => ({
-            amount: row.amount,
-            percentValue: 0,
+            amount: (row.amount === 0 ? '' : row.amount) as NumberDraft,
+            percentValue: '' as NumberDraft,
             entryMode: 'AMOUNT' as const,
             installmentDate: row.installmentDate.slice(0, 10),
           })),
@@ -1055,14 +1065,14 @@ function OrdersPageInner() {
           productId: line.product!.id,
           packSize:
             line.product!.unit === 'PCS' ? undefined : line.packSize,
-          packCount: line.packCount,
+          packCount: numberDraftToNumber(line.packCount, 0),
         })),
         customerId: form.customerId || null,
         orderDate: form.orderDate,
         shipmentDate: form.shipmentDate || null,
         status: form.status,
         discountType: form.discountType,
-        discountValue: form.discountValue,
+        discountValue: numberDraftToNumber(form.discountValue, 0),
         paymentStatus: form.paymentStatus,
         billStatus: form.billStatus,
         billDate: form.billDate || null,
@@ -1310,6 +1320,7 @@ function OrdersPageInner() {
               ? `+${orderExtraLineCount(viewing)} more · Fulfillment, invoice, and payment progress for this order.`
               : 'Fulfillment, invoice, and payment progress for this order.'
           }
+          actionsPlacement="foot"
           actions={
             <>
               {viewing.billStatus === 'CREATED' ? (
@@ -1739,11 +1750,11 @@ function OrdersPageInner() {
                           type="number"
                           min={0.0001}
                           step="any"
-                          value={line.packCount}
+                          value={numberInputValue(line.packCount)}
                           aria-invalid={stockShort}
                           onChange={(e) =>
                             updateLine(line.key, {
-                              packCount: Number(e.target.value),
+                              packCount: parseNumberDraft(e.target.value),
                             })
                           }
                           required
@@ -1977,7 +1988,7 @@ function OrdersPageInner() {
                 </div>
                 <div className="umkm-field">
                   <FieldLabel>Order status</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Order status"
                     value={form.status as (typeof ORDER_STATUSES)[number]}
                     onChange={(status) => setForm({ ...form, status })}
@@ -1989,7 +2000,7 @@ function OrdersPageInner() {
                 </div>
                 <div className="umkm-field">
                   <FieldLabel>Payment mode</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Payment mode"
                     value={
                       form.paymentStatus as (typeof PAYMENT_STATUSES)[number]
@@ -2025,7 +2036,7 @@ function OrdersPageInner() {
               <div className="umkm-grid two">
                 <div className="umkm-field">
                   <FieldLabel>Discount type</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Discount type"
                     value={form.discountType as (typeof DISCOUNT_TYPES)[number]}
                     onChange={(discountType) => {
@@ -2050,11 +2061,11 @@ function OrdersPageInner() {
                     type="number"
                     min={0}
                     step="0.0001"
-                    value={form.discountValue}
+                    value={numberInputValue(form.discountValue)}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        discountValue: Number(e.target.value),
+                        discountValue: parseNumberDraft(e.target.value),
                       })
                     }
                   />
@@ -2065,7 +2076,7 @@ function OrdersPageInner() {
                   lineTotal={preview.lineTotal}
                   orderTotal={preview.totalOrderValue}
                   discountType={form.discountType}
-                  discountValue={form.discountValue}
+                  discountValue={numberDraftToNumber(form.discountValue, 0)}
                 />
               ) : null}
             </FormSection>
@@ -2077,7 +2088,7 @@ function OrdersPageInner() {
               <div className="umkm-grid two">
                 <div className="umkm-field">
                   <FieldLabel>Customer bill</FieldLabel>
-                  <OptionChips
+                  <OptionSelect
                     aria-label="Customer bill status"
                     value={form.billStatus as (typeof BILL_STATUSES)[number]}
                     onChange={(billStatus) => {
@@ -2196,7 +2207,10 @@ function OrdersPageInner() {
                           percentValue:
                             orderTotal > 0
                               ? percentOfTotal(
-                                  Number(next[index].amount) || 0,
+                                  numberDraftToNumber(
+                                    next[index].amount,
+                                    0,
+                                  ),
                                   orderTotal,
                                 )
                               : next[index].percentValue,
@@ -2220,12 +2234,8 @@ function OrdersPageInner() {
                       const isPct = row.entryMode === 'PERCENTAGE';
                       const sharePct = percentOfTotal(resolvedAmount, orderTotal);
                       const valueShown = isPct
-                        ? row.percentValue === 0
-                          ? ''
-                          : row.percentValue
-                        : row.amount === 0
-                          ? ''
-                          : row.amount;
+                        ? numberInputValue(row.percentValue)
+                        : numberInputValue(row.amount);
                       return (
                         <li key={index} className="umkm-installment-row">
                           <div className="umkm-installment-card">
@@ -2316,9 +2326,7 @@ function OrdersPageInner() {
                                   value={valueShown}
                                   onChange={(e) => {
                                     const next = [...form.installments];
-                                    const raw = e.target.value;
-                                    const n =
-                                      raw === '' ? 0 : Number(raw) || 0;
+                                    const n = parseNumberDraft(e.target.value);
                                     next[index] = isPct
                                       ? { ...next[index], percentValue: n }
                                       : { ...next[index], amount: n };

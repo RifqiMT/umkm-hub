@@ -64,7 +64,7 @@ export type Customer = {
   remarks: string;
 };
 
-export type OrderInstallment = {
+type OrderInstallment = {
   id?: string;
   amount: number;
   installmentDate: string;
@@ -256,7 +256,7 @@ export type CustomerStatBucket = {
 /** Shared bucket shape for feature statistics breakdowns. */
 export type StatBucket = CustomerStatBucket;
 
-export type CustomerWithWithoutStats = {
+type CustomerWithWithoutStats = {
   withCount: number;
   withoutCount: number;
   withRate: number | null;
@@ -265,7 +265,7 @@ export type CustomerWithWithoutStats = {
 
 export type WithWithoutStats = CustomerWithWithoutStats;
 
-export type CustomerPromiseStats = CustomerWithWithoutStats & {
+type CustomerPromiseStats = CustomerWithWithoutStats & {
   annualBonus: number;
   onTimeDelivery: number;
   packagingBox: number;
@@ -399,9 +399,9 @@ export type DetectLocationResponse = {
   profile: Profile | null;
 };
 
-export type RevenueTargetMode = 'MANUAL' | 'SYSTEMATIC';
+type RevenueTargetMode = 'MANUAL' | 'SYSTEMATIC';
 
-export type RevenueTargetMonthRow = {
+type RevenueTargetMonthRow = {
   id?: string;
   month: number;
   amount: number;
@@ -463,7 +463,7 @@ type AnalyticsMixShares = {
   paymentOrderCount: number;
 };
 
-export type AnalyticsWeekPoint = {
+type AnalyticsWeekPoint = {
   isoYear: number;
   week: number;
   label: string;
@@ -491,7 +491,7 @@ export type AnalyticsWeekPoint = {
   avgPurchaseFrequency: number | null;
 } & AnalyticsMixShares;
 
-export type AnalyticsMonthPoint = {
+type AnalyticsMonthPoint = {
   month: number;
   /** Present for trailing-month (all timelines) series. */
   year?: number;
@@ -522,7 +522,7 @@ export type AnalyticsMonthPoint = {
   avgPurchaseFrequency: number | null;
 } & AnalyticsMixShares;
 
-export type AnalyticsQuarterPoint = {
+type AnalyticsQuarterPoint = {
   year: number;
   quarter: number;
   label: string;
@@ -549,7 +549,7 @@ export type AnalyticsQuarterPoint = {
   avgPurchaseFrequency: number | null;
 } & AnalyticsMixShares;
 
-export type AnalyticsYearPoint = {
+type AnalyticsYearPoint = {
   year: number;
   revenue: number;
   orderCount: number;
@@ -573,7 +573,7 @@ export type AnalyticsYearPoint = {
   avgPurchaseFrequency: number | null;
 } & AnalyticsMixShares;
 
-export type AnalyticsProductRow = {
+type AnalyticsProductRow = {
   productId: string;
   name: string;
   unit: string;
@@ -602,7 +602,7 @@ export type AnalyticsProductRow = {
   marginPercent: number | null;
 };
 
-export type AnalyticsCustomerRow = {
+type AnalyticsCustomerRow = {
   customerId: string;
   name: string;
   companyName: string;
@@ -626,7 +626,7 @@ export type AnalyticsCustomerRow = {
   marginPercent: number | null;
 };
 
-export type AnalyticsScope = 'year' | 'years' | 'all';
+type AnalyticsScope = 'year' | 'years' | 'all';
 
 export type AnalyticsOverview = {
   year: number | null;

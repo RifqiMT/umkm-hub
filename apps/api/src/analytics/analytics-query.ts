@@ -5,7 +5,7 @@ const ANALYTICS_INCLUDE_PARTS = [
   'customers',
 ] as const;
 
-export type AnalyticsIncludePart = (typeof ANALYTICS_INCLUDE_PARTS)[number];
+type AnalyticsIncludePart = (typeof ANALYTICS_INCLUDE_PARTS)[number];
 
 const ANALYTICS_GRANULARITIES = [
   'weekly',
@@ -14,7 +14,7 @@ const ANALYTICS_GRANULARITIES = [
   'annual',
 ] as const;
 
-export type AnalyticsGranularity = (typeof ANALYTICS_GRANULARITIES)[number];
+type AnalyticsGranularity = (typeof ANALYTICS_GRANULARITIES)[number];
 
 export type AnalyticsOverviewOptions = {
   include: ReadonlySet<AnalyticsIncludePart>;

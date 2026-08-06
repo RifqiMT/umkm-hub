@@ -1,5 +1,41 @@
 # Changelog — UMKM Hub
 
+## 2026-08-06 — v1.5.274 Documentation suite refresh (post-1.5.273)
+**Author:** Auto (Cursor agent)  
+**Impact:** Full re-audit vs code tip **v1.5.273**. Documented post-265 UX: mobile list filters parity, filters collapsed by default everywhere, form enum dropdowns + empty numeric drafts, sheet actions at foot. Extended USER_STORIES US-8.6/8.7 + FR-UX9–10 map; DESIGN component table (`OptionSelect`); PLAN Redis optional-v1 (not phase 2); PRODUCT/PERSONAS/mobile README polish. Stamps → **1.5.274**.
+
+## 2026-08-05 — v1.5.273 Dead code cleanup
+**Author:** Auto (Cursor agent)  
+**Impact:** Removed deprecated analytics helpers (`parseAnalyticsYear`, `resolveAnalyticsYears`) unused outside tests. Demoted in-file-only web/API types (analytics/CSV/revenue/customer stats, `GramLiterPackSize`, include/granularity unions). Kept ops scripts, seed-math exports, and login `profileName` alias for clients.
+
+## 2026-08-05 — v1.5.272 Filters collapsed by default everywhere
+**Author:** Auto (Cursor agent)  
+**Impact:** List/analytics filter rows start collapsed on all viewports (including desktop). The Filters toggle is always visible; expand to reveal controls. Web no longer auto-opens >1100px; Flutter list screens no longer force `initiallyExpanded: true`.
+
+## 2026-08-05 — v1.5.271 Sheet actions always at the foot
+**Author:** Auto (Cursor agent)  
+**Impact:** Standardized primary actions on View and Form sheets: Edit/Delete/Close (and form submit/cancel) render after the content, full-width stacked on narrow screens. Web `ContentSection` gains `actionsPlacement="foot"` for all view sheets; Flutter form/view sheets use the same full-width action column.
+
+## 2026-08-05 — v1.5.270 Elegant select / dropdown chrome
+**Author:** Auto (Cursor agent)  
+**Impact:** Form selects use a shared modern control style: soft surface gradient, custom brand chevron, clearer placeholder (“None”) muted weight, refined focus ring. Web `OptionSelect` + all field/product/pager selects; mobile `OptionDropdown` matches with soft fill, rounded menu, and brand arrow icon.
+
+## 2026-08-05 — v1.5.269 Form enum chips → dropdowns
+**Author:** Auto (Cursor agent)  
+**Impact:** Create/edit form enum fields (company type, status, payment mode, unit, pack size, etc.) now use native dropdowns (`OptionSelect` web / `OptionDropdown` mobile) instead of horizontal chip rows. Analytics period/view toggles, Targets plan-mode chips, installment Amount/%, and multi-select filters stay as chips.
+
+## 2026-08-05 — v1.5.268 Numeric fields no longer seed with leading 0
+**Author:** Auto (Cursor agent)  
+**Impact:** Controlled number inputs across Orders, Products, Customers, Warehouse, Targets, and Profile now use empty drafts (`NumberDraft` / blank controllers) instead of defaulting to `0`, so clearing a field no longer re-fills zero and typing no longer produces a leading 0. Shared helper `apps/web/src/lib/number-draft.ts` + unit tests; mobile discount/price/approval seeds match.
+
+## 2026-08-05 — v1.5.267 Narrow form overflow (chips + date fields)
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed phone/tablet horizontal overflow in order (and other) forms: OptionChips use a 2-column grid with `minmax(0,1fr)` instead of `min-width: 50%` flex; inputs/selects/date fields are `width: 100%` with `min-width: 0`. Flutter ChoiceChipGroup/MultiSelectChipGroup use half-width wrap on narrow sheets.
+
+## 2026-08-05 — v1.5.266 Mobile list filters parity with web
+**Author:** Auto (Cursor agent)  
+**Impact:** Flutter Products, Customers, Orders, and Warehouse now expose the same search + multi-select filters as web (Orders also gets order/shipment/invoice date ranges). ApiService encodes list filters as comma-joined query params; shared FilterSearchField / MultiSelectChipGroup / DateRangeFilterField under ExpandableFilters.
+
 ## 2026-08-01 — v1.5.265 Documentation suite refresh (post-1.5.264)
 **Author:** Auto (Cursor agent)  
 **Impact:** Full re-audit vs code tip **v1.5.264**. Fixed Order totals **Revenue** (gross/net) wording in PRODUCT/USER_STORIES; performance View + exclusive focus mode ACs; Dictionary count **102**; FR-UX6 responsive (tablet cards, non-sticky feature chrome, NavigationRail); ARCHITECTURE Redis optional-v1 (not phase 2). Aligned VARIABLES Gross/Net friendly names. Stamps → **1.5.265**.

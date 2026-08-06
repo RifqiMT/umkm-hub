@@ -20,6 +20,12 @@ import {
   formatMoneyExact,
 } from '@/lib/format-money';
 import { buildTargetsStageMetrics } from '@/lib/feature-stage-metrics';
+import {
+  numberDraftToNumber,
+  numberInputValue,
+  parseNumberDraft,
+  type NumberDraft,
+} from '@/lib/number-draft';
 
 type TargetMode = 'MANUAL' | 'SYSTEMATIC';
 type PlanView = 'monthly' | 'annual';
@@ -58,11 +64,16 @@ function previewSystematic(base: number, growth: number) {
   );
 }
 
-function emptyMonths() {
+function emptyMonths(): Array<{ month: number; amount: NumberDraft }> {
   return Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
-    amount: 0,
+    amount: '',
   }));
+}
+
+function seedAmountDraft(value: number | null | undefined): string {
+  if (value == null || value === 0) return '';
+  return String(value);
 }
 
 function evenSplit(total: number) {
@@ -95,39 +106,44 @@ export default function TargetsPage() {
   const [saving, setSaving] = useState(false);
 
   const [monthlyMode, setMonthlyMode] = useState<TargetMode>('MANUAL');
-  const [baseMonthAmount, setBaseMonthAmount] = useState('0');
-  const [monthlyGrowthPercent, setMonthlyGrowthPercent] = useState('0');
+  const [baseMonthAmount, setBaseMonthAmount] = useState('');
+  const [monthlyGrowthPercent, setMonthlyGrowthPercent] = useState('');
   const [months, setMonths] = useState(emptyMonths());
 
   const [annualMode, setAnnualMode] = useState<TargetMode>('MANUAL');
-  const [annualAmount, setAnnualAmount] = useState('0');
-  const [baseAnnualAmount, setBaseAnnualAmount] = useState('0');
-  const [annualGrowthPercent, setAnnualGrowthPercent] = useState('0');
+  const [annualAmount, setAnnualAmount] = useState('');
+  const [baseAnnualAmount, setBaseAnnualAmount] = useState('');
+  const [annualGrowthPercent, setAnnualGrowthPercent] = useState('');
 
   function syncFromData(res: RevenueTargetYear) {
     setData(res);
     if (res.plan && res.monthlyConfigured) {
       setMonthlyMode(res.plan.monthlyMode);
-      setBaseMonthAmount(String(res.plan.baseMonthAmount ?? 0));
-      setMonthlyGrowthPercent(String(res.plan.monthlyGrowthPercent ?? 0));
-      setMonths(res.months.map((m) => ({ month: m.month, amount: m.amount })));
+      setBaseMonthAmount(seedAmountDraft(res.plan.baseMonthAmount));
+      setMonthlyGrowthPercent(seedAmountDraft(res.plan.monthlyGrowthPercent));
+      setMonths(
+        res.months.map((m) => ({
+          month: m.month,
+          amount: m.amount === 0 ? ('' as const) : m.amount,
+        })),
+      );
     } else {
       setMonthlyMode('MANUAL');
-      setBaseMonthAmount('0');
-      setMonthlyGrowthPercent('0');
+      setBaseMonthAmount('');
+      setMonthlyGrowthPercent('');
       setMonths(emptyMonths());
     }
 
     if (res.plan && res.annualConfigured) {
       setAnnualMode(res.plan.annualMode);
-      setAnnualAmount(String(res.plan.annualAmount ?? 0));
-      setBaseAnnualAmount(String(res.plan.baseAnnualAmount ?? 0));
-      setAnnualGrowthPercent(String(res.plan.annualGrowthPercent ?? 0));
+      setAnnualAmount(seedAmountDraft(res.plan.annualAmount));
+      setBaseAnnualAmount(seedAmountDraft(res.plan.baseAnnualAmount));
+      setAnnualGrowthPercent(seedAmountDraft(res.plan.annualGrowthPercent));
     } else {
       setAnnualMode('MANUAL');
-      setAnnualAmount('0');
-      setBaseAnnualAmount('0');
-      setAnnualGrowthPercent('0');
+      setAnnualAmount('');
+      setBaseAnnualAmount('');
+      setAnnualGrowthPercent('');
     }
   }
 
@@ -153,8 +169,14 @@ export default function TargetsPage() {
   const systematicPreview = useMemo(() => {
     const base = Number(baseMonthAmount);
     const growth = Number(monthlyGrowthPercent);
-    if (Number.isNaN(base) || Number.isNaN(growth) || base < 0) {
-      return emptyMonths().map((m) => m.amount);
+    if (
+      baseMonthAmount.trim() === '' ||
+      monthlyGrowthPercent.trim() === '' ||
+      Number.isNaN(base) ||
+      Number.isNaN(growth) ||
+      base < 0
+    ) {
+      return Array.from({ length: 12 }, () => 0);
     }
     return previewSystematic(base, growth);
   }, [baseMonthAmount, monthlyGrowthPercent]);
@@ -163,9 +185,12 @@ export default function TargetsPage() {
     editing && planView === 'monthly' && monthlyMode === 'SYSTEMATIC'
       ? systematicPreview.map((amount, i) => ({ month: i + 1, amount }))
       : editing && planView === 'monthly'
-        ? months
+        ? months.map((m) => ({
+            month: m.month,
+            amount: numberDraftToNumber(m.amount, 0),
+          }))
         : (data?.months.map((m) => ({ month: m.month, amount: m.amount })) ??
-          emptyMonths());
+          Array.from({ length: 12 }, (_, i) => ({ month: i + 1, amount: 0 })));
 
   const monthlySum = useMemo(
     () => roundMoney(displayMonths.reduce((s, m) => s + m.amount, 0)),
@@ -217,7 +242,7 @@ export default function TargetsPage() {
               monthlyMode,
               months: months.map((m) => ({
                 month: m.month,
-                amount: Number(m.amount) || 0,
+                amount: numberDraftToNumber(m.amount, 0),
               })),
             };
 
@@ -292,7 +317,7 @@ export default function TargetsPage() {
     const next = [...months];
     next[month - 1] = {
       month,
-      amount: Number(raw) || 0,
+      amount: parseNumberDraft(raw),
     };
     setMonths(next);
   }
@@ -310,7 +335,8 @@ export default function TargetsPage() {
       : null;
 
   const savedMonthAmounts =
-    data?.months.map((m) => m.amount) ?? emptyMonths().map((m) => m.amount);
+    data?.months.map((m) => m.amount) ??
+    Array.from({ length: 12 }, () => 0);
   const evenPlan = monthsAreEven(savedMonthAmounts);
   const maxMonthAmount = Math.max(
     1,
@@ -592,7 +618,9 @@ export default function TargetsPage() {
                         min={0}
                         step="0.01"
                         aria-label={`${MONTH_LABELS[row.month - 1]} target`}
-                        value={months[row.month - 1]?.amount ?? 0}
+                        value={numberInputValue(
+                          months[row.month - 1]?.amount,
+                        )}
                         onChange={(e) =>
                           updateMonthAmount(row.month, e.target.value)
                         }

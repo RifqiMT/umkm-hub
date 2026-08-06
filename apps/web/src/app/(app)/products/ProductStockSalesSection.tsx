@@ -100,6 +100,7 @@ export function ProductStockSalesPerformanceView({
       eyebrow="Product performance"
       title={row.name}
       description="Stock & sales performance for this product in the current catalog filters."
+      actionsPlacement="foot"
       actions={
         <button
           type="button"

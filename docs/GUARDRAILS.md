@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Purpose** | Technical and business limitations that constrain product development |
 
 ---
@@ -61,6 +61,8 @@
 | Sold history is read-only from Warehouse UI — mutations only via Orders; historical gaps need backfill CLI | Clear ownership of inventory mutations |
 | Mobile **Targets**, **PDF/fiscal**, warehouse **edit**, **Stock & sales**, **Order totals**, **statistics UI**, Sold history **Open order** deferred (web-first) | Focus field app on CRM/orders |
 | Web **View** sheets must use page focus mode (hide FeatureStage, filters, sibling sections); do not nest View inside insight tables while leaving chrome visible | One job per screen; matches catalog/directory View |
+| List filters start **collapsed on all viewports**; expand via Filters toggle | Less chrome noise; same pattern web + mobile |
+| Form enums use dropdowns; numeric fields start blank (not `0`) | Cleaner create/edit; FR-UX9/UX10 |
 | On ≤1100 web and mobile sheets, do not pin feature panel heads or action footers (`position: sticky` / pinned sheet chrome); only AppShell nav may stay fixed | Avoid stacked sticky chrome fighting scroll on phones/tablets |
 
 ---

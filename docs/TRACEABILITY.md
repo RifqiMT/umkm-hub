@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Purpose** | Map PRD requirements → API → clients → tests/docs |
 
 ---
@@ -90,6 +90,8 @@
 | FR-UX6 Responsive chrome | — | AppShell rail/bottom nav; tablet cards ≤1100; non-sticky feature chrome on narrow; filter sheets; `CollapsibleFilters`; `--bp-*` | home_shell + NavigationRail + `ExpandableFilters` | DESIGN_GUIDELINES §2.3a; PRD FR-UX6 |
 | FR-UX7 UI language | `POST /translate/batch`, `batch-public` | LanguageSelect + translate client | TranslateService / ui languages | translate module |
 | FR-UX8 Domain statistics | `statistics` object on `GET …/summary` (filter-aware) | Products/Customers/Orders/Warehouse stats sections | — | `*-statistics.ts`; US-5.2 |
+| FR-UX9 Empty numeric drafts | — | `lib/number-draft.ts` on Orders/Products/Customers/Warehouse/Targets/Profile | Blank discount/price/approval controllers | DESIGN_GUIDELINES §7 |
+| FR-UX10 Form enum dropdowns | — | `OptionSelect` on Customers/Orders/Products/Warehouse forms | `OptionDropdown` on matching form sheets | DESIGN_GUIDELINES §7 |
 | FR-UX3 Catalog identity | — | Soft ID pills | Matching cards | DESIGN_GUIDELINES |
 | FR-UX4 Compact money | — | `format-money.ts` | `format_money.dart` | VARIABLES.md |
 | NFR isolation | JwtAuthGuard + profileId | Token storage | Secure storage | GUARDRAILS |

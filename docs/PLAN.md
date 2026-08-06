@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-08-01 (v1.5.265))) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-08-06 (v1.5.274)) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 
@@ -31,7 +31,7 @@
 | **Validation** | Zod (web) + class-validator (API) + Dart models | Shared contract discipline |
 | **API contract** | OpenAPI from NestJS | Generate typed clients for web/mobile later |
 | **Deploy (target)** | API + Postgres on Railway/Render; Web on Vercel; Mobile via stores | Clear scale path |
-| **Caching (phase 2)** | Redis | Session/rate-limit; product catalog cache |
+| **Caching (optional v1)** | Redis / Upstash when configured | Distributed throttle + analytics cache; else in-memory / in-process |
 | **Files (phase 2)** | S3-compatible storage | Product images if needed |
 
 ### Why not alternatives
@@ -327,13 +327,13 @@ Update `/docs` with:
 - Pagination default page size 20
 - Order create uses DB transaction (stock + order)
 - No N+1: Prisma `include` product on order list
-- Benchmark before adding Redis (phase 2)
+- Optional Redis/Upstash when multi-instance need is measured; in-process analytics TTL is fine for single-node
 
 ---
 
 ## 11. Out of Scope (v1)
 
-> Living docs ([PRODUCT.md](./PRODUCT.md), [PRD.md](./PRD.md)) supersede outdated plan bullets. Shipped since this plan was first written: printable PDF + e-Faktur **prep**, PPN/`amountDue`, domain statistics, warehouse edit (web), warehouse **sold history**.
+> Living docs ([PRODUCT.md](./PRODUCT.md), [PRD.md](./PRD.md)) supersede outdated plan bullets. Shipped since this plan was first written: printable PDF + e-Faktur **prep**, PPN/`amountDue`, domain statistics, warehouse edit (web), warehouse **sold history**, optional Redis/Upstash, mobile list filters, form dropdowns / empty numeric drafts.
 
 Still out of scope for v1:
 - Multi-user teams under one UMKM

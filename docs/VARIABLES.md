@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.265 |
-| **Date** | 2026-08-01 |
+| **Version** | 1.5.274 |
+| **Date** | 2026-08-06 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.264 |
+| **Code tip aligned** | v1.5.273 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---

@@ -49,6 +49,7 @@ export function ContentSection({
   description,
   eyebrow,
   actions,
+  actionsPlacement = 'head',
   children,
   className = '',
   quiet = false,
@@ -57,16 +58,21 @@ export function ContentSection({
   description?: string;
   eyebrow?: string;
   actions?: ReactNode;
+  /** `foot` = actions after body (View sheets on narrow/mobile parity with forms). */
+  actionsPlacement?: 'head' | 'foot';
   children: ReactNode;
   className?: string;
   quiet?: boolean;
 }) {
   const tr = useTr();
-  const hasHead = Boolean(title || description || eyebrow || actions);
-  const soloHead = hasHead && !actions;
+  const hasTextHead = Boolean(title || description || eyebrow);
+  const actionsInHead = Boolean(actions) && actionsPlacement === 'head';
+  const actionsInFoot = Boolean(actions) && actionsPlacement === 'foot';
+  const hasHead = hasTextHead || actionsInHead;
+  const soloHead = hasHead && !actionsInHead;
   return (
     <section
-      className={`umkm-panel${quiet ? ' quiet' : ''} umkm-content-section${soloHead ? ' is-head-solo' : ''} ${className}`.trim()}
+      className={`umkm-panel${quiet ? ' quiet' : ''} umkm-content-section${soloHead ? ' is-head-solo' : ''}${actionsInFoot ? ' has-foot-actions' : ''} ${className}`.trim()}
     >
       {hasHead ? (
         <div className="umkm-panel-head">
@@ -81,12 +87,17 @@ export function ContentSection({
               <p className="umkm-panel-desc">{tr(description)}</p>
             ) : null}
           </div>
-          {actions ? (
+          {actionsInHead ? (
             <div className="umkm-page-actions">{actions}</div>
           ) : null}
         </div>
       ) : null}
       <div className="umkm-panel-body">{children}</div>
+      {actionsInFoot ? (
+        <div className="umkm-panel-foot umkm-page-actions umkm-actions">
+          {actions}
+        </div>
+      ) : null}
     </section>
   );
 }

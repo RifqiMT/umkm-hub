@@ -88,6 +88,7 @@ export function CustomerOrderTotalsPerformanceView({
       eyebrow="Order performance"
       title={row.name}
       description="Linked order totals for this customer in the current directory filters."
+      actionsPlacement="foot"
       actions={
         <button
           type="button"

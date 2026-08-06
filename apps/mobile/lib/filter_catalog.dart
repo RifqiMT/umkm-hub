@@ -66,6 +66,7 @@ const paymentStatusOptions = [
   FilterOption('CASH', 'Cash'),
   FilterOption('CONSIGNMENT', 'Consignment'),
   FilterOption('DELAYED_PAYMENT', 'Delayed payment'),
+  FilterOption('KONTRA_BON', 'Kontra bon'),
 ];
 
 const billStatusOptions = [

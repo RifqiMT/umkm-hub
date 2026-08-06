@@ -1,6 +1,6 @@
 # UMKM Hub Documentation Index
 
-Canonical product and engineering documentation for **UMKM Hub** (v1.5.274). Start with the product overview, then use the matrix below by role.
+Canonical product and engineering documentation for **UMKM Hub** (v1.5.281). Start with the product overview, then use the matrix below by role.
 
 ---
 
@@ -63,6 +63,6 @@ Canonical product and engineering documentation for **UMKM Hub** (v1.5.274). Sta
 | Guardrails (tech + business + perf) | GUARDRAILS |
 | Changelog | CHANGELOG |
 
-**Code tip aligned:** v1.5.273 · **Docs stamp:** 1.5.274
+**Code tip aligned:** v1.5.281 · **Docs stamp:** 1.5.281
 
 When shipping a user-visible change: update **CHANGELOG**, bump version stamps on PRODUCT/PRD if needed, and adjust VARIABLES / TRACEABILITY / DESIGN when formulas, FR coverage, or UI tokens change.

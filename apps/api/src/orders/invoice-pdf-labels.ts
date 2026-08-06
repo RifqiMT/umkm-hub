@@ -14,6 +14,7 @@ export function formatPaymentTerms(raw: string): string {
     CASH: 'Cash on delivery',
     CONSIGNMENT: 'Consignment',
     DELAYED_PAYMENT: 'Delayed payment',
+    KONTRA_BON: 'Kontra bon',
     INSTALLMENT: 'Installment plan',
     PAID: 'Paid in full',
     PARTIAL: 'Partial payment',

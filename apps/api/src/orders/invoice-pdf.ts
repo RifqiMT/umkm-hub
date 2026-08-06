@@ -8,8 +8,27 @@ import {
   formatPaymentTerms,
   type InvoicePdfLabels,
 } from './invoice-pdf-labels';
+import {
+  PdfColor as C,
+  PdfPage,
+  PdfPageFooterH,
+  PdfTable as T,
+  Space,
+  PdfType,
+  type PdfPageBox as PageBox,
+  pdfDrawMoney as drawMoneyCell,
+  pdfDrawText as drawText,
+  pdfFillRect as fillRect,
+  pdfFillRoundRect as fillRoundRect,
+  pdfFormatDate as formatDate,
+  pdfMoney as money,
+  pdfPageBox,
+  pdfStrokeHLine as strokeHLine,
+  pdfStrokeRoundRect as strokeRoundRect,
+  pdfVCenter as vCenterY,
+} from './pdf-theme';
 
-export const INVOICE_PDF_TEMPLATE_VERSION = '2026-07-31-v27';
+export const INVOICE_PDF_TEMPLATE_VERSION = '2026-08-06-v28';
 
 type InvoiceLineItem = {
   description: string;
@@ -56,55 +75,15 @@ export type InvoiceDocumentData = {
   payments: InvoicePaymentRow[];
 };
 
-const C = {
-  brand: '#0B6B58',
-  brandDeep: '#064F41',
-  brandSoft: '#EEF6F3',
-  brandTint: '#F4FAF8',
-  brandLine: '#9CBFB4',
-  ink: '#101815',
-  /** Primary supporting text — meets contrast on white backgrounds. */
-  muted: '#3A4541',
-  /** Secondary lines (unit price, pack size, captions). */
-  subtext: '#4A5652',
-  /** Uppercase labels and de-emphasized metadata — still readable at small sizes. */
-  label: '#566460',
-  line: '#D8E4DF',
-  surface: '#F7FAF9',
-  white: '#FFFFFF',
-  warn: '#9A3412',
-  warnSoft: '#FEF3C7',
-  danger: '#991B1B',
-  dangerSoft: '#FEE2E2',
-  success: '#047857',
-  successSoft: '#D1FAE5',
-} as const;
-
-/** Page margins — footer lives inside the bottom margin (no dead space below it). */
 const PAGE = {
-  marginX: 28,
-  marginTop: 50,
-  footerBodyH: 26,
-  footerAccentH: 3,
+  marginX: PdfPage.marginX,
+  marginTop: PdfPage.marginTop,
+  footerBodyH: PdfPage.footerBodyH,
+  footerAccentH: PdfPage.footerAccentH,
 } as const;
 
-const PAGE_FOOTER_H = PAGE.footerBodyH + PAGE.footerAccentH;
-const HEADER_H = 58;
-
-/** Shared table rhythm for line items and payments. */
-const T = {
-  cellPadX: 8,
-  colGap: 10,
-  headH: 28,
-  footH: 28,
-  headSize: 7,
-  bodySize: 8.5,
-  subSize: 7,
-  rowPadY: 7,
-  rowLineGap: 2,
-  rowMinH: 34,
-  payRowH: 30,
-} as const;
+const PAGE_FOOTER_H = PdfPageFooterH;
+const HEADER_H = PdfPage.headerH;
 
 function fillTableBar(
   doc: PDFKit.PDFDocument,
@@ -188,30 +167,7 @@ function drawTableFooterRow(
   });
 }
 
-function vCenterY(y: number, barH: number, fontSize: number): number {
-  return y + (barH - fontSize) / 2 - 0.5;
-}
-
 type PageKind = 'details' | 'payments' | 'summary';
-
-type PageBox = {
-  left: number;
-  right: number;
-  width: number;
-  top: number;
-  bottom: number;
-};
-
-type TextOpts = {
-  font?: string;
-  size?: number;
-  color?: string;
-  align?: 'left' | 'center' | 'right';
-  wrap?: boolean;
-  minSize?: number;
-  /** Clip wrapped text so overflow cannot spill onto a new page. */
-  maxHeight?: number;
-};
 
 type TableLayout = {
   indexX: number;
@@ -232,162 +188,12 @@ type PageContext = {
 };
 
 function pageBox(doc: PDFKit.PDFDocument): PageBox {
-  return {
-    left: doc.page.margins.left,
-    right: doc.page.width - doc.page.margins.right,
-    width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-    top: HEADER_H + 8,
-    bottom: doc.page.height - doc.page.margins.bottom,
-  };
-}
-
-function money(value: number): string {
-  const n = Number(value) || 0;
-  if (!Number.isFinite(n)) return 'Rp 0';
-  const abs = Math.abs(n);
-  const prefix = n < 0 ? '- ' : '';
-  const formatted = new Intl.NumberFormat('id-ID', {
-    maximumFractionDigits: 0,
-  }).format(Math.round(abs));
-  return `${prefix}Rp ${formatted}`;
-}
-
-/** Draw amount in a cell; splits currency label when space is tight. */
-function drawMoneyCell(
-  doc: PDFKit.PDFDocument,
-  value: number,
-  x: number,
-  y: number,
-  w: number,
-  opts: {
-    strong?: boolean;
-    color?: string;
-    size?: number;
-    minSize?: number;
-    align?: 'left' | 'right';
-  } = {},
-): number {
-  const text = money(value);
-  const font = opts.strong ? 'Helvetica-Bold' : 'Helvetica';
-  let fitSize = opts.size ?? 9;
-  const color = opts.color ?? (opts.strong ? C.brandDeep : C.ink);
-  const align = opts.align ?? 'right';
-  const minSize = opts.minSize ?? 4.5;
-  doc.font(font).fontSize(fitSize);
-  while (fitSize > minSize && doc.widthOfString(text) > w - 1) {
-    fitSize -= 0.5;
-    doc.fontSize(fitSize);
-  }
-  if (doc.widthOfString(text) <= w - 1) {
-    return drawText(doc, text, x, y, w, {
-      font,
-      size: fitSize,
-      color,
-      align,
-      minSize,
-    });
-  }
-  const amountOnly = text.replace(/^(-?\s*)Rp\s*/, '$1');
-  drawText(doc, 'Rp', x, y, w, {
-    font,
-    size: 7.5,
-    color: opts.color ?? C.subtext,
-    align,
-  });
-  return (
-    7 +
-    drawText(doc, amountOnly, x, y + 8, w, {
-      font,
-      size: fitSize - 1,
-      color,
-      align,
-      minSize: Math.max(4, minSize - 0.5),
-    })
-  );
-}
-
-function formatDate(iso: string): string {
-  const day = iso.slice(0, 10);
-  const d = new Date(`${day}T00:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(d);
+  return pdfPageBox(doc);
 }
 
 function truncate(text: string, max: number): string {
   const t = text.trim();
   return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
-}
-
-function fillRect(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, color: string) {
-  doc.save().rect(x, y, w, h).fillColor(color).fill().restore();
-}
-
-function fillRoundRect(
-  doc: PDFKit.PDFDocument,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  color: string,
-) {
-  doc.save().roundedRect(x, y, w, h, r).fillColor(color).fill().restore();
-}
-
-function strokeRoundRect(
-  doc: PDFKit.PDFDocument,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  color: string,
-  width = 0.75,
-) {
-  doc.save().roundedRect(x, y, w, h, r).strokeColor(color).lineWidth(width).stroke().restore();
-}
-
-function strokeHLine(doc: PDFKit.PDFDocument, x1: number, x2: number, y: number, color: string = C.line) {
-  doc.moveTo(x1, y).lineTo(x2, y).strokeColor(color).lineWidth(0.5).stroke();
-}
-
-function drawText(
-  doc: PDFKit.PDFDocument,
-  text: string,
-  x: number,
-  y: number,
-  w: number,
-  opts: TextOpts = {},
-): number {
-  const font = opts.font ?? 'Helvetica';
-  let size = opts.size ?? 9;
-  const minSize = opts.minSize ?? 6;
-  const align = opts.align ?? 'left';
-  const wrap = opts.wrap ?? false;
-
-  doc.font(font);
-  if (!wrap) {
-    while (size > minSize) {
-      doc.fontSize(size);
-      if (doc.widthOfString(text) <= w - 1) break;
-      size -= 0.5;
-    }
-  }
-  doc.fontSize(size).fillColor(opts.color ?? C.ink);
-
-  const textOpts: PDFKit.Mixins.TextOptions = { width: w, align, lineBreak: wrap };
-  if (opts.maxHeight != null) textOpts.height = opts.maxHeight;
-
-  const height = doc.heightOfString(text, { width: w, align });
-  doc.text(text, x, y, textOpts);
-  doc.x = x;
-  doc.y = y;
-  return opts.maxHeight != null ? Math.min(height, opts.maxHeight) : height;
 }
 
 function tableLayout(box: PageBox): TableLayout {
@@ -424,19 +230,19 @@ function drawSectionTitle(
   title: string,
   subtitle: string,
 ): number {
-  drawText(doc, title, box.left, y, box.width * 0.58, {
+  drawText(doc, title, box.left, y, box.width * 0.55, {
     font: 'Helvetica-Bold',
-    size: 13,
+    size: PdfType.section,
     color: C.ink,
   });
-  drawText(doc, subtitle, box.left + box.width * 0.42, y + 1, box.width * 0.58, {
-    size: 7.5,
+  drawText(doc, subtitle, box.left + box.width * 0.4, y + 2, box.width * 0.6, {
+    size: PdfType.caption,
     color: C.subtext,
     align: 'right',
   });
-  y += 18;
+  y += Space.lg;
   strokeHLine(doc, box.left, box.right, y, C.line);
-  return y + 12;
+  return y + Space.md;
 }
 
 function drawLineItemsHeader(
@@ -542,55 +348,55 @@ function drawPageHeader(
 ) {
   const pageW = doc.page.width;
   fillRect(doc, 0, 0, pageW, HEADER_H, C.brandTint);
-  fillRect(doc, 0, 0, 3, HEADER_H, C.brandDeep);
+  fillRect(doc, 0, 0, PdfPage.accentRail, HEADER_H, C.brandDeep);
 
-  drawText(doc, 'UMKM Hub', box.left, 15, 150, {
+  drawText(doc, 'UMKM Hub', box.left, Space.md, 150, {
     font: 'Helvetica-Bold',
-    size: 12,
+    size: 11,
     color: C.brandDeep,
   });
-  drawText(doc, ctx.labels.brandTagline, box.left, 30, 150, {
-    size: 7,
+  drawText(doc, ctx.labels.brandTagline, box.left, Space.md + 15, 160, {
+    size: PdfType.label,
     color: C.muted,
   });
 
   const tabs = pageTabs(ctx);
-  const tabGap = 8;
-  doc.font('Helvetica-Bold').fontSize(7.5);
+  const tabGap = Space.sm;
+  doc.font('Helvetica-Bold').fontSize(PdfType.caption);
   const tabWidths = tabs.map((t) => doc.widthOfString(t.label) + 20);
   const tabsW = tabWidths.reduce((a, b) => a + b, 0) + tabGap * (tabs.length - 1);
   let tabX = box.left + (box.width - tabsW) / 2;
-  const tabTop = 14;
+  const tabTop = Space.md - 1;
 
   tabs.forEach((tab, i) => {
-    const tw = tabWidths[i];
+    const tw = tabWidths[i]!;
     const isActive = tab.id === active;
     if (isActive) {
       fillRoundRect(doc, tabX, tabTop, tw, 22, 11, C.white);
       strokeRoundRect(doc, tabX, tabTop, tw, 22, 11, C.brand, 0.75);
-      fillRect(doc, tabX + 8, tabTop + 20, tw - 16, 2, C.brand);
+      fillRect(doc, tabX + Space.sm, tabTop + 20, tw - Space.lg, 2, C.brand);
     } else {
       fillRoundRect(doc, tabX, tabTop, tw, 22, 11, C.brandSoft);
     }
     drawText(doc, tab.label, tabX, tabTop + 6, tw, {
       font: isActive ? 'Helvetica-Bold' : 'Helvetica',
-      size: 7.5,
+      size: PdfType.caption,
       color: isActive ? C.brandDeep : C.muted,
       align: 'center',
     });
     tabX += tw + tabGap;
   });
 
-  const rightW = Math.min(240, Math.round(box.width * 0.36));
+  const rightW = Math.min(220, Math.round(box.width * 0.34));
   const rightX = box.right - rightW;
-  drawText(doc, ctx.labels.headerInvoiceNo, rightX, 18, rightW, {
-    size: 7,
+  drawText(doc, ctx.labels.headerInvoiceNo, rightX, Space.md, rightW, {
+    size: PdfType.label,
     color: C.label,
     align: 'right',
   });
-  drawText(doc, ctx.invoiceDisplay.header, rightX, 32, rightW, {
+  drawText(doc, ctx.invoiceDisplay.header, rightX, Space.md + 13, rightW, {
     font: 'Helvetica-Bold',
-    size: 9,
+    size: PdfType.bodySm,
     color: C.ink,
     align: 'right',
     minSize: 6.5,
@@ -629,35 +435,27 @@ function drawMetaStrip(
     { label: labels.paymentTerms, value: formatPaymentTerms(data.paymentTerms) },
     { label: labels.orderReference, value: orderReferenceBrief },
   ];
-  const barH = 46;
-  fillRoundRect(doc, box.left, y, box.width, barH, 8, C.white);
-  strokeRoundRect(doc, box.left, y, box.width, barH, 8, C.line);
+  const barH = 44;
+  const gap = Space.sm;
+  const colW = (box.width - gap * (cols.length - 1)) / cols.length;
 
-  const colW = box.width / cols.length;
   cols.forEach((col, i) => {
-    const cx = box.left + i * colW;
-    if (i > 0) {
-      doc
-        .moveTo(cx, y + 10)
-        .lineTo(cx, y + barH - 10)
-        .strokeColor(C.line)
-        .lineWidth(0.5)
-        .stroke();
-    }
-    drawText(doc, col.label.toUpperCase(), cx + 12, y + 10, colW - 24, {
+    const cx = box.left + i * (colW + gap);
+    fillRoundRect(doc, cx, y, colW, barH, PdfPage.radiusSm, C.surface);
+    drawText(doc, col.label.toUpperCase(), cx + Space.md, y + Space.sm, colW - Space.xl, {
       font: 'Helvetica-Bold',
-      size: 6.5,
+      size: PdfType.micro,
       color: C.label,
     });
-    drawText(doc, col.value, cx + 12, y + 24, colW - 24, {
+    drawText(doc, col.value, cx + Space.md, y + Space.md + 6, colW - Space.xl, {
       font: 'Helvetica-Bold',
-      size: 8.5,
+      size: PdfType.bodySm,
       color: C.ink,
       minSize: 6.5,
     });
   });
 
-  return y + barH + 14;
+  return y + barH + Space.lg;
 }
 
 function drawTitleBlock(
@@ -672,30 +470,30 @@ function drawTitleBlock(
   const pill = statusStyle(payment.statusKey);
   const statusLabel = formatCollectionStatus(payment.statusKey);
 
-  drawText(doc, labels.documentTitle, box.left, y + 2, box.width * 0.62, {
+  drawText(doc, labels.documentTitle, box.left, y, box.width * 0.62, {
     font: 'Helvetica-Bold',
-    size: 22,
+    size: PdfType.display,
     color: C.ink,
   });
 
   const pillW = Math.max(96, statusLabel.length * 5.4 + 22);
   const pillX = box.right - pillW;
-  fillRoundRect(doc, pillX, y + 2, pillW, 20, 10, pill.bg);
-  drawText(doc, statusLabel, pillX, y + 7, pillW, {
+  fillRoundRect(doc, pillX, y + Space.xs, pillW, 20, 10, pill.bg);
+  drawText(doc, statusLabel, pillX, y + Space.sm + 1, pillW, {
     font: 'Helvetica-Bold',
-    size: 7.5,
+    size: PdfType.caption,
     color: pill.fg,
     align: 'center',
   });
 
-  y += 28;
-  drawText(doc, labels.documentSubtitle, box.left, y, box.width * 0.9, {
-    size: 7.5,
+  y += Space.xxxl;
+  drawText(doc, labels.documentSubtitle, box.left, y, box.width * 0.92, {
+    size: PdfType.caption,
     color: C.muted,
     wrap: true,
   });
 
-  y += 16;
+  y += Space.xl;
   return drawMetaStrip(doc, box, y, labels, data, orderReferenceBrief);
 }
 
@@ -711,20 +509,20 @@ function drawPartyColumn(
 
   drawText(doc, title, x, y, w, {
     font: 'Helvetica-Bold',
-    size: 8,
+    size: PdfType.caption,
     color: C.brandDeep,
   });
-  strokeHLine(doc, x, x + w, y + 13, C.brandLine);
+  strokeHLine(doc, x, x + w, y + Space.md + 1, C.brandLine);
 
-  let ly = y + 20;
+  let ly = y + Space.xl + 2;
   content.forEach((line, i) => {
     const lh = drawText(doc, line, x, ly, w, {
       font: i === 0 ? 'Helvetica-Bold' : 'Helvetica',
-      size: i === 0 ? 10.5 : 8.5,
+      size: i === 0 ? 10.5 : PdfType.bodySm,
       color: i === 0 ? C.ink : C.subtext,
       wrap: true,
     });
-    ly += lh + (i === 0 ? 5 : 3);
+    ly += lh + (i === 0 ? Space.sm : Space.xs + 1);
   });
 
   return ly - y;
@@ -737,8 +535,8 @@ function drawParties(
   box: PageBox,
   y: number,
 ): number {
-  const pad = 16;
-  const gap = 24;
+  const pad = Space.lg;
+  const gap = Space.xxl;
   const colW = (box.width - pad * 2 - gap) / 2;
   const leftX = box.left + pad;
   const rightX = leftX + colW + gap;
@@ -757,24 +555,24 @@ function drawParties(
     data.buyer.npwp ? `NPWP ${data.buyer.npwp}` : '',
   ].filter(Boolean);
 
-  doc.font('Helvetica').fontSize(8.5);
+  doc.font('Helvetica').fontSize(PdfType.bodySm);
   const measureCol = (lines: string[]) => {
-    let h = 20;
+    let h = Space.xl;
     lines.forEach((line, i) => {
-      h += doc.heightOfString(line, { width: colW }) + (i === 0 ? 5 : 3);
+      h += doc.heightOfString(line, { width: colW }) + (i === 0 ? Space.sm : Space.xs + 1);
     });
     return h;
   };
   const cardH = pad * 2 + Math.max(measureCol(leftLines), measureCol(rightLines), 56);
 
-  fillRoundRect(doc, box.left, y, box.width, cardH, 8, C.white);
-  strokeRoundRect(doc, box.left, y, box.width, cardH, 8, C.line);
-  fillRect(doc, box.left, y + 10, 3, cardH - 20, C.brand);
+  fillRoundRect(doc, box.left, y, box.width, cardH, PdfPage.radius, C.white);
+  strokeRoundRect(doc, box.left, y, box.width, cardH, PdfPage.radius, C.line);
+  fillRect(doc, box.left, y + Space.md, PdfPage.accentRail, cardH - Space.xl, C.brand);
 
   const midX = box.left + box.width / 2;
   doc
-    .moveTo(midX, y + 14)
-    .lineTo(midX, y + cardH - 14)
+    .moveTo(midX, y + Space.md)
+    .lineTo(midX, y + cardH - Space.md)
     .strokeColor(C.line)
     .lineWidth(0.5)
     .stroke();
@@ -783,7 +581,7 @@ function drawParties(
   drawPartyColumn(doc, leftX, contentY, colW, labels.seller, leftLines);
   drawPartyColumn(doc, rightX, contentY, colW, labels.buyer, rightLines);
 
-  return y + cardH + 14;
+  return y + cardH + Space.xl;
 }
 
 function drawLineItemsTable(
@@ -880,7 +678,7 @@ function drawLineItemsTable(
   });
 
   drawTableRowDivider(doc, box, y, true);
-  return { y: y + 10, box };
+  return { y: y + Space.md, box };
 }
 
 function drawPaymentsTableHeader(
@@ -977,22 +775,22 @@ function drawSummaryHero(
   labels: InvoicePdfLabels,
 ): number {
   const payment = resolveInvoicePaymentState(data);
-  const pad = 18;
+  const pad = Space.xl;
   const innerX = box.left + pad;
   const innerW = box.width - pad * 2;
   const statusLabel = formatCollectionStatus(payment.statusKey);
   const pill = statusStyle(payment.statusKey);
   const accentColor = outstandingAmountColor(payment);
-  const heroH = payment.paidInFull ? 68 : 82;
+  const heroH = payment.paidInFull ? 72 : 88;
 
-  fillRoundRect(doc, box.left, y, box.width, heroH, 10, C.brandTint);
-  strokeRoundRect(doc, box.left, y, box.width, heroH, 10, C.brandLine);
-  fillRoundRect(doc, innerX, y + 12, 4, heroH - 24, 2, accentColor);
+  fillRoundRect(doc, box.left, y, box.width, heroH, PdfPage.radius, C.brandTint);
+  strokeRoundRect(doc, box.left, y, box.width, heroH, PdfPage.radius, C.brandLine);
+  fillRoundRect(doc, innerX, y + Space.md, PdfPage.accentRail + 1, heroH - Space.xl, 2, accentColor);
 
   const pillW = Math.max(88, statusLabel.length * 5.2 + 18);
   const pillX = box.right - pad - pillW;
-  fillRoundRect(doc, pillX, y + 12, pillW, 18, 9, pill.bg);
-  drawText(doc, statusLabel, pillX, y + 16, pillW, {
+  fillRoundRect(doc, pillX, y + Space.md, pillW, 18, 9, pill.bg);
+  drawText(doc, statusLabel, pillX, y + Space.md + 4, pillW, {
     font: 'Helvetica-Bold',
     size: 7,
     color: pill.fg,
@@ -1000,36 +798,36 @@ function drawSummaryHero(
   });
 
   if (payment.paidInFull) {
-    drawText(doc, labels.paidInFullTitle, innerX + 12, y + 28, innerW - pillW - 8, {
+    drawText(doc, labels.paidInFullTitle, innerX + Space.md, y + Space.xxl + 2, innerW - pillW - Space.sm, {
       font: 'Helvetica-Bold',
-      size: 22,
+      size: PdfType.display,
       color: C.success,
     });
     drawText(
       doc,
       labels.invoiceTotalLine(money(payment.invoiceTotal)),
-      innerX + 12,
-      y + 52,
-      innerW - 24,
-      { size: 8.5, color: C.muted },
+      innerX + Space.md,
+      y + Space.xxxl + Space.xl,
+      innerW - Space.xxl,
+      { size: PdfType.bodySm, color: C.muted },
     );
   } else {
-    drawText(doc, labels.outstandingBalance, innerX + 12, y + 20, innerW - pillW - 8, {
-      size: 8,
+    drawText(doc, labels.outstandingBalance, innerX + Space.md, y + Space.lg + 2, innerW - pillW - Space.sm, {
+      size: PdfType.caption,
       color: C.subtext,
     });
-    drawMoneyCell(doc, payment.remainingAmount, innerX + 12, y + 32, innerW - pillW - 8, {
+    drawMoneyCell(doc, payment.remainingAmount, innerX + Space.md, y + Space.xxl + 4, innerW - pillW - Space.sm, {
       strong: true,
-      size: 22,
+      size: PdfType.display,
       minSize: 12,
       align: 'left',
       color: accentColor,
     });
-    const barY = y + heroH - 14;
-    drawProgressBar(doc, innerX + 12, barY, innerW - 24, 5, payment.pct);
+    const barY = y + heroH - Space.md - 2;
+    drawProgressBar(doc, innerX + Space.md, barY, innerW - Space.xxl, 5, payment.pct);
   }
 
-  return y + heroH + 14;
+  return y + heroH + Space.lg;
 }
 
 function buildBreakdownRows(
@@ -1157,13 +955,13 @@ function drawSummaryPage(
 
   y = drawSummaryHero(doc, box, y, data, ctx.labels);
 
-  y += 4;
+  y += Space.xs;
   drawText(doc, ctx.labels.breakdownTitle, box.left, y, box.width, {
     font: 'Helvetica-Bold',
     size: 11,
     color: C.ink,
   });
-  drawSummaryBreakdown(doc, box, y + 12, data, ctx.labels);
+  drawSummaryBreakdown(doc, box, y + Space.md, data, ctx.labels);
 }
 
 function drawFooter(
@@ -1191,18 +989,18 @@ function drawFooter(
   const noteW = Math.round(textW * 0.62);
   const textY = footTop + (bodyH - 7.5) / 2 - 0.5;
 
-  drawText(doc, note, textLeft, footTop + 8, noteW, {
+  drawText(doc, note, textLeft, footTop + Space.sm, noteW, {
     size: 7,
     color: C.subtext,
     wrap: true,
     maxHeight: bodyH - 10,
   });
 
-  const metaX = textLeft + noteW + 12;
+  const metaX = textLeft + noteW + Space.md;
   const metaW = textRight - metaX;
   drawText(doc, labels.footerPage(pageNum, pageTotal), metaX, textY, metaW, {
     font: 'Helvetica-Bold',
-    size: 7.5,
+    size: PdfType.caption,
     color: C.ink,
     align: 'right',
   });

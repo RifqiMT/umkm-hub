@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.277 |
 | **Date** | 2026-08-06 |
 | **Format** | Epic → Story → Acceptance criteria (AC) |
 | **Personas** | Sari (owner), Budi (field), Dewi (ops) — see [PERSONAS.md](./PERSONAS.md) |
@@ -108,11 +108,11 @@
 
 ### US-4.3 Bill, invoice, installments & amount due
 **As** Dewi, **I want** to track bill delivery, invoice collection, installments, and PPN-aware amount due, **so that** I know what remains unpaid.  
-**AC:** Bill status/date; invoice collection statuses; installments sum ≤ **amountDue**; remaining/Paid % vs amountDue; unpaid invoice mirrors bill when derived; optional paymentDueDate for delayed payment; `amountDue` from API read DTO; fiscal # auto on PDF when empty; includePpn/fiscalInvoiceNumber are API fields without dedicated order-form editors in v1.
+**AC:** Bill status/date; invoice collection statuses; installments sum ≤ **amountDue**; remaining/Paid % vs amountDue; unpaid invoice mirrors bill when derived; optional paymentDueDate for delayed payment and kontra bon; `amountDue` from API read DTO; fiscal # auto on PDF when empty; includePpn/fiscalInvoiceNumber are API fields without dedicated order-form editors in v1.
 
-### US-4.6 PDF & e-Faktur prep
-**As** Dewi, **I want** to download a printable PDF and e-Faktur prep files for an order, **so that** I can send documents and prepare tax filing.  
-**AC:** Web downloads `GET /orders/:id/invoice/pdf` and `…/fiscal?format=csv|xml`; uses profile invoicing identity + customer NPWP when set; auto invoice number when empty; files are prep aids—not DJP submission.
+### US-4.6 PDF, Kontra bon & e-Faktur prep
+**As** Dewi, **I want** to download a printable invoice PDF, Kontra bon acknowledgment, and e-Faktur prep files for an order, **so that** I can send commercial documents and prepare tax filing.  
+**AC:** Web downloads `GET /orders/:id/invoice/pdf`, `GET /orders/:id/kontra-bon/pdf`, and `…/fiscal?format=csv|xml`; invoice uses profile invoicing identity + customer NPWP when set; auto invoice number when empty; Kontra bon is a two-page goods + payment acknowledgment (page 1: products/stocks/amount summary + signatures; page 2+: full product list + order calculation)—not a tax invoice; fiscal files are prep aids—not DJP submission.
 
 ### US-4.4 Stock shortage UX
 **As** Budi, **I want** clear feedback when a line exceeds stock, **so that** I fix qty before save.  

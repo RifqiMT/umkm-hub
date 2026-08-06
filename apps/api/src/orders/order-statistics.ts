@@ -27,6 +27,7 @@ const PAYMENT_STATUS_KEYS = [
   PaymentStatus.CASH,
   PaymentStatus.CONSIGNMENT,
   PaymentStatus.DELAYED_PAYMENT,
+  PaymentStatus.KONTRA_BON,
 ] as const;
 
 const INVOICE_STATUS_KEYS = [

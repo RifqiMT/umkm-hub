@@ -31,8 +31,23 @@ export const PAYMENT_STATUSES = [
   'CASH',
   'CONSIGNMENT',
   'DELAYED_PAYMENT',
+  'KONTRA_BON',
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/** Payment modes that require an explicit payment due date in the order UX. */
+export const PAYMENT_STATUSES_REQUIRING_DUE_DATE = [
+  'DELAYED_PAYMENT',
+  'KONTRA_BON',
+] as const satisfies ReadonlyArray<PaymentStatus>;
+
+export function paymentRequiresDueDate(
+  status: string | null | undefined,
+): boolean {
+  return (PAYMENT_STATUSES_REQUIRING_DUE_DATE as readonly string[]).includes(
+    status ?? '',
+  );
+}
 
 export const ORDER_STATUSES = [
   'PENDING',

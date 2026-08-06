@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.276 |
 | **Date** | 2026-08-06 |
 
 ---
@@ -85,8 +85,10 @@ Root scripts use `npm --prefix` (not a full Turborepo/pnpm workspace).
 ### Domain modules
 `auth` (legacy + Firebase), `profiles`, `products` (incl. stock-sales), `customers` (incl. order-totals), `orders` (incl. invoice PDF/fiscal + WarehouseSale dual-write), `warehouse` (restock + sold history), `revenue-targets`, `analytics`, `geo`, `export`, `import`, `translate`, `redis`, `prisma`, `health`
 
-### Invoice & fiscal prep
-- `GET /orders/:id/invoice/pdf` — printable PDF (`invoice-pdf.ts`); auto-assigns `fiscalInvoiceNumber` when empty
+### Invoice, Kontra bon & fiscal prep
+- Shared visual system: `pdf-theme.ts` (4pt spacing scale, brand chrome, meta chips, footer)
+- `GET /orders/:id/invoice/pdf` — printable PDF (`invoice-pdf.ts`, template `2026-08-06-v28`); auto-assigns `fiscalInvoiceNumber` when empty
+- `GET /orders/:id/kontra-bon/pdf` — printable Kontra bon (`kontra-bon-pdf.ts`, template `2026-08-06-v6`); page 1 summary + signatures, page 2+ product list & calculation (not a tax invoice)
 - `GET /orders/:id/invoice/fiscal?format=csv|xml` — e-Faktur-oriented **prep** export (`fiscal-invoice.ts`); **not** DJP submission
 - Seller identity from Profile (`businessName`, `npwp`, `isPkp`, `defaultPpnPercent`, `taxInclusive`, `invoicePrefix`)
 - Buyer NPWP from `Customer.npwp` when linked

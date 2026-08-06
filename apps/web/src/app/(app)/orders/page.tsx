@@ -10,7 +10,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, ApiError, downloadOrderFiscalExport, downloadOrderInvoicePdf, saveDownloadedBlob } from '@/lib/api';
+import { api, ApiError, downloadOrderFiscalExport, downloadOrderInvoicePdf, downloadOrderKontraBonPdf, saveDownloadedBlob } from '@/lib/api';
 import { dedupeById } from '@/lib/dedupe-by-id';
 import { ContentSection, EmptyState, FieldLabel, FormSection, PageHeader } from '@/components/PageHeader';
 import { OrderStatisticsSection } from '@/app/(app)/orders/OrderStatisticsSection';
@@ -49,6 +49,7 @@ import {
   INVOICE_STATUSES,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
+  paymentRequiresDueDate,
   calculateMultiLineOrderTotals,
   listProductPacks,
   todayDateInput,
@@ -1026,6 +1027,21 @@ function OrdersPageInner() {
     }
   }
 
+  async function downloadKontraBonPdf(order: Order) {
+    setError('');
+    setLoading(true);
+    try {
+      const { blob, filename } = await downloadOrderKontraBonPdf(order.id);
+      saveDownloadedBlob(blob, filename);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to download Kontra bon PDF',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function downloadFiscalExport(order: Order, format: 'csv' | 'xml') {
     setError('');
     setLoading(true);
@@ -1078,7 +1094,7 @@ function OrdersPageInner() {
         billDate: form.billDate || null,
         invoiceDate: form.invoiceDate || null,
         paymentDueDate:
-          form.paymentStatus === 'DELAYED_PAYMENT' && form.paymentDueDate
+          paymentRequiresDueDate(form.paymentStatus) && form.paymentDueDate
             ? form.paymentDueDate
             : null,
         installments: resolvedInstallmentRows(
@@ -1340,6 +1356,14 @@ function OrdersPageInner() {
                 onClick={() => void downloadPdfInvoice(viewing)}
               >
                 Download PDF
+              </button>
+              <button
+                type="button"
+                className="umkm-btn secondary"
+                disabled={loading}
+                onClick={() => void downloadKontraBonPdf(viewing)}
+              >
+                Download Kontra bon
               </button>
               <button
                 type="button"
@@ -2008,14 +2032,14 @@ function OrdersPageInner() {
                     onChange={(paymentStatus) => {
                       const next: Partial<OrderForm> = { paymentStatus };
                       if (
-                        paymentStatus === 'DELAYED_PAYMENT' &&
+                        paymentRequiresDueDate(paymentStatus) &&
                         !form.paymentDueDate
                       ) {
                         next.paymentDueDate = defaultPaymentDueDate(
                           form.orderDate,
                         );
                       }
-                      if (paymentStatus !== 'DELAYED_PAYMENT') {
+                      if (!paymentRequiresDueDate(paymentStatus)) {
                         next.paymentDueDate = '';
                       }
                       setForm({ ...form, ...next });
@@ -2136,7 +2160,7 @@ function OrdersPageInner() {
                     }
                   />
                 </div>
-                {form.paymentStatus === 'DELAYED_PAYMENT' ? (
+                {paymentRequiresDueDate(form.paymentStatus) ? (
                   <div className="umkm-field">
                     <FieldLabel>Payment due date</FieldLabel>
                     <input
@@ -2147,7 +2171,8 @@ function OrdersPageInner() {
                       }
                     />
                     <p className="umkm-product-meta-line">
-                      When you expect full payment (e.g. NET-30).
+                      When you expect full payment (e.g. NET-30 or kontra bon
+                      visit).
                     </p>
                   </div>
                 ) : null}

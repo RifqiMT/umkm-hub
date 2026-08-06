@@ -20,6 +20,7 @@ describe('status-payment-series', () => {
         CASH: 0,
         CONSIGNMENT: 0,
         DELAYED_PAYMENT: 0,
+        KONTRA_BON: 0,
       },
       paymentOrderCount: 0,
     });

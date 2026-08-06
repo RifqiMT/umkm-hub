@@ -2587,6 +2587,11 @@ const _paymentMixSeries = [
     label: 'Delayed',
     color: Color(0xFF3D6B8F),
   ),
+  _MixSeriesDef(
+    key: 'KONTRA_BON',
+    label: 'Kontra bon',
+    color: Color(0xFF7A4F8F),
+  ),
 ];
 
 class _StackedMixChart extends StatelessWidget {

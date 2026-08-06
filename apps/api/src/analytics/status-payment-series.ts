@@ -30,6 +30,7 @@ const ZERO_PAYMENT_COUNTS: PaymentShares = {
   CASH: 0,
   CONSIGNMENT: 0,
   DELAYED_PAYMENT: 0,
+  KONTRA_BON: 0,
 };
 
 function roundPct(n: number): number {

@@ -452,6 +452,7 @@ type AnalyticsPaymentShares = {
   CASH: number;
   CONSIGNMENT: number;
   DELAYED_PAYMENT: number;
+  KONTRA_BON: number;
 };
 
 type AnalyticsMixShares = {

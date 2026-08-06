@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.277 |
 | **Date** | 2026-08-06 |
 | **Purpose** | Canonical definitions for domain variables, formulas, app locations, and examples |
-| **Code tip aligned** | v1.5.273 |
+| **Code tip aligned** | v1.5.277 |
 | **Money precision** | 4 decimal places in API/DB unless noted |
 
 ---
@@ -380,13 +380,13 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `orderDate` | Order date | Business date of the order | Defaults to today; drives Order.orderId | Order | `2026-07-25` |
 | `shipmentDate` | Shipment date | Planned/actual ship date | Optional | Order View Timeline | `2026-07-26` |
 | `status` | Order status | Fulfillment lifecycle | `PENDING` \| `CONFIRMED` \| `SHIPPED` \| `DELIVERED` \| `CANCELLED` | Order | `PENDING` |
-| `paymentStatus` | Payment terms | Commercial payment mode | `CASH` \| `CONSIGNMENT` \| `DELAYED_PAYMENT` | Order | `CASH` |
+| `paymentStatus` | Payment terms | Commercial payment mode | `CASH` \| `CONSIGNMENT` \| `DELAYED_PAYMENT` \| `KONTRA_BON` | Order | `CASH` |
 | `billStatus` | Bill status | Bill document state | `CREATED` \| `SENT` | Order | `SENT` |
 | `billDate` | Bill date | Bill business date | Optional; defaults to order date on create | Order | `2026-07-25` |
 | `invoiceStatus` | Invoice collection status | Collection state (often derived) | `CREATED` \| `SENT` \| `PARTIALLY_PAID` \| `FULLY_PAID` | Order | `PARTIALLY_PAID` |
 | `invoiceDate` | Invoice date | Invoice business date | Optional; defaults to order date on create | Order | `2026-07-25` |
 | `orderDateFrom` / `orderDateTo` | Order date filter | Inclusive list/summary range on `orderDate` | YYYY-MM-DD; omit = no bound; inverted from/to swapped | `GET /orders`, `GET /orders/summary`, Dashboard Period | `2024-01-01` |
-| `paymentStatus` (filter) | Payment status filter | Restrict list/summary to selected payment terms | Comma-separated `CASH` / `CONSIGNMENT` / `DELAYED_PAYMENT` | `GET /orders`, `GET /orders/summary` | `CASH,CONSIGNMENT` |
+| `paymentStatus` (filter) | Payment status filter | Restrict list/summary to selected payment terms | Comma-separated `CASH` / `CONSIGNMENT` / `DELAYED_PAYMENT` / `KONTRA_BON` | `GET /orders`, `GET /orders/summary` | `CASH,CONSIGNMENT` |
 | `shipmentDateFrom` / `shipmentDateTo` | Shipment date filter | Inclusive list range on `shipmentDate` | Same; excludes null shipment dates when set | `GET /orders` | `2024-06-01` |
 | `invoiceDateFrom` / `invoiceDateTo` | Invoice date filter | Inclusive list range on `invoiceDate` | Same; excludes null invoice dates when set | `GET /orders` | `2024-06-30` |
 | `packSizeSnapshot` | Pack size | Locked pack size on line | From product packs; `1` for PCS | OrderLine | `100` |
@@ -403,7 +403,7 @@ Professional catalog: **variable name**, **friendly name**, **definition**, **fo
 | `amountDue` | Amount due | Invoice total after fiscal breakdown (**computed read DTO**, not a Prisma column) | `computeFiscalBreakdown(totalOrderValue, …).total` via `resolveOrderAmountDue` | Order read DTO; installments; Paid % | `149850` |
 | `computeFiscalBreakdown` | Fiscal DPP/PPN/total | Tax breakdown for PDF/e-Faktur | Non-PKP: DPP=total, PPN=0. Inclusive: DPP=total/(1+r), PPN=total−DPP. Exclusive: DPP=total, PPN=DPP×r, total=DPP+PPN | `fiscal-invoice.ts` | `{ dpp:135000, ppn:14850, total:149850 }` |
 | `fiscalInvoiceNumber` | Fiscal invoice number | Human invoice # on PDF | `PREFIX-YYYYMMDD-XXXXXXXX`; auto on PDF if empty | Order | `INV-20260731-A1B2C3D4` |
-| `paymentDueDate` | Payment due date | When delayed payment is due | Optional date; UX-required for DELAYED_PAYMENT | Order | `2026-08-15` |
+| `paymentDueDate` | Payment due date | When delayed payment / kontra bon is due | Optional date; UX-required for `DELAYED_PAYMENT` and `KONTRA_BON` | Order | `2026-08-15` |
 | `allocateLineRevenue` | Allocated line revenue | Line share of post-discount total | Proportional to lineTotal; last line absorbs drift | `order-math.ts`; Analytics | — |
 | `installment.amount` | Installment amount | Payment recorded | ≥ 0; sum ≤ **amountDue** | OrderInstallment | `54000` |
 | `installmentDate` | Installment date | Payment date | Non-decreasing in list order | OrderInstallment | `2026-08-01` |

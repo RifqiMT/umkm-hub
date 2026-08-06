@@ -1,6 +1,6 @@
 # UMKM Hub API
 
-NestJS REST system of record (`/api/v1`). Docs **v1.5.274** · code tip **v1.5.273**.
+NestJS REST system of record (`/api/v1`). Docs **v1.5.281** · code tip **v1.5.281**.
 
 ## Stack
 
@@ -26,7 +26,7 @@ Local env template: `.env.example` → copy to `.env`. See [docs/ENV-LOCAL.md](.
 - `GET /export?format=json|csv|csv-unified` [& `entity=`]
 - `POST /import?format=json|csv-unified` [& `entity=`]
 - `GET /analytics?years=&include=&granularity=`
-- `GET /orders/:id/invoice/pdf` · `GET /orders/:id/invoice/fiscal?format=csv|xml`
+- `GET /orders/:id/invoice/pdf` · `GET /orders/:id/kontra-bon/pdf` · `GET /orders/:id/invoice/fiscal?format=csv|xml`
 - `GET /products/stock-sales` · `GET /customers/order-totals` · `GET /warehouse/sales`
 - `GET …/summary` — headline rates + embedded **`statistics`**
 - `PATCH /warehouse/:id`

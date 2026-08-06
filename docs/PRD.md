@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.281 |
 | **Date** | 2026-08-06 |
 | **Status** | Implemented |
 | **Owner** | Product + Engineering |
@@ -97,7 +97,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-O1 | Human order code field `Order.orderId` = `YYYY_MM_DD_{uuid}` from order date; regenerates when order date changes. Distinct from UUID primary key |
 | FR-O2 | One or more product lines; show stock & pack price per line |
 | FR-O3 | Each line: product pack (locked price), pack count, derived stock qty, lineTotal; order-level discount; totalOrderValue from sum(lineTotals) after discount |
-| FR-O4 | paymentStatus: cash, consignment, delayed payment |
+| FR-O4 | paymentStatus: cash, consignment, delayed payment, kontra bon |
 | FR-O5 | View, add, and modify only (no delete) |
 | FR-O6 | orderDate (default today), optional shipmentDate |
 | FR-O7 | status: pending, confirmed, shipped, delivered, cancelled; cancelling restores stock for all lines |
@@ -108,10 +108,11 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-O12 | Optional customerId link to CRM customer; unlinked orders remain valid |
 | FR-O13 | Live stock shortage UX: highlight oversold lines and block save until fixed |
 | FR-O14 | List filterable by order date, shipment date, invoice date (inclusive from/to ranges), fulfillment status, and payment status |
-| FR-O15 | Optional paymentDueDate (required in UX when paymentStatus is delayed payment) |
+| FR-O15 | Optional paymentDueDate (required in UX when paymentStatus is delayed payment or kontra bon) |
 | FR-O16 | Authenticated user can download printable PDF invoice: `GET /orders/:id/invoice/pdf` (web primary; auto-assign fiscalInvoiceNumber when empty) |
 | FR-O17 | Authenticated user can download e-Faktur **prep** export: `GET /orders/:id/invoice/fiscal?format=csv|xml` (not DJP submission) |
 | FR-O18 | Order may store `fiscalInvoiceNumber` and `includePpn` (null → profile isPkp); `amountDue` is a **computed read DTO** from fiscal breakdown of `totalOrderValue`. v1 UI: Paid % / installments use amountDue; PDF auto-assigns fiscal # when empty; **no dedicated includePpn / fiscal # editors on the order form** |
+| FR-O19 | Authenticated user can download printable **Kontra bon** PDF: `GET /orders/:id/kontra-bon/pdf` (web primary). Commercial goods + payment acknowledgment (not a tax invoice); available for any order |
 
 ### FR-Warehouse
 
@@ -159,7 +160,7 @@ UMKM sellers track customers and orders across WhatsApp, spreadsheets, and memor
 | FR-A13 | Units Per Transaction (UPT): Σ(packCount) ÷ orders; Performance chart + lens KPI (API field `avgBasketSize`) |
 | FR-A14 | Weekly series: every ISO week in the Timeline filter (selected year(s) or full app timeline when All); day-weighted monthly target distribution + attainment when a 12-month plan exists; **charts omit weeks with zero orders** |
 | FR-A15 | Average purchase frequency (APF): linked orders ÷ distinct customers; Performance chart + lens KPI |
-| FR-A16 | Order status % mix (includes CANCELLED) and payment mode % mix (CASH / CONSIGNMENT / DELAYED_PAYMENT on non-cancelled orders) on weekly/monthly/quarterly/annual timeline charts (web + mobile) |
+| FR-A16 | Order status % mix (includes CANCELLED) and payment mode % mix (CASH / CONSIGNMENT / DELAYED_PAYMENT / KONTRA_BON on non-cancelled orders) on weekly/monthly/quarterly/annual timeline charts (web + mobile) |
 | FR-A17 | Single Graph \| Table control in the Analytics lens / Period header switches all chart panels (web + mobile); table shows the same metric values as the graph |
 | FR-A18 | Fullscreen focuses Analytics chart/table panels only: web Fullscreen API on a stable charts host + chart-first cinema UI with period + Graph/Table toggles, bottom Previous/Next + scrubber; prev/next swaps panels without re-entering FS; mobile immersive with matching controls; Esc/close exits |
 | FR-A19 | Progressive analytics load: `GET /analytics` accepts `include` + `granularity` to skip unused work; clients fetch summary+active series first, then product/customer tables; remaining series on period change; web code-splits Recharts and lazy-mounts panels; mobile lazy-builds charts near the viewport |

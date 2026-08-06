@@ -166,5 +166,5 @@ export function pickOrderStatus(orderDate: Date, today: Date): string {
 }
 
 export function pickPaymentStatus(): string {
-  return pickOne(['CASH', 'CONSIGNMENT', 'DELAYED_PAYMENT']);
+  return pickOne(['CASH', 'CONSIGNMENT', 'DELAYED_PAYMENT', 'KONTRA_BON']);
 }

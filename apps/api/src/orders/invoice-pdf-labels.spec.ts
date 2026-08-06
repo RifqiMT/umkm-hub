@@ -8,6 +8,7 @@ describe('invoice-pdf-labels', () => {
   it('maps payment terms to readable labels', () => {
     expect(formatPaymentTerms('CONSIGNMENT')).toBe('Consignment');
     expect(formatPaymentTerms('DELAYED PAYMENT')).toBe('Delayed payment');
+    expect(formatPaymentTerms('KONTRA_BON')).toBe('Kontra bon');
   });
 
   it('maps collection status to readable labels', () => {

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.281 |
 | **Date** | 2026-08-06 |
 | **Purpose** | Map PRD requirements → API → clients → tests/docs |
 
@@ -55,6 +55,7 @@
 | FR-O16 PDF invoice | `GET /orders/:id/invoice/pdf` | Orders download PDF | — (web-first) | `invoice.service.ts`, `invoice-pdf.ts` |
 | FR-O17 e-Faktur prep | `GET /orders/:id/invoice/fiscal?format=csv\|xml` | Orders fiscal download | — (web-first) | `fiscal-invoice.ts` |
 | FR-O18 amountDue / includePpn / fiscal # | `resolveOrderAmountDue`; Order fields | Paid % / PDF auto # (no form editors) | Order math via amountDue | VARIABLES; PRODUCT |
+| FR-O19 Kontra bon PDF | `GET /orders/:id/kontra-bon/pdf` | Orders download Kontra bon | — (web-first) | `kontra-bon-pdf.ts`, `invoice.service.ts` |
 | FR-W1–W4, W6 Warehouse core | `/warehouse` create/list/get/summary | `/warehouse` | WarehouseScreen | `warehouse-dates.spec.ts` |
 | FR-W5 Warehouse edit | `PATCH /warehouse/:id` (stock delta) | `/warehouse` edit | — (mobile edit deferred) | WarehouseService |
 | FR-W7 Sold ledger write | `OrdersService.drawStockWithSales` / `clearOrderSales` | — | — | Order create/update/cancel tx |
@@ -148,7 +149,7 @@
 | Translate | `/api/v1/translate` | POST `batch` (JWT), `batch-public` |
 | Products | `/api/v1/products` | CRUD + `GET summary` (incl. `statistics`) + **`GET stock-sales`** |
 | Customers | `/api/v1/customers` | CRUD + `GET summary` (incl. `statistics`) + **`GET order-totals`** |
-| Orders | `/api/v1/orders` | create, list, get, patch, `GET summary` (incl. `statistics`); `GET :id/invoice/pdf`; `GET :id/invoice/fiscal` |
+| Orders | `/api/v1/orders` | create, list, get, patch, `GET summary` (incl. `statistics`); `GET :id/invoice/pdf`; `GET :id/kontra-bon/pdf`; `GET :id/invoice/fiscal` |
 | Warehouse | `/api/v1/warehouse` | create, list, get, **patch**, `GET summary` (incl. `statistics`); **`GET sales`**, **`GET sales/:id`** |
 | Revenue targets | `/api/v1/revenue-targets` | years, get/put/delete by year |
 | Analytics | `/api/v1/analytics` | GET `?years=` / `year=` + `include` + `granularity` |

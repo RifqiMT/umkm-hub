@@ -714,7 +714,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: 'analytics.paymentShares',
     label: 'Payment mode mix',
     description:
-      'Percent of active (non-cancelled) orders paid as Cash, Consignment, or Delayed payment for the selected period. Shows how sales are financed over the timeline.',
+      'Percent of active (non-cancelled) orders paid as Cash, Consignment, Delayed payment, or Kontra bon for the selected period. Shows how sales are financed over the timeline.',
     formula:
       '(Orders with payment mode ÷ non-cancelled orders in period) × 100',
     features: ['analytics'],

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.277 |
 | **Date** | 2026-08-06 |
 | **Audience** | Product team, engineering, leadership |
 | **Horizon** | 90-day targets unless noted |

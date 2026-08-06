@@ -226,6 +226,13 @@ export async function downloadOrderInvoicePdf(
   return downloadAuthenticatedFile(`/orders/${orderId}/invoice/pdf`);
 }
 
+/** Printable Kontra bon PDF (goods received + payment acknowledgment). */
+export async function downloadOrderKontraBonPdf(
+  orderId: string,
+): Promise<{ blob: Blob; filename: string }> {
+  return downloadAuthenticatedFile(`/orders/${orderId}/kontra-bon/pdf`);
+}
+
 /** e-Faktur prep export for PKP businesses (CSV or XML). */
 export async function downloadOrderFiscalExport(
   orderId: string,

@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Product** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.277 |
 | **Date** | 2026-08-06 |
 | **Note** | v1 uses a **single profile per tenant**. Field staff (e.g. Budi) act under the owner’s credentials—there is no separate RBAC account. |
 
@@ -68,7 +68,7 @@
 ### Typical scenarios
 1. Open order View → edit lines → confirm totals, amountDue, and remaining balance.
 2. Add installments (40% then 60% of amountDue); verify dates non-decreasing; bill → Sent; invoice derives Partially then Fully paid.
-3. Download PDF invoice and optional e-Faktur CSV/XML prep; cancel a mistaken order and confirm stock restored.
+3. Download PDF invoice, Kontra bon PDF, and optional e-Faktur CSV/XML prep; cancel a mistaken order and confirm stock restored.
 
 ---
 

@@ -10,7 +10,7 @@ Responsive: tablet **NavigationRail**, `showAppViewSheet`, spacing tokens, Analy
 
 **Web-first (API ready):** Targets UI, PDF / e-Faktur download, warehouse restock edit, Stock & sales, Order totals, domain statistics UI, Open order from Sold history.
 
-Docs **v1.5.274**.
+Docs **v1.5.277**.
 
 ```bash
 npm run setup && npm run api:dev

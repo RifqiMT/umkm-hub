@@ -3,7 +3,7 @@
 **Status:** Approved & implemented (v1 scaffold complete)  
 **Approved:** 2026-07-24  
 **Implementation complete through Steps A–E.**  
-**Docs refresh:** 2026-08-06 (v1.5.274)) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
+**Docs refresh:** 2026-08-06 (v1.5.277) — see [CHANGELOG.md](./CHANGELOG.md); living product docs supersede outdated plan snippets where they diverge.
 
 ---
 
@@ -129,7 +129,7 @@ Profile owns all Product, Customer, Order rows (multi-tenant isolation by `profi
 | `discountValue` | decimal | % or absolute amount |
 | `totalOrderValue` | decimal | After discount |
 | `status` | enum | `PENDING`, `CONFIRMED`, `SHIPPED`, `DELIVERED`, `CANCELLED` |
-| `paymentStatus` | enum | `CASH`, `CONSIGNMENT`, `DELAYED_PAYMENT` |
+| `paymentStatus` | enum | `CASH`, `CONSIGNMENT`, `DELAYED_PAYMENT`, `KONTRA_BON` |
 | `createdAt` / `updatedAt` | datetime | |
 
 **Order rules (business logic)**

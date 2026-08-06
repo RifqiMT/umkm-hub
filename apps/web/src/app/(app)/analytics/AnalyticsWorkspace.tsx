@@ -111,6 +111,7 @@ const PAYMENT_GROWTH_SPECS = [
   { key: 'CASH', mode: 'bps' as const },
   { key: 'CONSIGNMENT', mode: 'bps' as const },
   { key: 'DELAYED_PAYMENT', mode: 'bps' as const },
+  { key: 'KONTRA_BON', mode: 'bps' as const },
   { key: 'orderCount', mode: 'pct' as const },
 ] as const;
 
@@ -153,6 +154,7 @@ const PAYMENT_MODE_COLORS: Record<(typeof PAYMENT_STATUSES)[number], string> = {
   CASH: '#0b6b58',
   CONSIGNMENT: '#d97706',
   DELAYED_PAYMENT: '#3d6b8f',
+  KONTRA_BON: '#7a4f8f',
 };
 
 function buildStatusSeries(
@@ -2137,6 +2139,7 @@ export default function AnalyticsWorkspace() {
         CASH: row.paymentShares?.CASH ?? 0,
         CONSIGNMENT: row.paymentShares?.CONSIGNMENT ?? 0,
         DELAYED_PAYMENT: row.paymentShares?.DELAYED_PAYMENT ?? 0,
+        KONTRA_BON: row.paymentShares?.KONTRA_BON ?? 0,
       }));
     return attachPeriodGrowthLabels(points, PAYMENT_GROWTH_SPECS);
   }, [data, granularity]);
@@ -2223,6 +2226,7 @@ export default function AnalyticsWorkspace() {
           CASH: formatTablePct(row.CASH),
           CONSIGNMENT: formatTablePct(row.CONSIGNMENT),
           DELAYED_PAYMENT: formatTablePct(row.DELAYED_PAYMENT),
+          KONTRA_BON: formatTablePct(row.KONTRA_BON),
           orders: formatTableQty(row.orderCount),
         },
       })),
@@ -2420,6 +2424,7 @@ export default function AnalyticsWorkspace() {
           CASH: row.CASH,
           CONSIGNMENT: row.CONSIGNMENT,
           DELAYED_PAYMENT: row.DELAYED_PAYMENT,
+          KONTRA_BON: row.KONTRA_BON,
           orders: row.orderCount,
         })),
       },

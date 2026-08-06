@@ -37,11 +37,11 @@ extension GlossaryFeatureLabel on GlossaryFeature {
       case GlossaryFeature.dashboard:
         return 'Dashboard is your home snapshot. Order numbers follow the period you pick (for example This month). Product and customer numbers stay workspace-wide so you always see catalog and CRM health beside period sales.';
       case GlossaryFeature.products:
-        return 'Products is your sellable catalog. Stage metrics describe how many SKUs you have, what stock would sell for, and how ready the catalog is. The Stock & sales table adds per-product stocks, gross revenue, discount, net revenue, cost, profit, STR, ITR, SSR, orders, AOV, and UPT. Filters on the page also scope these numbers.';
+        return 'Products is your sellable catalog. Stage metrics describe how many SKUs you have, what stock would sell for, and how ready the catalog is. The Stock & sales table adds per-product stocks, revenue (gross + net), discount, cost, profit, STR, ITR, SSR, orders, AOV, and UPT. Filters on the page also scope these numbers.';
       case GlossaryFeature.warehouse:
         return 'Warehouse tracks stock on hand, restocks, and sold history. Valuation metrics estimate sell value, cost, and profit if you sold current inventory. Restock and sold ledgers show quantity before and after each movement, with pack equivalents when a pack is set.';
       case GlossaryFeature.customers:
-        return 'Customers is your B2B CRM pipeline. Stage metrics summarize contacts, approval, interest, closing, promises, and reachability. The Order totals table adds per-customer gross revenue, discounts, net revenue, volume, cancellations, AOV, and UPT for buyers tied to orders.';
+        return 'Customers is your B2B CRM pipeline. Stage metrics summarize contacts, approval, interest, closing, promises, and reachability. The Order totals table adds per-customer revenue (gross + net), discounts, volume, cancellations, AOV, and UPT for buyers tied to orders.';
       case GlossaryFeature.orders:
         return 'Orders is where sales are recorded. Volume metrics count money, orders, and packs from non-cancelled orders. Health rates show cancellations, discounts, payment progress, and estimated margin when product costs exist. List filters also scope the stage summary.';
       case GlossaryFeature.targets:
@@ -690,7 +690,7 @@ const glossaryEntries = <GlossaryEntry>[
     id: 'analytics.paymentShares',
     label: 'Payment mode mix',
     description:
-        'Percent of active (non-cancelled) orders paid as Cash, Consignment, or Delayed payment for the selected period. Shows how sales are financed over the timeline.',
+        'Percent of active (non-cancelled) orders paid as Cash, Consignment, Delayed payment, or Kontra bon for the selected period. Shows how sales are financed over the timeline.',
     formula: '(Orders with payment mode ÷ non-cancelled orders in period) × 100',
     features: [GlossaryFeature.analytics],
     aliases: ['payment distribution', 'payment mix', 'payment mode'],

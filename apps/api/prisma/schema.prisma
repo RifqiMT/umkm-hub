@@ -43,6 +43,7 @@ enum PaymentStatus {
   CASH
   CONSIGNMENT
   DELAYED_PAYMENT
+  KONTRA_BON
 }
 
 enum InvoiceStatus {

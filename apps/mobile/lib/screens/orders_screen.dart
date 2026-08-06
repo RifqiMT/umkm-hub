@@ -33,6 +33,10 @@ String _defaultPaymentDueDate(String orderDate, {int days = 30}) {
   return '${due.year}-$m-$d';
 }
 
+bool _paymentRequiresDueDate(String? status) {
+  return status == 'DELAYED_PAYMENT' || status == 'KONTRA_BON';
+}
+
 bool _isPaymentOverdue(OrderItem order) {
   final due = order.paymentDueDate;
   if (due == null || due.isEmpty) return false;
@@ -1370,10 +1374,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     value: payment,
                     onChanged: (v) => setLocal(() {
                       payment = v ?? payment;
-                      if (payment == 'DELAYED_PAYMENT' &&
+                      if (_paymentRequiresDueDate(payment) &&
                           paymentDueDate.isEmpty) {
                         paymentDueDate = _defaultPaymentDueDate(orderDate);
-                      } else if (payment != 'DELAYED_PAYMENT') {
+                      } else if (!_paymentRequiresDueDate(payment)) {
                         paymentDueDate = '';
                       }
                     }),
@@ -1387,9 +1391,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         value: 'DELAYED_PAYMENT',
                         label: 'Delayed payment',
                       ),
+                      ChoiceOption(
+                        value: 'KONTRA_BON',
+                        label: 'Kontra bon',
+                      ),
                     ],
                   ),
-                  if (payment == 'DELAYED_PAYMENT') ...[
+                  if (_paymentRequiresDueDate(payment)) ...[
                     const SizedBox(height: 8),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1899,7 +1907,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       'billStatus': billStatus,
       'billDate': billDate,
       'invoiceDate': invoiceDate,
-      if (payment == 'DELAYED_PAYMENT' && paymentDueDate.isNotEmpty)
+      if (_paymentRequiresDueDate(payment) && paymentDueDate.isNotEmpty)
         'paymentDueDate': paymentDueDate,
       'installments': installmentsPayload,
     };

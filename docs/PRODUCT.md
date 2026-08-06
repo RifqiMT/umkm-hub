@@ -3,12 +3,12 @@
 | Field | Value |
 |-------|-------|
 | **Product name** | UMKM Hub |
-| **Version** | 1.5.274 |
+| **Version** | 1.5.281 |
 | **Date** | 2026-08-06 |
 | **Status** | Implemented (v1) |
 | **Audience** | Product, engineering, design, operations |
-| **Code tip aligned** | v1.5.273 |
-| **Docs stamp** | 1.5.274 |
+| **Code tip aligned** | v1.5.281 |
+| **Docs stamp** | 1.5.281 |
 
 ---
 
@@ -74,9 +74,9 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 - Multi-line packs; discount; payment terms; status lifecycle; installments
 - **Bill** (CREATED/SENT + billDate) vs **invoice collection** (CREATED/SENT/PARTIALLY_PAID/FULLY_PAID + invoiceDate)
 - Collection status derived vs **`amountDue`** (read DTO from fiscal breakdown; not a DB column)
-- Optional `paymentDueDate` (UX-required for delayed payment)
+- Optional `paymentDueDate` (UX-required for delayed payment and kontra bon)
 - API fields `fiscalInvoiceNumber` / `includePpn` (null → profile `isPkp`); **no dedicated order-form controls in v1** — PDF auto-assigns fiscal # when empty
-- **PDF:** `GET /orders/:id/invoice/pdf` (web); **Fiscal prep:** `…/fiscal?format=csv|xml`
+- **PDF invoice:** `GET /orders/:id/invoice/pdf` (web); **Kontra bon PDF:** `GET /orders/:id/kontra-bon/pdf` (web); **Fiscal prep:** `…/fiscal?format=csv|xml`
 - Summary + **statistics**; feature transfer; pagination max 500_000
 
 ### 3.5 Warehouse
@@ -142,7 +142,7 @@ The product replaces fragmented WhatsApp chats, spreadsheets, and memory with:
 |-------|----------|
 | API base | `/api/v1` |
 | Auth | JWT (legacy) and/or Firebase Auth; register-availability; verify; forgot/reset |
-| Invoice | `GET /orders/:id/invoice/pdf`, `…/fiscal?format=csv\|xml` |
+| Invoice / Kontra bon | `GET /orders/:id/invoice/pdf`, `GET /orders/:id/kontra-bon/pdf`, `…/fiscal?format=csv\|xml` |
 | Insights | `GET /products/stock-sales`, `GET /customers/order-totals`, `GET /warehouse/sales` |
 | Pagination | Default 20; max 500_000 |
 | Cache / limits | Optional Redis/Upstash for throttle + analytics cache |

@@ -35,6 +35,11 @@ import {
   reconcileInvoicePaymentTotals,
   resolveInvoiceSubtotal,
 } from './invoice-totals';
+import {
+  buildKontraBonPdf,
+  type KontraBonDocumentData,
+} from './kontra-bon-pdf';
+import { formatOrderReferenceBrief } from './invoice-order-reference';
 
 type OrderWithRelations = Order & {
   customer: Customer | null;
@@ -252,6 +257,120 @@ export class InvoiceService {
     const document = this.buildDocument(order, profile, invoiceNumber);
     const body = await buildInvoicePdf(document);
     const filename = `${invoiceNumber.replace(/[^\w.-]+/g, '_')}.pdf`;
+    return { body, filename, contentType: 'application/pdf' };
+  }
+
+  private buildKontraBonDocumentNumber(order: OrderWithRelations): string {
+    const brief = formatOrderReferenceBrief(order.orderId || order.id)
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 40);
+    return `KB-${brief}`;
+  }
+
+  private buildKontraBonDocument(
+    order: OrderWithRelations,
+    profile: Profile,
+  ): KontraBonDocumentData {
+    const serialized = serializeOrder(order);
+    const isPkp = this.resolveIncludePpn(order, profile);
+    const fiscal = computeFiscalBreakdown({
+      orderTotal: serialized.totalOrderValue,
+      isPkp,
+      ppnPercent: decimalToNumber(profile.defaultPpnPercent),
+      taxInclusive: profile.taxInclusive,
+    });
+
+    const lineItems =
+      serialized.lines && serialized.lines.length > 0
+        ? serialized.lines.map((line) => {
+            const qty = formatInvoiceQuantityLines({
+              packCount: line.packCount,
+              packSizeSnapshot: line.packSizeSnapshot,
+              productQty: line.productQty,
+              unit: line.unit ?? line.unitSnapshot,
+            });
+            return {
+              description: line.product?.name ?? line.productId,
+              quantityPacks: qty.packs,
+              quantityPackSize: qty.packSize,
+              packCount: line.packCount,
+              productQty: line.productQty,
+              unit: line.unit ?? line.unitSnapshot ?? 'PCS',
+              unitPrice: line.packPriceSnapshot ?? line.price ?? 0,
+              lineTotal: line.lineTotal,
+            };
+          })
+        : (() => {
+            const qty = formatInvoiceQuantityLines({
+              packCount: serialized.packCount,
+              packSizeSnapshot: serialized.packSizeSnapshot,
+              productQty: serialized.productQty,
+              unit: serialized.unit,
+            });
+            return [
+              {
+                description: order.product?.name ?? order.productId,
+                quantityPacks: qty.packs,
+                quantityPackSize: qty.packSize,
+                packCount: serialized.packCount,
+                productQty: serialized.productQty,
+                unit: serialized.unit ?? 'PCS',
+                unitPrice: serialized.packPriceSnapshot ?? serialized.price ?? 0,
+                lineTotal: serialized.lineTotal,
+              },
+            ];
+          })();
+
+    const subtotal = resolveInvoiceSubtotal(lineItems, serialized.lineTotal);
+    const discountAmount = computeOrderDiscountAmount(
+      subtotal,
+      serialized.totalOrderValue,
+    );
+    const discountLabel = formatDiscountLabel(
+      order.discountType,
+      decimalToNumber(order.discountValue),
+    );
+
+    const sellerName =
+      profile.businessName.trim() ||
+      profile.profileName.replace(/_/g, ' ');
+    const buyer = order.customer;
+
+    return {
+      documentNumber: this.buildKontraBonDocumentNumber(order),
+      documentDate:
+        order.orderDate.toISOString().slice(0, 10) ??
+        new Date().toISOString().slice(0, 10),
+      dueDate: order.paymentDueDate?.toISOString().slice(0, 10) ?? null,
+      seller: {
+        name: sellerName,
+        address: profile.businessAddress.trim(),
+        phone: profile.businessPhone.trim(),
+      },
+      buyer: {
+        name: buyer?.name ?? 'Customer',
+        company: buyer?.companyName ?? '',
+        address: [buyer?.address, buyer?.city, buyer?.province, buyer?.country]
+          .filter(Boolean)
+          .join(', '),
+      },
+      orderReference: order.orderId || order.id,
+      paymentTerms: order.paymentStatus,
+      lineItems,
+      lineTotal: subtotal,
+      discountLabel,
+      discountAmount,
+      amountDue: fiscal.total,
+    };
+  }
+
+  /** Printable Kontra bon (goods + payment acknowledgment). Available for any order. */
+  async buildKontraBonPdf(profileId: string, orderId: string) {
+    const { order, profile } = await this.loadOrder(profileId, orderId);
+    const document = this.buildKontraBonDocument(order, profile);
+    const body = await buildKontraBonPdf(document);
+    const filename = `${document.documentNumber.replace(/[^\w.-]+/g, '_')}.pdf`;
     return { body, filename, contentType: 'application/pdf' };
   }
 

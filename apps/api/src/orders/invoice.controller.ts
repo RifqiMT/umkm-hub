@@ -14,6 +14,7 @@ import {
   type AuthUser,
 } from '../common/decorators/current-user.decorator';
 import { INVOICE_PDF_TEMPLATE_VERSION } from './invoice-pdf';
+import { KONTRA_BON_PDF_TEMPLATE_VERSION } from './kontra-bon-pdf';
 import { InvoiceService } from './invoice.service';
 
 @Controller('orders')
@@ -30,6 +31,24 @@ export class InvoiceController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     const file = await this.invoiceService.buildPdf(user.profileId, id);
+    return new StreamableFile(file.body, {
+      type: file.contentType,
+      disposition: `attachment; filename="${file.filename}"`,
+    });
+  }
+
+  /** Download a printable Kontra bon PDF (goods + payment acknowledgment). */
+  @Get(':id/kontra-bon/pdf')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  @Header('X-Kontra-Bon-Template', KONTRA_BON_PDF_TEMPLATE_VERSION)
+  async downloadKontraBonPdf(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const file = await this.invoiceService.buildKontraBonPdf(
+      user.profileId,
+      id,
+    );
     return new StreamableFile(file.body, {
       type: file.contentType,
       disposition: `attachment; filename="${file.filename}"`,

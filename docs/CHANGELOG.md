@@ -1,5 +1,33 @@
 # Changelog — UMKM Hub
 
+## 2026-08-06 — v1.5.281 Shared PDF design system (invoice + Kontra bon)
+**Author:** Auto (Cursor agent)  
+**Impact:** Unified printable PDF visual system (`pdf-theme.ts`): 4pt spacing scale, shared colors/type/chrome/footer helpers. Invoice template `2026-08-06-v28` and Kontra bon `2026-08-06-v6` use proportional gaps between sections, softer meta chips, clearer party cards, and consistent brand chrome for a more professional, simplified layout.
+
+## 2026-08-06 — v1.5.280 Kontra bon PDF two-page layout
+**Author:** Auto (Cursor agent)  
+**Impact:** Kontra bon PDF (template `2026-08-06-v5`) is now two pages: **page 1** summary table (Products · Product stocks · Amount) with parties, acknowledgment, and signatures; **page 2+** full product list (qty, unit price, line amount) plus comprehensive order calculation (subtotal, discount, amount due).
+
+## 2026-08-06 — v1.5.279 Kontra bon PDF redesign (v4)
+**Author:** Auto (Cursor agent)  
+**Impact:** Significant Kontra bon PDF redesign (template `2026-08-06-v4`): simplified single-composition layout — quieter chrome, compact meta chips, unified seller/buyer card, clean item table, one amount-due callout, short acknowledgment + signature lines. Remains one page for typical orders; still not a tax invoice.
+
+## 2026-08-06 — v1.5.278 Kontra bon PDF empty-page fix
+**Author:** Auto (Cursor agent)  
+**Impact:** Fixed blank second page on Kontra bon PDF (template `2026-08-06-v3`): footer text was drawn inside PDFKit’s bottom margin and triggered an auto page-break. Footer now matches invoice (temporarily zero bottom margin while stamping). Short orders stay on one page.
+
+## 2026-08-06 — v1.5.277 Kontra bon PDF visual polish
+**Author:** Auto (Cursor agent)  
+**Impact:** Redesigned Kontra bon PDF (template `2026-08-06-v2`): brand chrome, due-status pill, meta strip, party cards, amount-due hero, adaptive goods table with continuation pages, totals panel, acknowledgment + signature cards, page footers. Friendlier copy; still distinct from tax invoice.
+
+## 2026-08-06 — v1.5.276 Kontra bon PDF download
+**Author:** Auto (Cursor agent)  
+**Impact:** Added printable **Kontra bon** PDF (`GET /orders/:id/kontra-bon/pdf`): goods received + payment acknowledgment with seller/buyer signature blocks. Distinct from tax invoice PDF and e-Faktur prep. Web order sheet gains **Download Kontra bon**; builders in `kontra-bon-pdf.ts` / labels; FR-O19 + TRACEABILITY.
+
+## 2026-08-06 — v1.5.275 Orders payment mode: Kontra bon
+**Author:** Auto (Cursor agent)  
+**Impact:** Added `KONTRA_BON` to `PaymentStatus` (Prisma migration + shared/web enums). Order forms (web + mobile), payment filters, analytics payment-mode mix, PDF payment terms, and glossary include **Kontra bon**. Payment due date is UX-required for both Delayed payment and Kontra bon (`paymentRequiresDueDate`).
+
 ## 2026-08-06 — v1.5.274 Documentation suite refresh (post-1.5.273)
 **Author:** Auto (Cursor agent)  
 **Impact:** Full re-audit vs code tip **v1.5.273**. Documented post-265 UX: mobile list filters parity, filters collapsed by default everywhere, form enum dropdowns + empty numeric drafts, sheet actions at foot. Extended USER_STORIES US-8.6/8.7 + FR-UX9–10 map; DESIGN component table (`OptionSelect`); PLAN Redis optional-v1 (not phase 2); PRODUCT/PERSONAS/mobile README polish. Stamps → **1.5.274**.

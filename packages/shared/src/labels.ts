@@ -35,6 +35,7 @@ export const LABELS = {
     CASH: 'Cash',
     CONSIGNMENT: 'Consignment',
     DELAYED_PAYMENT: 'Delayed payment',
+    KONTRA_BON: 'Kontra bon',
   },
   invoiceStatus: {
     CREATED: 'Not billed yet',

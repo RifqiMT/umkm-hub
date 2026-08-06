@@ -21,7 +21,22 @@ export const PAYMENT_STATUSES = [
   'CASH',
   'CONSIGNMENT',
   'DELAYED_PAYMENT',
+  'KONTRA_BON',
 ] as const;
+
+/** Payment modes that require an explicit payment due date in the order UX. */
+export const PAYMENT_STATUSES_REQUIRING_DUE_DATE = [
+  'DELAYED_PAYMENT',
+  'KONTRA_BON',
+] as const satisfies ReadonlyArray<(typeof PAYMENT_STATUSES)[number]>;
+
+export function paymentRequiresDueDate(
+  status: string | null | undefined,
+): boolean {
+  return (PAYMENT_STATUSES_REQUIRING_DUE_DATE as readonly string[]).includes(
+    status ?? '',
+  );
+}
 export const BILL_STATUSES = ['CREATED', 'SENT'] as const;
 export const INVOICE_STATUSES = [
   'CREATED',
@@ -82,6 +97,7 @@ export const LABELS = {
     CASH: 'Cash',
     CONSIGNMENT: 'Consignment',
     DELAYED_PAYMENT: 'Delayed payment',
+    KONTRA_BON: 'Kontra bon',
   },
   invoiceStatus: {
     CREATED: 'Not billed yet',
